@@ -44,11 +44,17 @@ const PROVIDER_ENV_KEYS: Record<string, string> = {
   'openai-codex': 'OPENAI_API_KEY',
 }
 
+const OAUTH_PROVIDERS = new Set(['openai-codex'])
+
 export function getProviderEnvKey(provider: string): string | undefined {
   return PROVIDER_ENV_KEYS[provider]
 }
 
 export function validateConfig(config: CodelordConfig): void {
+  if (OAUTH_PROVIDERS.has(config.provider)) {
+    return
+  }
+
   if (!config.apiKey) {
     const envHint = getProviderEnvKey(config.provider)
     const envMsg = envHint

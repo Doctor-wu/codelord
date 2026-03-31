@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "bin": {
+    "codelord": "./dist/bin.js"
+  },
   "scripts": {
     "dev": "tsx --env-file=../../.env src/index.ts",
     "build": "tsc",
