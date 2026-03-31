@@ -23,6 +23,9 @@ importers:
 
   agents/coding-agent:
     dependencies:
+      '@agent/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@agent/core':
         specifier: workspace:*
         version: link:../../packages/agent-core
