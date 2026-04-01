@@ -1,9 +1,10 @@
+import { readFileSync } from 'node:fs'
 import { getModels } from '@mariozechner/pi-ai'
 import type { Api, Model } from '@mariozechner/pi-ai'
 import { bashTool, createBashToolHandler, runAgent } from '@agent/core'
 import type { CodelordConfig } from '@agent/config'
 import { resolveApiKey } from '../auth/index.js'
-import { PlainTextRenderer, TUIRenderer } from '../renderer/index.js'
+import { InkRenderer, PlainTextRenderer } from '../renderer/index.js'
 import type { Renderer } from '../renderer/index.js'
 
 const SYSTEM_PROMPT = `You are a coding agent. You can execute bash commands to explore codebases, read files, run tests, and help debug issues.
@@ -14,6 +15,13 @@ When investigating code:
 3. If asked to fix something, explain what you found and suggest changes
 
 Always explain your reasoning before executing commands.`
+
+function readVersion(): string {
+  const packageJson = JSON.parse(
+    readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'),
+  ) as { version: string }
+  return packageJson.version
+}
 
 function resolveModel(config: CodelordConfig): Model<Api> {
   const models = getModels(config.provider as never) as Model<Api>[]
@@ -30,29 +38,17 @@ function resolveModel(config: CodelordConfig): Model<Api> {
   return model
 }
 
-function createRenderer(plain?: boolean): Renderer {
+function createRenderer(config: CodelordConfig, plain?: boolean): Renderer {
   if (plain || !process.stdout.isTTY || !process.stdin.isTTY) {
     return new PlainTextRenderer()
   }
 
-  const renderer = new TUIRenderer()
-  renderer.start()
-  renderer.getTui().addInputListener((data) => {
-    if (data === 'q' || data === '\x1b' || data === '\x03') {
-      renderer.stop()
-      process.exit(0)
-    }
-    return undefined
+  return new InkRenderer({
+    provider: config.provider,
+    model: config.model,
+    version: readVersion(),
+    maxSteps: config.maxSteps,
   })
-  return renderer
-}
-
-function cleanupRenderer(renderer: Renderer): void {
-  renderer.cleanup()
-
-  if (renderer instanceof TUIRenderer) {
-    renderer.getTui().requestRender()
-  }
 }
 
 export async function runAgentCommand(
@@ -60,7 +56,7 @@ export async function runAgentCommand(
   config: CodelordConfig,
   options: { plain?: boolean } = {},
 ): Promise<void> {
-  const renderer = createRenderer(options.plain)
+  const renderer = createRenderer(config, options.plain)
 
   try {
     const model = resolveModel(config)
@@ -88,6 +84,6 @@ export async function runAgentCommand(
       onEvent: (event) => renderer.onEvent(event),
     })
   } finally {
-    cleanupRenderer(renderer)
+    renderer.cleanup()
   }
 }
