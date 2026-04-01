@@ -182,6 +182,17 @@ agents/
 - [ ] 对 bash tool 执行结果做简单 counter：attempts / successes / failures（按操作类型分）
 - [ ] 重点关注 **编辑类操作** 的成功率——这是单 bash 哲学的核心风险点
 
+### 轻量 Tracing（从 M2 前置）
+
+> 从 M2 前置到 M1 的最小 tracing。目的：M1 dogfooding 时有 trace 可看，不靠肉眼盯 TUI。
+> M2 在此基础上加 cost tracking、trace CLI、eval 框架等更重的能力。
+
+- [ ] 定义最小 Trace 数据模型：每次 run 产出一个 JSON 文件，记录 `{ runId, timestamp, steps: [{ type: 'llm_call' | 'tool_exec', ... }] }`
+- [ ] 每个 LLM call 记录：model / stop reason / latency（token 计数暂不做，M2 补上）
+- [ ] 每个 tool call 记录：tool name / args（截断）/ exit code / duration / is_error
+- [ ] Trace 自动写入 `~/.codelord/traces/` 目录，按 run 存储
+- [ ] 不做 trace CLI 查看（M2 做），dogfooding 时直接 `cat` / `jq` 看 JSON
+
 > **🧠 你不知道你不知道的：**
 >
 > - **System prompt v1 会很粗糙，这是对的。** 你现在还不知道 prompt 里哪些模式真正有效。手写一版先跑起来，积累体感，为后续 skill 系统提供设计直觉。
@@ -189,8 +200,10 @@ agents/
 > - **安全不能等。** 从 M1 起每天用 agent 执行 bash，一次 `rm -rf` typo 损失几小时工作。
 > - **Bash output 比专用工具更 noisy。** 后续通过 skill 教 agent 用更精确的命令（如 `ls -1` 而不是 `ls -la`），但 v1 先不管。
 > - **从 M1 起就用声明式风险标签而不是黑名单。** Claude Code 的安全模型是分层的——每个 tool 声明 `isReadOnly()` / `isDestructive()`，再叠加全局 permission rules。如果 M1 用黑名单，M6 就得推翻重来。声明式标签是可叠加的：M1 只做 pattern matching，M6 加 LLM 辅助分类，结构不变。
+> - **Observability 不能等到出问题再加。** 在分布式系统领域，logging 是第一天就有的基础设施。Agent 的情况更极端——它的"调用栈"是自然语言推理，你没法用 debugger 设断点、没法事后复现。M1 dogfooding 时，如果没有 trace，你只能盯着 TUI 输出猜 agent 为什么做了错误决策。有了 trace JSON，你可以事后回溯"第 3 步它看到了什么 tool result，为什么第 4 步选了错误的命令"。
+> - **M1 的 trace 故意做得很粗糙，这是对的。** 此时你还不知道 trace 里需要哪些字段。先跑起来，dogfooding 一周后你会发现"缺了 token count"、"tool result 截断太狠看不到关键信息"——这些发现正好驱动 M2 的 trace 升级。如果一开始就设计完美的 trace schema，大概率会过度设计。
 
-**✅ 完成标志：** `codelord` 启动进入交互式 REPL，多轮对话读代码、改代码、搜索代码。危险命令被拦截，loop 有硬上限。Dogfooding 一天，记录 3 个最大痛点。
+**✅ 完成标志：** `codelord` 启动进入交互式 REPL，多轮对话读代码、改代码、搜索代码。危险命令被拦截（声明式风险标签），loop 有硬上限。每次 run 自动产出 trace JSON。Dogfooding 一天，记录 3 个最大痛点。
 
 ---
 
@@ -204,7 +217,9 @@ agents/
 
 ### 结构化 Trace
 
-- [ ] 定义 Trace 数据模型：`Run → Step → (LLMCall | ToolExecution)`
+> M1 已建立最小 tracing（per-run JSON）。此阶段升级为生产级结构化 trace。
+
+- [ ] 从 M1 的 flat JSON 升级为层次化数据模型：`Run → Step → (LLMCall | ToolExecution)`，支持嵌套（为 M7 subagent trace 预留）
 - [ ] 每个 LLM call 记录：model / input tokens / output tokens / latency / stop reason
 - [ ] 每个 tool call 记录：tool name / args / result (truncated) / duration / is_error
 - [ ] **记录当前 system prompt 版本**（hash 或 tag），让 trace 与 prompt 版本绑定
@@ -261,6 +276,18 @@ agents/
 - [ ] 定义评分 rubric（task completion / reasoning quality / code quality）
 - [ ] 跑几轮对比 LLM judge 分数和人工判断的一致性
 
+### Eval 统计方案（处理非确定性）
+
+> LLM 输出非确定性意味着 eval 天然 flaky。这里建立统计方法来区分"真的变好了"和"方差波动"。
+
+- [ ] 每个 eval case 跑 N 次（N ≥ 5），记录 pass rate 而不是 single pass/fail
+- [ ] **pass@k 指标**：k 次里至少 1 次成功的概率。用于衡量 agent 的"能力上限"（能不能做到）vs "可靠性"（每次都做到）
+- [ ] **Prompt 版本对比**：同一组 eval case 在新旧两个 prompt 版本下各跑 N 次，用 paired difference 判断是否有显著提升
+  - 简单方案：每个 case 的 pass rate 差值，看平均差值是否大于某个阈值（如 10%）
+  - 进阶方案：用 bootstrap resampling 或 paired t-test（如果 N 够大）
+- [ ] **结果报告格式**：`case_name | pass_rate_v1 | pass_rate_v2 | delta | significant?`
+- [ ] 明确定义"显著提升"的门槛：总体 pass rate 提升 ≥ 10% 且没有任何 case 的 pass rate 下降 > 20%（避免"总分提了但某个场景崩了"）
+
 ### Trace ↔ Eval 闭环验证
 
 - [ ] 用 2-3 个手写 eval case 端到端跑通：执行 agent → 产出 trace → eval 消费 trace → 输出 score
@@ -275,6 +302,10 @@ agents/
 > - **Eval 的 flaky 问题。** LLM 输出非确定性，同一个 case 跑 5 次可能 3 pass 2 fail。成熟 eval 会跑多次取统计量（pass@k）。
 > - **Prompt 版本追踪是隐藏刚需。** 在单 bash 哲学下 system prompt 就是能力天花板。每次 eval run 绑定 prompt 版本，才能回答"是改好了还是改坏了"。
 > - **PlainTextRenderer 在这里拿到第一个非 trivial 消费者。** Eval runner 需要 headless 运行 agent、trace viewer 需要格式化输出——这些都走 PlainTextRenderer，验证 M0 的抽象是否到位。
+> - **M1 的粗糙 trace 和 M2 的结构化 trace 之间有一次 schema migration。** 不要试图向后兼容 M1 的 JSON 格式。M1 的 trace 是 throwaway 的探索数据，M2 是正式格式。直接换掉，旧 trace 保留但不做自动迁移。
+> - **Eval 的 flaky 不是 bug，是 LLM 的本质特性。** 同一个 prompt + 同一个 input，temperature > 0 时每次输出不同。即使 temperature = 0，不同 provider 的实现也可能有微小差异。所以 eval 的基本单位不是 pass/fail，而是 pass rate。
+> - **pass@k 和 pass rate 衡量的是不同东西。** pass@1 ≈ 可靠性（用户跑一次就成功的概率），pass@5 ≈ 能力上限（给 5 次机会至少成功一次）。一个 skill 可能把 pass@1 从 40% 提到 60%（可靠性提升），同时 pass@5 保持 95%（能力上限没变）。这意味着 skill 的价值是"让 agent 更稳定"而不是"让 agent 能做新的事"。
+> - **统计检验不需要很复杂。** 在 eval case 数量少（5-10 个）、每个跑 5 次的情况下，不需要 p-value 和假设检验这些重型工具。看 paired pass rate difference 的分布就够了——如果 8 个 case 里有 6 个提升、2 个持平，这就是一个清晰的信号。正式的统计检验等 eval suite 扩大到 50+ case 后再引入。
 
 **✅ 完成标志：** 每次 run 自动产出 trace JSON。`codelord trace list/show` 可用。`codelord eval run` 一行命令跑完 eval suite 输出 score 报告。改了 prompt 后 `codelord eval compare` 能看到分数变化。
 
@@ -326,7 +357,7 @@ agents/
 
 ---
 
-## M4 — Skills System
+## M4 — Skills System（分两阶段）
 
 > **这是 codelord 的灵魂 milestone。**
 >
@@ -335,21 +366,33 @@ agents/
 >
 > 经过 M1-M3 的手写 prompt 和 dogfooding，你已经积累了足够的直觉来设计好的 skill 抽象。
 
-### Skill 抽象：文件驱动
+> **分阶段策略：** M4 拆为两个子阶段。M4a 验证核心抽象——skill 能加载、能注入 prompt、能 A/B eval。M4b 加入复杂机制——条件激活、动态发现、参考文件按需加载。这样 M4a 结束时就能回答"skill 系统这条路走得通吗"，不用等所有机制就位。
 
-核心决策：**Skill = `SKILL.md` 文件 + YAML frontmatter 元数据**，不是 TS 代码模块。
+### M4a — Skill 核心抽象
+
+> 验证文件驱动 skill 的核心假设：SKILL.md 能被正确解析、注入 prompt、通过 eval 证明价值。
 
 - [ ] Skill 格式定义：每个 skill 是一个目录 `skills/<skill-name>/SKILL.md`
-  - Frontmatter 声明：`name`、`description`、`when_to_use`、`allowed_tools`、`paths`（条件激活 glob pattern）
+  - Frontmatter 声明：`name`、`description`、`when_to_use`、`allowed_tools`
   - Markdown 正文 = prompt fragment
-  - 可选附带参考文件（同目录下的其他文件，agent 可按需 Read）
-- [ ] Skill 注册表：agent 启动时扫描 `~/.codelord/skills/` + 项目目录 `.codelord/skills/` 并注册
-- [ ] **条件激活引擎**：
-  - 无 `paths` 的 skill → 无条件加载
-  - 有 `paths` 的 skill → 存入待激活池，当 agent 操作匹配路径的文件时才激活（gitignore 风格 pattern matching）
-- [ ] **文件操作触发的动态发现**：agent 读/写文件时，向上遍历目录查找 `.codelord/skills/`，发现新 skill 目录后动态加载（只发现 cwd 以下的嵌套 skill，cwd 级别的在启动时已加载）
-- [ ] **Prompt 组装引擎**：多个 skill 同时激活时的优先级、排列策略、context budget 分配
+- [ ] Skill 注册表：agent 启动时扫描 `~/.codelord/skills/` + 项目目录 `.codelord/skills/` 并注册所有 skill（此阶段全部无条件加载）
+- [ ] **Prompt 组装引擎 v1**：多个 skill 的 prompt fragment 按固定顺序拼接到 system prompt。context budget 上限控制（超出时警告，不自动裁剪）
+- [ ] Frontmatter 解析器（YAML frontmatter + markdown body 分离）
+- [ ] **A/B eval 验证**：同一组 eval case，skill 开启 vs 关闭，对比 pass rate 差异。这是 M4a 的核心产出——用数据证明 skill 系统有价值。
+
+### M4b — 条件激活 & 动态发现
+
+> 在 M4a 证明 skill 有价值后，加入复杂的激活和发现机制。
+
+- [ ] Frontmatter 扩展：加入 `paths` 字段（gitignore 风格 glob pattern）
+- [ ] **条件激活引擎**：有 `paths` 的 skill 存入待激活池，当 agent 操作匹配路径的文件时才激活
+- [ ] **文件操作触发的动态发现**：agent 读/写文件时，向上遍历目录查找 `.codelord/skills/`，发现新 skill 目录后动态加载
 - [ ] **参考文件按需加载**：skill 目录下的额外文件不注入 context，prompt 前加 `Base directory for this skill: <dir>`，agent 需要时自己 Read/Grep
+- [ ] Skill 间依赖声明（如 typescript-project 依赖 node-project）
+- [ ] **Prompt 组装引擎 v2**：context budget 智能分配——优先级高的 skill 先占 budget，低优先级的在 budget 不足时降级（只注入 description，不注入完整 prompt）
+- [ ] Skill activation 准确率 eval（是否在正确的项目类型下激活了正确的 skill）
+
+> 以下内置 skills 在 M4a 阶段以无条件加载方式引入，M4b 阶段加入条件激活。
 
 ### 内置 Skills——行为模式类
 
@@ -367,15 +410,9 @@ agents/
 - [ ] **git-workflow** — commit 规范、branch 策略、PR 描述生成
 - [ ] **python-project** — pytest / pip / venv 的 bash 命令模式（验证 skill 系统的语言无关性）
 
-### Skill 生命周期
-
-- [ ] 动态加载：运行时根据 cwd 变化重新检测并切换 skill
-- [ ] Skill 间依赖：typescript-project 依赖 node-project
-- [ ] Context budget 管理：多个 skill 的 prompt fragment 总量不超过 context 预算
-
 ### Skill 的 Eval
 
-- [ ] **A/B eval：** 同一组 eval case，skill 开启 vs 关闭，对比分数差异
+- [ ] **A/B eval（M4a 核心产出）：** 同一组 eval case，skill 开启 vs 关闭，对比 pass rate 差异（使用 M2 的统计方案）
 - [ ] 验证单个 skill 的 ROI（它占了多少 context budget，带来了多少 eval 分数提升）
 - [ ] Skill activation 准确率 eval（是否在正确的项目类型下激活了正确的 skill）
 
@@ -391,6 +428,8 @@ agents/
 > - **条件激活解决了 context 浪费问题。** 一个 monorepo 里可能有 20 个技术栈的 skill，但一次任务只涉及 2-3 个目录。paths 条件激活让 skill 只在真正需要时才占用 context budget。
 > - **参考文件按需加载是 context budget 的杠杆。** Skill 的 prompt fragment 只放核心指令（几百 token），详细的 best practices、示例代码放在参考文件里。agent 自行判断是否需要读。这比把所有内容塞进 system prompt 高效得多。
 > - **动态发现让 skill 可以是项目内嵌的。** 团队可以在 `src/payments/.codelord/skills/payment-patterns/SKILL.md` 放一个支付模块专用的 skill。agent 第一次操作 `src/payments/` 下的文件时自动发现。这是 Claude Code 实际在用的模式。
+> - **M4a 的 A/B eval 结果决定了 M4b 是否值得做。** 如果 M4a 的无条件 skill 加载已经带来了显著的 eval 提升，那条件激活只是优化 context budget 的问题（值得做但不急）。如果 M4a 的提升不明显，你需要先回头审视 skill 的内容质量，而不是急着加复杂的激活机制。
+> - **拆分的另一个好处是降低 debug 难度。** M4a 出问题时，原因只有三个：frontmatter 解析错了、prompt 组装顺序不对、skill 内容写得不好。M4b 出问题时，还要额外考虑激活条件是否正确、动态发现是否触发、依赖是否解析对。分开做意味着分开 debug。
 
 **✅ 完成标志：** Skill 系统端到端工作。在 TS 和 Python 项目目录下 agent 自动加载不同 skill 集。Planning、self-verification 作为 skill 可开关。A/B eval 证明 skill 带来了 eval 分数提升。
 
@@ -536,7 +575,8 @@ M0 架构重整 & CLI 骨架         ──→ ✅ 已完成
 M1 交互式Agent+基础安全        ──→ 🎉 日常能用了，从第一天起不裸奔
 M2 Tracing & Eval              ──→ 🔍📊 能看清agent + 有度量基线
 M3 Agent Core 加固             ──→ ⚙️  引擎本身更强了（context/error/model routing）
-M4 Skills System               ──→ 🧠🎉 灵魂 milestone：agent 通过 skill "变聪明"
+M4a Skill 核心抽象              ──→ 🧠 skill 能加载了，A/B eval 证明有价值
+M4b 条件激活 & 动态发现         ──→ 🎉 完整 skill 系统：按需激活，嵌套发现
 M5 MCP Client                  ──→ 🔌 能接外部工具生态了
 M6 Guardrails（高级）           ──→ 🛡️ 生产级安全性
 M7 A2A & Multi-Agent           ──→ 🤝 多 agent + 不同 skill = 专业分工
