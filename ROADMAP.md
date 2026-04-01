@@ -55,7 +55,7 @@
 
 ---
 
-## M0 — 架构重整 & CLI 骨架
+## ~~M0 — 架构重整 & CLI 骨架~~ ✅ 已完成
 
 > 把原型代码重构为可分发的生产级架构。
 > **这个 milestone 之后，每个后续 milestone 的产出都是一个可直接 `codelord "xxx"` 运行的 CLI。**
@@ -89,52 +89,46 @@ agents/
 
 ### packages/config
 
-- [ ] 统一配置解析，优先级：CLI flags > 环境变量 > `~/.codelord/config.toml` > 内置默认值
-- [ ] 核心配置项：
+- [x] 统一配置解析，优先级：CLI flags > 环境变量 > `~/.codelord/config.toml` > 内置默认值
+- [x] 核心配置项：
   - `provider`：LLM provider 选择（openai / anthropic / openai-codex / ...）
   - `model`：模型名称
   - `apiKey`：API key（支持从环境变量读取，如 `OPENAI_API_KEY`、`ANTHROPIC_API_KEY`）
   - `maxSteps`：agent 单次 run 的最大步数
   - `bash.timeout`：bash 命令超时
   - `bash.maxOutput`：bash 输出截断长度
-- [ ] 配置验证：缺少必填项时给出清晰的错误提示（"请设置 OPENAI_API_KEY 或在 ~/.codelord/config.toml 中配置 apiKey"）
-- [ ] `codelord init`：交互式引导用户创建 `~/.codelord/config.toml`（选择 provider → 输入 API key → 选择默认 model）
+- [x] 配置验证：缺少必填项时给出清晰的错误提示（"请设置 OPENAI_API_KEY 或在 ~/.codelord/config.toml 中配置 apiKey"）
+- [x] `codelord init`：交互式引导用户创建 `~/.codelord/config.toml`（选择 provider → 输入 API key → 选择默认 model）
 
 ### coding-agent CLI 化
 
-当前问题：`tsx src/index.ts "message"` 启动，`process.argv[2]` 取参数，没有 --help，.env 依赖写死在 package.json scripts 里。
-
-- [ ] 添加 `bin` 字段到 package.json，注册 `codelord` 命令
-- [ ] CLI 命令结构（用轻量 CLI 解析库或手写，不需要 commander/yargs 这种重型框架）：
+- [x] 添加 `bin` 字段到 package.json，注册 `codelord` 命令
+- [x] CLI 命令结构（使用 `cac` 轻量 CLI 库）：
   - `codelord "message"` — 主命令，启动 agent 执行任务（后续 M1 升级为交互式 REPL）
   - `codelord init` — 初始化配置
-  - `codelord config` — 查看/编辑当前配置
+  - `codelord config` — 查看当前配置
   - （M2 加入）`codelord trace list / show`
   - （M2 加入）`codelord eval run / compare`
-- [ ] CLI 入口负责：解析参数 → 加载 config → 构造 model → 创建 agent → 选择 output renderer → 运行
-- [ ] `npm link` 或 `pnpm link` 后能直接在任意目录下 `codelord "xxx"` 使用
+- [x] CLI 入口负责：解析参数 → 加载 config → 构造 model → 创建 agent → 选择 output renderer → 运行
+- [x] `pnpm link` 后能直接在任意目录下 `codelord "xxx"` 使用
 
 ### Output 抽象
 
-当前问题：TUI setup、markdown 渲染、status bar、event handling 全混在 index.ts 一个文件里。
-
-- [ ] 定义 `OutputRenderer` 接口：消费 `AgentEvent` stream，负责渲染
-- [ ] 实现两个 renderer：
-  - `TUIRenderer`：当前的 pi-tui 渲染逻辑，提取为独立模块
+- [x] 定义 `Renderer` 接口：消费 `AgentEvent` stream，负责渲染
+- [x] 实现两个 renderer：
+  - `TUIRenderer`：pi-tui 渲染逻辑，提取为独立模块（Markdown 渲染 + 状态栏）
   - `PlainTextRenderer`：纯文本输出到 stdout，用于非交互场景（CI / eval / pipe）
-- [ ] CLI flag 控制：`--plain` 强制使用 PlainTextRenderer，默认检测 TTY 自动选择
-- [ ] 后续 M2 的 trace 查看、eval 报告都通过 renderer 输出，不用重新造轮子
+- [x] CLI flag 控制：`--plain` 强制使用 PlainTextRenderer，默认检测 TTY 自动选择
+- [x] 后续 M2 的 trace 查看、eval 报告都通过 renderer 输出，不用重新造轮子
 
 ### Auth 去重 & 泛化
 
-当前问题：`getApiKey()` + credential 持久化逻辑在 playground.ts 和 coding-agent 里 copy-paste，且和 OpenAI Codex OAuth 绑死。
-
-- [ ] Auth 逻辑收归 coding-agent 的 `auth/` 模块（不放 agent-core，auth 不是引擎的事）
-- [ ] 按 provider 分策略：
+- [x] Auth 逻辑收归 coding-agent 的 `auth/` 模块（不放 agent-core，auth 不是引擎的事）
+- [x] 按 provider 分策略：
   - API key 类（Anthropic / OpenAI 标准）：从 config 读取，无需 OAuth
   - OAuth 类（OpenAI Codex）：保持 OAuth flow，credential 存 `~/.codelord/credentials.json`
-- [ ] config 中配置 provider 后，auth 模块自动选择对应策略
-- [ ] 所有 credential 文件统一存储在 `~/.codelord/` 下，不再散落在项目目录里
+- [x] config 中配置 provider 后，auth 模块自动选择对应策略
+- [x] 所有 credential 文件统一存储在 `~/.codelord/` 下，不再散落在项目目录里
 
 > **🧠 你不知道你不知道的：**
 >
@@ -177,7 +171,8 @@ agents/
 
 ### 基础安全网
 
-- [ ] Bash 命令黑名单拦截（`rm -rf /`、fork bomb 等破坏性 pattern）
+- [ ] **声明式命令风险标签**：每个 bash command pattern 标记为 `safe`（读取类，如 ls/cat/find）/ `write`（文件修改类，如 sed/tee/cp）/ `dangerous`（破坏性操作，如 rm -rf/fork bomb）。用 pattern matching 分类，为 M6 的 LLM 辅助分级预留接口
+- [ ] `dangerous` 操作拦截（M6 升级为人类审批），`safe` 操作静默放行，`write` 操作默认放行但记录
 - [ ] 敏感路径保护（`~/.ssh`、`/etc` 等关键目录写入需确认）
 - [ ] Git 高危操作保护（force push / branch delete / reset --hard 需确认）
 - [ ] max_steps 硬上限（防止 agent loop 失控）
@@ -193,6 +188,7 @@ agents/
 > - **不要在 v1 的 prompt 里塞太多"聪明"的行为。** Planning、self-verification 这些后面由 skill 提供。v1 保持简单——告诉 agent 它有 bash，怎么用就够了。
 > - **安全不能等。** 从 M1 起每天用 agent 执行 bash，一次 `rm -rf` typo 损失几小时工作。
 > - **Bash output 比专用工具更 noisy。** 后续通过 skill 教 agent 用更精确的命令（如 `ls -1` 而不是 `ls -la`），但 v1 先不管。
+> - **从 M1 起就用声明式风险标签而不是黑名单。** Claude Code 的安全模型是分层的——每个 tool 声明 `isReadOnly()` / `isDestructive()`，再叠加全局 permission rules。如果 M1 用黑名单，M6 就得推翻重来。声明式标签是可叠加的：M1 只做 pattern matching，M6 加 LLM 辅助分类，结构不变。
 
 **✅ 完成标志：** `codelord` 启动进入交互式 REPL，多轮对话读代码、改代码、搜索代码。危险命令被拦截，loop 有硬上限。Dogfooding 一天，记录 3 个最大痛点。
 
@@ -309,6 +305,7 @@ agents/
 - [ ] 定义 tool result 的处理管线：raw output → truncation → structured extraction → injection to context
 - [ ] 错误输出的结构化提取（从长 stack trace 中提取关键错误信息）
 - [ ] 管线可配置（不同 skill 可以定义自己的 result 处理规则——为 M4 预留接口）
+- [ ] **溢出到磁盘 + context 摘要指针**：tool result 超过阈值时，完整输出写入临时文件（`~/.codelord/tool-outputs/`），context 里只放截断预览 + 文件路径。agent 需要详细信息时可以 `cat` 回来。信息不丢失，context 不浪费。
 
 ### Model Routing v1
 
@@ -323,6 +320,7 @@ agents/
 > - **Tool result 处理管线是 skill 系统的前置依赖。** 不同 skill 对 tool result 的处理需求不同（TS 的 type error 和 Python 的 traceback 需要不同的结构化提取）。先在 core 建好可扩展的管线，M4 的 skill 才能插入自己的处理逻辑。
 > - **Error recovery 的"机械层 vs 策略层"区分很重要。** Core 负责：检测到 tool 失败 → 把错误信息放回 context → 让 LLM 重新决策。Skill 负责：在 prompt 里教 LLM "如果 sed 编辑失败了，试试用 cat << EOF 全量重写"。前者是基础设施，后者是 opinion。
 > - **Model routing 是 cost 控制的杠杆。** 一直用 Opus 级别 cost 受不了，一直用 Sonnet 级别能力不够。
+> - **"截断"和"溢出到磁盘"是两种完全不同的策略。** 截断意味着信息丢失——agent 永远看不到被砍掉的部分。溢出到磁盘意味着信息还在，agent 按需取回。Claude Code 用的就是后者：tool result 超过 `maxResultSizeChars` 时写文件，context 里留 preview + path。这对长 stack trace、大文件 ls 输出这些场景非常关键。
 
 **✅ 完成标志：** Context 不再粗暴截断。Error recovery 机制端到端工作。Tool result 有可扩展的处理管线。Model 可在 REPL 中切换。Eval 分数相比 M2 基线有提升（纯 core 加固带来的提升）。
 
@@ -337,13 +335,21 @@ agents/
 >
 > 经过 M1-M3 的手写 prompt 和 dogfooding，你已经积累了足够的直觉来设计好的 skill 抽象。
 
-### Skill 抽象
+### Skill 抽象：文件驱动
 
-- [ ] 定义 Skill 接口：`{ name, description, promptFragment, bashPatterns, activationCondition, resultProcessors? }`
-- [ ] Skill 注册表：agent 启动时扫描并注册所有可用 skill
-- [ ] 激活条件引擎：根据项目特征（语言、框架、文件存在性）自动激活对应 skill
+核心决策：**Skill = `SKILL.md` 文件 + YAML frontmatter 元数据**，不是 TS 代码模块。
+
+- [ ] Skill 格式定义：每个 skill 是一个目录 `skills/<skill-name>/SKILL.md`
+  - Frontmatter 声明：`name`、`description`、`when_to_use`、`allowed_tools`、`paths`（条件激活 glob pattern）
+  - Markdown 正文 = prompt fragment
+  - 可选附带参考文件（同目录下的其他文件，agent 可按需 Read）
+- [ ] Skill 注册表：agent 启动时扫描 `~/.codelord/skills/` + 项目目录 `.codelord/skills/` 并注册
+- [ ] **条件激活引擎**：
+  - 无 `paths` 的 skill → 无条件加载
+  - 有 `paths` 的 skill → 存入待激活池，当 agent 操作匹配路径的文件时才激活（gitignore 风格 pattern matching）
+- [ ] **文件操作触发的动态发现**：agent 读/写文件时，向上遍历目录查找 `.codelord/skills/`，发现新 skill 目录后动态加载（只发现 cwd 以下的嵌套 skill，cwd 级别的在启动时已加载）
 - [ ] **Prompt 组装引擎**：多个 skill 同时激活时的优先级、排列策略、context budget 分配
-- [ ] Skill 的 result processor 接入 M3 的 tool result 处理管线
+- [ ] **参考文件按需加载**：skill 目录下的额外文件不注入 context，prompt 前加 `Base directory for this skill: <dir>`，agent 需要时自己 Read/Grep
 
 ### 内置 Skills——行为模式类
 
@@ -381,6 +387,10 @@ agents/
 > - **Skill A/B eval 是验证 skill 价值的关键。** 如果一个 skill 占了 500 token 的 context 但 eval 分数只提升了 1%，它可能不值得。
 > - **Skill activation 误判。** 项目里有个 `requirements.txt` 但其实是 Node 项目——需要考虑 false positive 和优先级仲裁。
 > - **这是你的 agent 区别于 Claude Code 的核心。** Claude Code 把 planning、self-verification 硬编码在 agent 里。你把它们做成可组合、可开关、可 eval 的 skill。这是一个更灵活、更可实验的架构。
+> - **Skill 是文件不是代码，这个决策影响深远。** 创建/编辑 skill 不需要写 TS、不需要重新编译——改个 markdown 文件就行。用户可以在项目里放自己的 `.codelord/skills/`。eval 的 prompt 版本追踪天然绑定文件 hash。
+> - **条件激活解决了 context 浪费问题。** 一个 monorepo 里可能有 20 个技术栈的 skill，但一次任务只涉及 2-3 个目录。paths 条件激活让 skill 只在真正需要时才占用 context budget。
+> - **参考文件按需加载是 context budget 的杠杆。** Skill 的 prompt fragment 只放核心指令（几百 token），详细的 best practices、示例代码放在参考文件里。agent 自行判断是否需要读。这比把所有内容塞进 system prompt 高效得多。
+> - **动态发现让 skill 可以是项目内嵌的。** 团队可以在 `src/payments/.codelord/skills/payment-patterns/SKILL.md` 放一个支付模块专用的 skill。agent 第一次操作 `src/payments/` 下的文件时自动发现。这是 Claude Code 实际在用的模式。
 
 **✅ 完成标志：** Skill 系统端到端工作。在 TS 和 Python 项目目录下 agent 自动加载不同 skill 集。Planning、self-verification 作为 skill 可开关。A/B eval 证明 skill 带来了 eval 分数提升。
 
@@ -415,6 +425,7 @@ agents/
 - [ ] MCP 工具的 tool description 自动注入 agent context
 - [ ] 处理 MCP server 断连 / 超时的错误恢复
 - [ ] **Tool 数量控制**：接入多个 MCP server 后工具可能爆炸，需要按需加载或 tool routing 策略
+- [ ] **Deferred tool loading**：MCP tool 默认不暴露 schema 到 agent context，标记为 deferred。agent 需要时通过 tool discovery 机制（类似搜索）按需加载 schema。避免 tool 数量爆炸导致 LLM 选择准确率下降。
 
 ### MCP 与 Skill 系统的集成
 
@@ -428,6 +439,7 @@ agents/
 > - **MCP server 的质量参差不齐。** 你的 client 需要对 MCP 工具的输出做防御性处理。
 > - **Tool 数量爆炸问题。** LLM 面对太多工具选择时准确率下降——需要 tool routing 或按需加载。
 > - **MCP 引入后要重新审视 bash-only 哲学的边界。** MCP 本质上是在引入更多工具。需要想清楚：哪些 MCP 工具是 bash 做不好的事（如 API 调用、数据库查询），哪些只是 bash 的替代（如 filesystem MCP）。
+> - **Deferred loading 是 tool 数量控制的关键范式。** Claude Code 有 30+ tools 但不全部塞进 system prompt——大部分标记为 `shouldDefer: true`，只有 ToolSearch 被调用后才加载 schema。这让 initial context 保持精简，LLM 面对少量核心 tool 时准确率更高。对 codelord 来说，bash 永远在场，MCP tools 按需浮现。
 
 **✅ 完成标志：** `~/.codelord/config.toml` 中配置 MCP server 后，codelord 能连接并使用 MCP 工具完成任务。Skill 能声明 MCP 工具依赖。
 
@@ -488,6 +500,8 @@ agents/
 - [ ] **每个 worker 可以加载不同的 skill 集**（架构 agent 加载 planning skill，编码 agent 加载技术栈 skill）
 - [ ] Supervisor 对 worker 结果的汇总与质量检查
 - [ ] Agent 间通信协议（内部先用简单的函数调用，后续可对接 A2A 标准）
+- [ ] **Worker result 结构化格式**：worker 完成/失败时，结果以结构化格式（XML 或 JSON）注入 coordinator context，包含 task-id / status / summary / response / usage。coordinator 据此决策后续动作。
+- [ ] **Coordinator prompt engineering 作为 skill**：coordinator 的行为指令（task workflow phases、concurrency rules、prompt writing 规范、synthesis vs delegation 原则）不硬编码，而是作为 coordinator 专属的 skill 提供。
 
 ### 实际场景验证
 
@@ -507,6 +521,9 @@ agents/
 > - **Skill 系统在 multi-agent 下获得新的意义。** 不同 agent 加载不同 skill = 专业分工。这是 codelord 的 skill 架构在 multi-agent 场景下的自然延伸。
 > - **Agent 间的"信息损失"是核心挑战。** Supervisor 给 worker 的 instruction 不够精确时 worker 会曲解任务。
 > - **Debug 难度翻倍。** Multi-agent trace 是嵌套的。M2 的 observability 在这里回报巨大。
+> - **Coordinator 的核心能力是 synthesis，不是 delegation。** Claude Code 的 coordinator prompt 明确禁止"based on your findings, fix it"这种懒委托——coordinator 必须理解 worker 结果后写出包含具体文件路径、行号、修改内容的指令。这是 coordinator 和简单 dispatcher 的本质区别。
+> - **Worker result 的结构化格式很重要。** 非结构化的自然语言结果让 coordinator 难以可靠地提取 status/error/output。结构化格式（如 XML tag）让 coordinator 可以精确判断 worker 是成功了、失败了、还是卡住了。
+> - **Coordinator prompt engineering 本身是一个巨大的工程。** Claude Code 的 coordinator system prompt 几百行，定义了 Research → Synthesis → Implementation → Verification 的完整 workflow。在 codelord 的架构下，这些指令自然属于 skill 层——coordinator 加载 `coordinator-workflow` skill，worker 加载技术栈 skill。这正是 skill 系统在 multi-agent 场景下的价值体现。
 
 **✅ 完成标志：** Supervisor + workers 的 multi-agent pipeline 跑通复杂 coding 任务，workers 各自加载不同 skill，有完整 trace 和 eval 覆盖。
 
@@ -515,7 +532,7 @@ agents/
 ## 正反馈节奏
 
 ```
-M0 架构重整 & CLI 骨架         ──→ 🏗️  codelord 命令可用了，架构干净了
+M0 架构重整 & CLI 骨架         ──→ ✅ 已完成
 M1 交互式Agent+基础安全        ──→ 🎉 日常能用了，从第一天起不裸奔
 M2 Tracing & Eval              ──→ 🔍📊 能看清agent + 有度量基线
 M3 Agent Core 加固             ──→ ⚙️  引擎本身更强了（context/error/model routing）
