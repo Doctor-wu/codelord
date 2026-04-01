@@ -1,3 +1,5 @@
+import { getOAuthProvider } from '@mariozechner/pi-ai/oauth'
+
 // ---------------------------------------------------------------------------
 // Configuration type definitions & defaults
 // ---------------------------------------------------------------------------
@@ -37,33 +39,16 @@ export const DEFAULT_CONFIG: CodelordConfig = {
 // Validation
 // ---------------------------------------------------------------------------
 
-/** API key environment variable fallbacks per provider. */
-const PROVIDER_ENV_KEYS: Record<string, string> = {
-  anthropic: 'ANTHROPIC_API_KEY',
-  openai: 'OPENAI_API_KEY',
-  'openai-codex': 'OPENAI_API_KEY',
-}
-
-const OAUTH_PROVIDERS = new Set(['openai-codex'])
-
-export function getProviderEnvKey(provider: string): string | undefined {
-  return PROVIDER_ENV_KEYS[provider]
-}
-
 export function validateConfig(config: CodelordConfig): void {
-  if (OAUTH_PROVIDERS.has(config.provider)) {
+  if (getOAuthProvider(config.provider)) {
     return
   }
 
   if (!config.apiKey) {
-    const envHint = getProviderEnvKey(config.provider)
-    const envMsg = envHint
-      ? `set ${envHint} (or CODELORD_API_KEY) environment variable`
-      : 'set CODELORD_API_KEY environment variable'
-
     throw new Error(
       `Missing API key for provider "${config.provider}". ` +
-      `Please ${envMsg} or configure apiKey in ~/.codelord/config.toml.`,
+      'Please set CODELORD_API_KEY, a provider-specific environment variable supported by pi-ai, ' +
+      'or configure apiKey in ~/.codelord/config.toml.',
     )
   }
 }

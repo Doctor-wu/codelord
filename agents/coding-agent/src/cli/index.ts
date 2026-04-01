@@ -1,23 +1,16 @@
 import { loadConfig } from '@agent/config'
 import type { CodelordConfig } from '@agent/config'
 import { readFileSync } from 'node:fs'
-import { parseArgs, type CliFlags } from './parse-args.js'
+import { cac } from 'cac'
 import { runInit } from './init.js'
+import { runAgentCommand } from './run.js'
 
-const HELP_TEXT = `codelord — AI coding agent
-
-Usage:
-  codelord "message"         Run agent with a task
-  codelord init              Initialize configuration
-  codelord config            Show current configuration
-
-Options:
-  --plain                    Plain text output (no TUI)
-  --model <name>             Override model
-  --provider <name>          Override provider
-  --max-steps <n>            Override max steps
-  -h, --help                 Show help
-  -v, --version              Show version`
+interface CliFlags {
+  plain?: boolean
+  model?: string
+  provider?: string
+  maxSteps?: number
+}
 
 function readVersion(): string {
   const packageJson = JSON.parse(
@@ -35,35 +28,73 @@ function toConfigOverrides(flags: CliFlags): Partial<CodelordConfig> {
   }
 }
 
-async function main(): Promise<void> {
-  const parsed = parseArgs(process.argv.slice(2))
-
-  switch (parsed.command) {
-    case 'help':
-      console.log(HELP_TEXT)
-      return
-
-    case 'version':
-      console.log(readVersion())
-      return
-
-    case 'init':
-      await runInit()
-      return
-
-    case 'config': {
-      const config = loadConfig(toConfigOverrides(parsed.flags))
-      console.log(JSON.stringify(config, null, 2))
-      return
-    }
-
-    case 'run':
-      console.log(`TODO: run agent with message: ${parsed.message}`)
-      return
+function readFlags(options: Record<string, unknown>): CliFlags {
+  return {
+    plain: options.plain === true,
+    model: typeof options.model === 'string' ? options.model : undefined,
+    provider: typeof options.provider === 'string' ? options.provider : undefined,
+    maxSteps: typeof options.maxSteps === 'number' ? options.maxSteps : undefined,
   }
 }
 
-void main().catch((error: unknown) => {
+function createCli() {
+  const cli = cac('codelord')
+
+  cli
+    .version(readVersion())
+    .help()
+    .usage('"message"')
+    .option('--plain', 'Plain text output (no TUI)')
+    .option('--model <name>', 'Override model')
+    .option('--provider <name>', 'Override provider')
+    .option('--max-steps <n>', 'Override max steps', { type: [Number] })
+
+  cli
+    .command('init', 'Initialize configuration')
+    .action(async () => {
+      await runInit()
+    })
+
+  cli
+    .command('config', 'Show current configuration')
+    .action(async (options) => {
+      const config = loadConfig(toConfigOverrides(readFlags(options)))
+      console.log(JSON.stringify(config, null, 2))
+    })
+
+  cli
+    .command('help', 'Show help')
+    .action(() => {
+      cli.outputHelp()
+    })
+
+  return cli
+}
+
+export async function runCli(argv = process.argv): Promise<void> {
+  const cli = createCli()
+  cli.parse(argv, { run: false })
+
+  if (cli.options.help || cli.options.version) {
+    return
+  }
+
+  if (cli.matchedCommand) {
+    await cli.runMatchedCommand()
+    return
+  }
+
+  if (cli.args.length === 0) {
+    cli.outputHelp()
+    return
+  }
+
+  const flags = readFlags(cli.options)
+  const config = loadConfig(toConfigOverrides(flags))
+  await runAgentCommand(cli.args.join(' '), config, { plain: flags.plain })
+}
+
+void runCli().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error)
   console.error(`Error: ${message}`)
   process.exitCode = 1

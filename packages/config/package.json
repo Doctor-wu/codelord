@@ -17,6 +17,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@mariozechner/pi-ai": "^0.64.0",
     "smol-toml": "^1.3.1"
   }
 }

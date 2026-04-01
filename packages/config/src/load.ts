@@ -1,5 +1,6 @@
 import type { CodelordConfig } from './schema.js'
-import { DEFAULT_CONFIG, getProviderEnvKey, validateConfig } from './schema.js'
+import { getEnvApiKey } from '@mariozechner/pi-ai'
+import { DEFAULT_CONFIG, validateConfig } from './schema.js'
 import { readTomlConfig } from './toml.js'
 
 // ---------------------------------------------------------------------------
@@ -65,12 +66,52 @@ function resolveApiKeyFallback(
 ): CodelordConfig {
   if (config.apiKey) return config
 
-  const envKey = getProviderEnvKey(config.provider)
-  if (envKey && env[envKey]) {
-    return { ...config, apiKey: env[envKey]! }
+  const envApiKey = getEnvApiKeyFromEnv(config.provider, env)
+  if (envApiKey) {
+    return { ...config, apiKey: envApiKey }
   }
 
   return config
+}
+
+function getEnvApiKeyFromEnv(
+  provider: string,
+  env: Record<string, string | undefined>,
+): string | undefined {
+  if (env === process.env) {
+    return getEnvApiKey(provider)
+  }
+
+  const mergedEnv = { ...process.env, ...env }
+  const touchedKeys = new Set(Object.keys(process.env))
+  for (const key of Object.keys(env)) touchedKeys.add(key)
+
+  const previous = new Map<string, string | undefined>()
+  for (const key of touchedKeys) {
+    previous.set(key, process.env[key])
+  }
+
+  try {
+    for (const key of touchedKeys) {
+      const value = mergedEnv[key]
+      if (value === undefined) {
+        delete process.env[key]
+      } else {
+        process.env[key] = value
+      }
+    }
+
+    return getEnvApiKey(provider)
+  } finally {
+    for (const key of touchedKeys) {
+      const value = previous.get(key)
+      if (value === undefined) {
+        delete process.env[key]
+      } else {
+        process.env[key] = value
+      }
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

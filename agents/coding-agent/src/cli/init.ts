@@ -1,19 +1,23 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import * as readline from 'node:readline/promises'
+import {
+  cancel,
+  confirm,
+  intro,
+  isCancel,
+  note,
+  outro,
+  password,
+  select,
+  text,
+} from '@clack/prompts'
+import { getModels, getProviders } from '@mariozechner/pi-ai'
+import { getOAuthProvider } from '@mariozechner/pi-ai/oauth'
 
 const CONFIG_DIR = join(homedir(), '.codelord')
 const CONFIG_PATH = join(CONFIG_DIR, 'config.toml')
 const DISPLAY_PATH = '~/.codelord/config.toml'
-
-const PROVIDERS = ['anthropic', 'openai', 'openai-codex'] as const
-
-const DEFAULT_MODELS: Record<(typeof PROVIDERS)[number], string> = {
-  anthropic: 'claude-sonnet-4-20250514',
-  openai: 'gpt-5.4',
-  'openai-codex': 'gpt-5.4',
-}
 
 function escapeTomlString(value: string): string {
   return value
@@ -23,7 +27,7 @@ function escapeTomlString(value: string): string {
 }
 
 function renderConfigToml(
-  provider: (typeof PROVIDERS)[number],
+  provider: string,
   model: string,
   apiKey?: string,
 ): string {
@@ -39,64 +43,80 @@ function renderConfigToml(
   return `${lines.join('\n')}\n`
 }
 
-async function selectProvider(rl: readline.Interface): Promise<(typeof PROVIDERS)[number]> {
-  console.log('Select a provider:')
-  console.log('  1. anthropic')
-  console.log('  2. openai')
-  console.log('  3. openai-codex')
-
-  while (true) {
-    const answer = (await rl.question('Provider [1]: ')).trim()
-
-    if (answer === '' || answer === '1' || answer === 'anthropic') return 'anthropic'
-    if (answer === '2' || answer === 'openai') return 'openai'
-    if (answer === '3' || answer === 'openai-codex') return 'openai-codex'
-
-    console.log('Please enter 1, 2, 3, or a provider name.')
+function promptValueOrExit<T>(value: T | symbol): T {
+  if (isCancel(value)) {
+    cancel('Initialization cancelled.')
+    process.exit(0)
   }
+  return value
 }
 
-async function confirmOverwrite(rl: readline.Interface): Promise<boolean> {
-  const answer = (await rl.question(`Config already exists at ${DISPLAY_PATH}. Overwrite? (y/N): `))
-    .trim()
-    .toLowerCase()
+function getProviderOptions(): Array<{ value: string; label: string; hint?: string }> {
+  const oauthProviders = new Set(getProviders().filter((provider) => getOAuthProvider(provider)))
 
-  return answer === 'y' || answer === 'yes'
+  return getProviders().map((provider) => ({
+    value: provider,
+    label: provider,
+    hint: oauthProviders.has(provider) ? 'OAuth' : 'API key',
+  }))
 }
 
 export async function runInit(): Promise<void> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  })
+  intro('codelord init')
 
-  try {
-    if (existsSync(CONFIG_PATH)) {
-      const shouldOverwrite = await confirmOverwrite(rl)
-      if (!shouldOverwrite) {
-        console.log('Initialization cancelled.')
-        return
-      }
+  if (existsSync(CONFIG_PATH)) {
+    const shouldOverwrite = promptValueOrExit(await confirm({
+      message: `Config already exists at ${DISPLAY_PATH}. Overwrite it?`,
+      initialValue: false,
+    }))
+
+    if (!shouldOverwrite) {
+      outro('Initialization cancelled.')
+      return
     }
-
-    const provider = await selectProvider(rl)
-
-    let apiKey: string | undefined
-    if (provider === 'openai-codex') {
-      console.log('Skipping API key setup for openai-codex. OAuth will be handled automatically.')
-    } else {
-      apiKey = (await rl.question('API key: ')).trim()
-    }
-
-    const suggestedModel = DEFAULT_MODELS[provider]
-    const model = (await rl.question(`Default model [${suggestedModel}]: `)).trim() || suggestedModel
-
-    mkdirSync(dirname(CONFIG_PATH), { recursive: true })
-    writeFileSync(CONFIG_PATH, renderConfigToml(provider, model, apiKey))
-
-    console.log(`Config saved to ${DISPLAY_PATH}`)
-    console.log('You can now run: codelord "your task here"')
-  } finally {
-    rl.close()
   }
+
+  const provider = promptValueOrExit(await select({
+    message: 'Choose a provider',
+    options: getProviderOptions(),
+    initialValue: 'openai-codex',
+  }))
+
+  const models = getModels(provider as never)
+  const recommendedModel = models[0]?.id
+
+  if (!recommendedModel) {
+    throw new Error(`No models available for provider "${provider}" from pi-ai`)
+  }
+
+  let apiKey: string | undefined
+  if (getOAuthProvider(provider)) {
+    note(
+      `No API key needed for ${provider}. codelord will use pi-ai's OAuth flow on first run.`,
+      'Authentication',
+    )
+  } else {
+    apiKey = promptValueOrExit(await password({
+      message: `Enter the API key for ${provider}`,
+      mask: '*',
+      validate(value) {
+        if (!value?.trim()) return 'API key is required for this provider.'
+      },
+    }))
+  }
+
+  const model = promptValueOrExit(await select({
+    message: 'Choose the default model',
+    options: models.map((candidate) => ({
+      value: candidate.id,
+      label: candidate.id,
+      hint: candidate.name,
+    })),
+    initialValue: recommendedModel,
+  }))
+
+  mkdirSync(dirname(CONFIG_PATH), { recursive: true })
+  writeFileSync(CONFIG_PATH, renderConfigToml(provider, model, apiKey))
+
+  outro(`Config saved to ${DISPLAY_PATH}\nRun: codelord "your task here"`)
 }

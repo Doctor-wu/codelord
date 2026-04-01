@@ -16,4 +16,21 @@ describe('loadConfig', () => {
       ),
     ).not.toThrow()
   })
+
+  it('uses pi-ai provider env lookup for static providers', () => {
+    const config = loadConfig(
+      {
+        provider: 'xai',
+        model: 'grok-code-fast-1',
+      },
+      {
+        env: {
+          XAI_API_KEY: 'test-xai-key',
+        },
+        tomlPath: '/definitely/does/not/exist.toml',
+      },
+    )
+
+    expect(config.apiKey).toBe('test-xai-key')
+  })
 })
