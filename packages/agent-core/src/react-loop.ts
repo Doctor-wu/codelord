@@ -15,7 +15,14 @@ import type {
 // Tool handler registry
 // ---------------------------------------------------------------------------
 
-export type ToolHandler = (args: Record<string, unknown>) => Promise<string>
+export interface ToolExecutionContext {
+  emitOutput: (stream: 'stdout' | 'stderr', chunk: string) => void
+}
+
+export type ToolHandler = (
+  args: Record<string, unknown>,
+  context: ToolExecutionContext,
+) => Promise<string>
 
 // ---------------------------------------------------------------------------
 // FSM state definitions
@@ -56,8 +63,11 @@ export type AgentEvent =
   | { type: 'step_start'; step: number }
   | { type: 'text_delta'; delta: string }
   | { type: 'text_end'; text: string }
+  | { type: 'toolcall_start'; contentIndex: number; toolName: string; args: Record<string, unknown> }
+  | { type: 'toolcall_delta'; contentIndex: number; toolName: string; args: Record<string, unknown> }
   | { type: 'toolcall_end'; toolCall: ToolCall }
   | { type: 'tool_exec_start'; toolName: string; args: Record<string, unknown> }
+  | { type: 'tool_output_delta'; toolName: string; stream: 'stdout' | 'stderr'; chunk: string }
   | { type: 'tool_result'; toolName: string; result: string; isError: boolean }
   | { type: 'done'; result: AgentResult }
   | { type: 'error'; error: string }
@@ -169,6 +179,32 @@ export async function runAgent<TApi extends Api = Api>(
           emit({ type: 'text_end', text: event.content })
           break
 
+        case 'toolcall_start': {
+          const partialCall = event.partial.content[event.contentIndex]
+          if (partialCall?.type === 'toolCall') {
+            emit({
+              type: 'toolcall_start',
+              contentIndex: event.contentIndex,
+              toolName: partialCall.name,
+              args: partialCall.arguments ?? {},
+            })
+          }
+          break
+        }
+
+        case 'toolcall_delta': {
+          const partialCall = event.partial.content[event.contentIndex]
+          if (partialCall?.type === 'toolCall') {
+            emit({
+              type: 'toolcall_delta',
+              contentIndex: event.contentIndex,
+              toolName: partialCall.name,
+              args: partialCall.arguments ?? {},
+            })
+          }
+          break
+        }
+
         case 'toolcall_end':
           emit({ type: 'toolcall_end', toolCall: event.toolCall })
           toolCalls.push(event.toolCall)
@@ -211,7 +247,11 @@ export async function runAgent<TApi extends Api = Api>(
           isError = true
         } else {
           try {
-            resultText = await handler(tc.arguments)
+            resultText = await handler(tc.arguments, {
+              emitOutput: (stream, chunk) => {
+                emit({ type: 'tool_output_delta', toolName: tc.name, stream, chunk })
+              },
+            })
             isError = false
           } catch (e) {
             resultText = `Error executing tool "${tc.name}": ${e instanceof Error ? e.message : String(e)}`

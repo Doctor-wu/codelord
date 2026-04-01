@@ -15,8 +15,10 @@ export function StepList({ steps }: StepListProps) {
 
   return (
     <Box flexDirection="column">
-      {steps.map((step) => (
-        <CollapsedStep key={step.step} step={step} />
+      {steps.map((step, index) => (
+        <Box key={step.step} marginBottom={index === steps.length - 1 ? 0 : 1}>
+          <CollapsedStep step={step} />
+        </Box>
       ))}
     </Box>
   )

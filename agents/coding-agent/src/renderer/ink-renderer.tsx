@@ -93,30 +93,191 @@ class StateStore {
       ? args.command
       : toolName
 
-    const toolCall: ToolCallState = {
-      name: toolName,
-      args,
-      command,
-      isError: false,
-      startTime: Date.now(),
+    const toolCalls = [...this.state.currentStep.toolCalls]
+    const existingIndex = findLatestPendingToolCallIndex(toolCalls, toolName)
+
+    if (existingIndex === undefined) {
+      toolCalls.push({
+        name: toolName,
+        args,
+        command,
+        result: '',
+        isError: false,
+        isExecuting: false,
+        hasStdout: false,
+        hasStderr: false,
+        startTime: Date.now(),
+      })
+    } else {
+      toolCalls[existingIndex] = {
+        ...toolCalls[existingIndex]!,
+        name: toolName,
+        args,
+        command,
+      }
     }
 
     this.state.currentStep = {
       ...this.state.currentStep,
-      toolCalls: [...this.state.currentStep.toolCalls, toolCall],
+      toolCalls,
+      category: classifyStepCategory(toolName, command),
     }
-
-    // Classify step based on tool call
-    const category: StepCategory = toolName === 'bash'
-      ? classifyCommand(command)
-      : classifyToolName(toolName)
-    this.state.currentStep.category = category
-
     this.emit()
   }
 
-  toolExecStart(_toolName: string, _args: Record<string, unknown>): void {
-    // Tool is already tracked via toolCallEnd — spinner is shown automatically
+  toolCallStart(contentIndex: number, toolName: string, args: Record<string, unknown>): void {
+    if (!this.state.currentStep) return
+
+    const streamKey = `tool-${contentIndex}`
+    const command = typeof args.command === 'string'
+      ? args.command
+      : toolName
+    const toolCalls = [...this.state.currentStep.toolCalls]
+    const existingIndex = toolCalls.findIndex((toolCall) => toolCall.streamKey === streamKey)
+
+    if (existingIndex === -1) {
+      toolCalls.push({
+        streamKey,
+        name: toolName,
+        args,
+        command,
+        result: '',
+        isError: false,
+        isExecuting: false,
+        hasStdout: false,
+        hasStderr: false,
+        startTime: Date.now(),
+      })
+    } else {
+      toolCalls[existingIndex] = {
+        ...toolCalls[existingIndex]!,
+        name: toolName,
+        args,
+        command,
+      }
+    }
+
+    this.state.currentStep = {
+      ...this.state.currentStep,
+      toolCalls,
+      category: classifyStepCategory(toolName, command),
+    }
+    this.emit()
+  }
+
+  toolCallDelta(contentIndex: number, toolName: string, args: Record<string, unknown>): void {
+    if (!this.state.currentStep) return
+
+    const streamKey = `tool-${contentIndex}`
+    const command = typeof args.command === 'string'
+      ? args.command
+      : toolName
+    const toolCalls = [...this.state.currentStep.toolCalls]
+    const existingIndex = toolCalls.findIndex((toolCall) => toolCall.streamKey === streamKey)
+
+    if (existingIndex === -1) {
+      toolCalls.push({
+        streamKey,
+        name: toolName,
+        args,
+        command,
+        result: '',
+        isError: false,
+        isExecuting: false,
+        hasStdout: false,
+        hasStderr: false,
+        startTime: Date.now(),
+      })
+    } else {
+      toolCalls[existingIndex] = {
+        ...toolCalls[existingIndex]!,
+        name: toolName,
+        args,
+        command,
+      }
+    }
+
+    this.state.currentStep = {
+      ...this.state.currentStep,
+      toolCalls,
+      category: classifyStepCategory(toolName, command),
+    }
+    this.emit()
+  }
+
+  toolExecStart(toolName: string, args: Record<string, unknown>): void {
+    if (!this.state.currentStep) return
+
+    const toolCalls = [...this.state.currentStep.toolCalls]
+    const existingIndex = findLatestPendingToolCallIndex(toolCalls, toolName)
+
+    if (existingIndex === undefined) {
+      const command = typeof args.command === 'string'
+        ? args.command
+        : toolName
+
+      toolCalls.push({
+        name: toolName,
+        args,
+        command,
+        result: '',
+        isError: false,
+        isExecuting: true,
+        hasStdout: false,
+        hasStderr: false,
+        startTime: Date.now(),
+      })
+    } else {
+      toolCalls[existingIndex] = {
+        ...toolCalls[existingIndex]!,
+        isExecuting: true,
+      }
+    }
+
+    this.state.currentStep = {
+      ...this.state.currentStep,
+      toolCalls,
+    }
+    this.emit()
+  }
+
+  toolOutputDelta(toolName: string, stream: 'stdout' | 'stderr', chunk: string): void {
+    if (!this.state.currentStep) return
+
+    const toolCalls = [...this.state.currentStep.toolCalls]
+    for (let i = toolCalls.length - 1; i >= 0; i--) {
+      const toolCall = toolCalls[i]
+      if (!toolCall || toolCall.name !== toolName || toolCall.endTime) continue
+
+      let nextResult = toolCall.result ?? ''
+      let hasStdout = toolCall.hasStdout
+      let hasStderr = toolCall.hasStderr
+
+      if (stream === 'stdout' && !hasStdout) {
+        nextResult += `${nextResult ? '\n' : ''}stdout:\n`
+        hasStdout = true
+      }
+
+      if (stream === 'stderr' && !hasStderr) {
+        nextResult += `${nextResult ? '\n' : ''}stderr:\n`
+        hasStderr = true
+      }
+
+      nextResult += chunk
+
+      toolCalls[i] = {
+        ...toolCall,
+        result: nextResult,
+        hasStdout,
+        hasStderr,
+      }
+      break
+    }
+
+    this.state.currentStep = {
+      ...this.state.currentStep,
+      toolCalls,
+    }
     this.emit()
   }
 
@@ -124,13 +285,17 @@ class StateStore {
     if (!this.state.currentStep) return
 
     const toolCalls = [...this.state.currentStep.toolCalls]
-    // Find the last tool call matching this tool name that has no result
+    // Find the last unfinished tool call matching this tool name.
     for (let i = toolCalls.length - 1; i >= 0; i--) {
-      if (toolCalls[i]!.name === toolName && !toolCalls[i]!.result) {
+      if (toolCalls[i]!.name === toolName && !toolCalls[i]!.endTime) {
+        const currentResult = toolCalls[i]!.result ?? ''
         toolCalls[i] = {
           ...toolCalls[i]!,
-          result,
+          result: currentResult.trim().length
+            ? appendFinalToolMetadata(currentResult, result)
+            : result,
           isError,
+          isExecuting: false,
           endTime: Date.now(),
         }
         break
@@ -252,6 +417,14 @@ export class InkRenderer implements Renderer {
         this.store.textEnd(event.text)
         break
 
+      case 'toolcall_start':
+        this.store.toolCallStart(event.contentIndex, event.toolName, event.args)
+        break
+
+      case 'toolcall_delta':
+        this.store.toolCallDelta(event.contentIndex, event.toolName, event.args)
+        break
+
       case 'toolcall_end':
         this.store.toolCallEnd(
           event.toolCall.name,
@@ -261,6 +434,10 @@ export class InkRenderer implements Renderer {
 
       case 'tool_exec_start':
         this.store.toolExecStart(event.toolName, event.args)
+        break
+
+      case 'tool_output_delta':
+        this.store.toolOutputDelta(event.toolName, event.stream, event.chunk)
         break
 
       case 'tool_result':
@@ -287,4 +464,30 @@ export class InkRenderer implements Renderer {
       this.inkInstance = null
     }
   }
+}
+
+function appendFinalToolMetadata(currentResult: string, finalResult: string): string {
+  const truncationMatch = finalResult.match(/\[output truncated[^\]]*\]$/)
+  if (!truncationMatch || currentResult.includes(truncationMatch[0])) {
+    return currentResult
+  }
+
+  return `${currentResult}\n${truncationMatch[0]}`
+}
+
+function classifyStepCategory(toolName: string, command: string): StepCategory {
+  return toolName === 'bash'
+    ? classifyCommand(command)
+    : classifyToolName(toolName)
+}
+
+function findLatestPendingToolCallIndex(
+  toolCalls: ToolCallState[],
+  toolName: string,
+): number | undefined {
+  return [...toolCalls]
+    .map((toolCall, index) => ({ toolCall, index }))
+    .reverse()
+    .find(({ toolCall }) => toolCall.name === toolName && !toolCall.endTime)
+    ?.index
 }

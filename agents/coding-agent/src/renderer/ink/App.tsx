@@ -9,6 +9,7 @@ import { StepList } from './StepList.js'
 import { CurrentStep } from './CurrentStep.js'
 import { FinalAnswer } from './FinalAnswer.js'
 import { StatusBar, StatusBarContent } from './StatusBar.js'
+import { WorkingIndicator } from './WorkingIndicator.js'
 
 interface AppProps {
   state: AppState
@@ -32,7 +33,15 @@ export function App({ state, version, provider, model }: AppProps) {
 
       {/* Current active step */}
       {state.currentStep && !state.currentStep.isComplete && (
-        <CurrentStep step={state.currentStep} />
+        <Box marginTop={state.steps.length > 0 ? 1 : 0}>
+          <CurrentStep step={state.currentStep} />
+        </Box>
+      )}
+
+      {state.isRunning && !state.currentStep && (
+        <Box marginTop={state.steps.length > 0 ? 1 : 0}>
+          <WorkingIndicator />
+        </Box>
       )}
 
       {/* Final answer or error */}

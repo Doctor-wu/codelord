@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------
-// Header — single-line app name + provider badge
+// Header — app name + provider badge
 // ---------------------------------------------------------------------------
 
-import { Box, Text } from 'ink'
+import { Box, Text, useStdout } from 'ink'
 import { APP_NAME, APP_COLOR, getProviderBrand } from './theme.js'
 
 interface HeaderProps {
@@ -13,7 +13,9 @@ interface HeaderProps {
 }
 
 export function Header({ version, provider, model, isRunning }: HeaderProps) {
+  const { stdout } = useStdout()
   const brand = getProviderBrand(provider)
+  const separatorWidth = Math.max(40, (stdout?.columns ?? 80) - 1)
 
   return (
     <Box flexDirection="column">
@@ -22,6 +24,7 @@ export function Header({ version, provider, model, isRunning }: HeaderProps) {
           <Text color={APP_COLOR} bold>{APP_NAME}</Text>
           <Text dimColor> v{version}</Text>
         </Box>
+
         <Box>
           <Text color={isRunning ? 'green' : 'gray'}>
             {isRunning ? '\u25CF' : '\u25CB'}
@@ -33,8 +36,7 @@ export function Header({ version, provider, model, isRunning }: HeaderProps) {
         </Box>
       </Box>
 
-      {/* Separator */}
-      <Text dimColor>{'\u2500'.repeat(60)}</Text>
+      <Text dimColor>{'\u2500'.repeat(separatorWidth)}</Text>
     </Box>
   )
 }

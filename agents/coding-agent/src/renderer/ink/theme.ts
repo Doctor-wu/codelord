@@ -38,3 +38,4 @@ export function getProviderBrand(provider: string): ProviderBrand {
 /** App name styling constants. */
 export const APP_NAME = 'codelord'
 export const APP_COLOR = '#1e50a0' // TARDIS blue
+export const META_COLOR = 'gray'

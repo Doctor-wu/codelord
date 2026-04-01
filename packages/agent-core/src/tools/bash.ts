@@ -1,7 +1,7 @@
-import { execFile } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { Type } from '@mariozechner/pi-ai'
 import type { Tool } from '@mariozechner/pi-ai'
-import type { ToolHandler } from '../react-loop.js'
+import type { ToolExecutionContext, ToolHandler } from '../react-loop.js'
 
 // ---------------------------------------------------------------------------
 // Bash tool definition
@@ -41,38 +41,68 @@ export function createBashToolHandler(options: BashToolOptions = {}): ToolHandle
     maxOutput = 10_000,
   } = options
 
-  return async (args: Record<string, unknown>): Promise<string> => {
+  return async (
+    args: Record<string, unknown>,
+    context: ToolExecutionContext,
+  ): Promise<string> => {
     const command = args.command as string
     if (!command || typeof command !== 'string') {
       throw new Error('bash tool requires a "command" string argument')
     }
 
     return new Promise<string>((resolve, reject) => {
-      const child = execFile(
-        'sh',
-        ['-c', command],
-        {
-          cwd,
-          timeout,
-          maxBuffer: 1024 * 1024, // 1MB buffer
-          env: { ...process.env },
-        },
-        (error, stdout, stderr) => {
-          // execFile callback fires on completion or timeout/kill
-          if (error && error.killed) {
-            // Process was killed (likely timeout)
-            resolve(formatOutput(null, '', '', `Command timed out after ${timeout}ms`))
-            return
-          }
+      const child = spawn('sh', ['-c', command], {
+        cwd,
+        env: { ...process.env },
+      })
 
-          const exitCode = error ? error.code ?? 1 : 0
-          const result = formatOutput(exitCode as number, stdout, stderr)
-          resolve(result)
-        },
-      )
+      let stdout = ''
+      let stderr = ''
+      let remainingOutput = maxOutput
+      let wasTruncated = false
+      let didTimeout = false
 
-      // Guard against spawn errors (e.g. ENOENT)
+      const appendChunk = (stream: 'stdout' | 'stderr', chunk: string) => {
+        if (!chunk) return
+
+        const nextChunk = remainingOutput > 0
+          ? chunk.slice(0, remainingOutput)
+          : ''
+
+        if (nextChunk) {
+          context.emitOutput(stream, nextChunk)
+          remainingOutput -= nextChunk.length
+          if (stream === 'stdout') stdout += nextChunk
+          else stderr += nextChunk
+        }
+
+        if (nextChunk.length < chunk.length) {
+          wasTruncated = true
+        }
+      }
+
+      child.stdout.on('data', (chunk: Buffer) => {
+        appendChunk('stdout', chunk.toString())
+      })
+
+      child.stderr.on('data', (chunk: Buffer) => {
+        appendChunk('stderr', chunk.toString())
+      })
+
+      const timeoutId = setTimeout(() => {
+        didTimeout = true
+        appendChunk('stderr', `Command timed out after ${timeout}ms`)
+        child.kill('SIGTERM')
+      }, timeout)
+
+      child.on('close', (code) => {
+        clearTimeout(timeoutId)
+        const exitCode = didTimeout ? null : code ?? 1
+        resolve(formatOutput(exitCode, stdout, stderr, undefined, wasTruncated))
+      })
+
       child.on('error', (err) => {
+        clearTimeout(timeoutId)
         reject(new Error(`Failed to spawn command: ${err.message}`))
       })
     })
@@ -83,6 +113,7 @@ export function createBashToolHandler(options: BashToolOptions = {}): ToolHandle
     stdout: string,
     stderr: string,
     errorMsg?: string,
+    wasTruncated = false,
   ): string {
     if (errorMsg) {
       return `error: ${errorMsg}`
@@ -100,9 +131,8 @@ export function createBashToolHandler(options: BashToolOptions = {}): ToolHandle
       output += '(no output)'
     }
 
-    // Truncate if too long
-    if (output.length > maxOutput) {
-      output = output.slice(0, maxOutput) + `\n[output truncated, showing first ${maxOutput} chars]`
+    if (wasTruncated) {
+      output += `\n[output truncated, showing first ${maxOutput} chars]`
     }
 
     return output

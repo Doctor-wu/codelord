@@ -5,6 +5,7 @@ export type {
   AgentSuccess,
   AgentError,
   RunAgentOptions,
+  ToolExecutionContext,
   ToolHandler,
   LoopState,
 } from './react-loop.js'

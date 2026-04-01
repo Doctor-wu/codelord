@@ -5,11 +5,15 @@
 import type { StepCategory } from './theme.js'
 
 export interface ToolCallState {
+  streamKey?: string
   name: string
   args: Record<string, unknown>
   command: string // extracted bash command or tool name
   result?: string
   isError: boolean
+  isExecuting: boolean
+  hasStdout: boolean
+  hasStderr: boolean
   startTime: number
   endTime?: number
 }

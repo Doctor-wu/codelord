@@ -3,67 +3,39 @@
 // ---------------------------------------------------------------------------
 
 import { Box, Text } from 'ink'
-import Spinner from 'ink-spinner'
 import type { StepState } from './state.js'
-import { STEP_COLORS } from './theme.js'
+import { StepTextBlock } from './StepTextBlock.js'
+import { ToolCallLine } from './ToolCallLine.js'
+import { ToolOutputBlock } from './ToolOutputBlock.js'
+import { WorkingIndicator } from './WorkingIndicator.js'
 
 interface CurrentStepProps {
   step: StepState
 }
 
 export function CurrentStep({ step }: CurrentStepProps) {
-  const color = STEP_COLORS[step.category]
   const lastTool = step.toolCalls[step.toolCalls.length - 1]
-  const isToolRunning = lastTool && !lastTool.result
+  const isToolRunning = Boolean(lastTool && !lastTool.endTime)
+
+  if (!step.thought && !lastTool) {
+    return <WorkingIndicator />
+  }
 
   if (step.category === 'text') {
-    if (!step.thought) return null
-
-    return (
-      <Box>
-        <Text color={color}>{'\u2503'} </Text>
-        <Text>{step.thought}</Text>
-      </Box>
-    )
+    return <StepTextBlock text={step.thought} />
   }
 
   return (
     <Box flexDirection="column">
-      {/* Step header with vertical bar */}
-      <Box>
-        <Text color={color}>{'\u2503'} </Text>
-        <Text color={color}>
-          <Spinner type="dots" />
-        </Text>
-        <Text> </Text>
-        <Text color={color} bold>{step.category}</Text>
-      </Box>
+      <StepTextBlock text={step.thought} />
 
-      {/* Thought (streamed text) */}
-      {step.thought && (
-        <Box>
-          <Text color={color}>{'\u2503'} </Text>
-          <Text italic dimColor>{step.thought}</Text>
-        </Box>
-      )}
-
-      {/* Active tool call */}
       {lastTool && (
-        <Box flexDirection="column">
-          <Text color={color}>{'\u2503'} </Text>
-          <Box>
-            <Text color={color}>{'\u2503'} </Text>
-            <Box borderStyle="round" borderColor={color} paddingX={1}>
-              {isToolRunning ? (
-                <Text>
-                  <Spinner type="dots" />{' '}
-                  <Text>{lastTool.command}</Text>
-                </Text>
-              ) : (
-                <Text>{lastTool.command}</Text>
-              )}
-            </Box>
-          </Box>
+        <Box
+          flexDirection="column"
+          marginTop={step.thought ? 1 : 0}
+        >
+          <ToolCallLine toolCall={lastTool} isRunning={isToolRunning} />
+          <ToolOutputBlock toolCall={lastTool} isRunning={isToolRunning} />
         </Box>
       )}
     </Box>
