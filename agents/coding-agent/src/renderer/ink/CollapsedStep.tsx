@@ -5,7 +5,7 @@
 import { Box, Text } from 'ink'
 import type { StepState } from './state.js'
 import { STEP_COLORS } from './theme.js'
-import { summarizeThought, summarizeCommand, summarizeResult } from './summarize.js'
+import { summarizeCommand, summarizeResult, summarizeText, summarizeThought } from './summarize.js'
 
 interface CollapsedStepProps {
   step: StepState
@@ -13,14 +13,25 @@ interface CollapsedStepProps {
 
 export function CollapsedStep({ step }: CollapsedStepProps) {
   const color = STEP_COLORS[step.category]
+  const isTextStep = step.category === 'text'
   const lastTool = step.toolCalls[step.toolCalls.length - 1]
 
-  const thought = summarizeThought(step.thought)
+  const thought = isTextStep ? summarizeText(step.thought) : summarizeThought(step.thought)
   const command = lastTool ? summarizeCommand(lastTool.command) : ''
   const result = lastTool
     ? summarizeResult(lastTool.result ?? '', lastTool.isError, lastTool.name)
     : 'done'
   const hasError = step.category === 'error'
+
+  if (isTextStep) {
+    return (
+      <Box>
+        <Text color="green">{'\u2713'}</Text>
+        <Text> </Text>
+        <Text>{thought}</Text>
+      </Box>
+    )
+  }
 
   return (
     <Box>

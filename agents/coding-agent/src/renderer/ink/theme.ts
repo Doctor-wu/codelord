@@ -2,7 +2,7 @@
 // Visual theme — colors, provider branding, step category palette
 // ---------------------------------------------------------------------------
 
-export type StepCategory = 'read' | 'write' | 'verify' | 'error'
+export type StepCategory = 'read' | 'write' | 'verify' | 'error' | 'text'
 
 /** Color used for each step category. */
 export const STEP_COLORS: Record<StepCategory, string> = {
@@ -10,6 +10,7 @@ export const STEP_COLORS: Record<StepCategory, string> = {
   write: 'yellow',
   verify: 'blue',
   error: 'red',
+  text: '#1e50a0',
 }
 
 /** Provider branding — symbol + brand color for the header. */
@@ -34,20 +35,6 @@ export function getProviderBrand(provider: string): ProviderBrand {
   return PROVIDER_BRANDING[provider] ?? FALLBACK_BRAND
 }
 
-// ---------------------------------------------------------------------------
-// TARDIS ASCII art (compact, 7 lines)
-// ---------------------------------------------------------------------------
-
-export const TARDIS_ART = [
-  '     ___',
-  '    |___|',
-  '   /|   |\\',
-  '  | | T | |',
-  '  | |   | |',
-  '  | |___| |',
-  '  |_______|',
-]
-
 /** App name styling constants. */
 export const APP_NAME = 'codelord'
-export const APP_COLOR = '#7c3aed' // purple-600
+export const APP_COLOR = '#1e50a0' // TARDIS blue

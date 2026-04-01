@@ -16,6 +16,17 @@ export function CurrentStep({ step }: CurrentStepProps) {
   const lastTool = step.toolCalls[step.toolCalls.length - 1]
   const isToolRunning = lastTool && !lastTool.result
 
+  if (step.category === 'text') {
+    if (!step.thought) return null
+
+    return (
+      <Box>
+        <Text color={color}>{'\u2503'} </Text>
+        <Text>{step.thought}</Text>
+      </Box>
+    )
+  }
+
   return (
     <Box flexDirection="column">
       {/* Step header with vertical bar */}

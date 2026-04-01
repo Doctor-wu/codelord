@@ -5,6 +5,11 @@
 const MAX_THOUGHT = 60
 const MAX_COMMAND = 40
 
+function truncateSummary(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text
+  return text.slice(0, maxLength - 1) + '\u2026'
+}
+
 /**
  * Summarize a thought string to the first sentence, truncated.
  */
@@ -12,8 +17,16 @@ export function summarizeThought(thought: string): string {
   if (!thought) return ''
   // Take first sentence (up to period, newline, or question mark)
   const first = thought.split(/[.\n?!]/)[0]?.trim() ?? ''
-  if (first.length <= MAX_THOUGHT) return first
-  return first.slice(0, MAX_THOUGHT - 1) + '\u2026'
+  return truncateSummary(first, MAX_THOUGHT)
+}
+
+/**
+ * Summarize text content to the first line, truncated.
+ */
+export function summarizeText(text: string): string {
+  if (!text) return ''
+  const firstLine = text.split('\n')[0]?.trim() ?? ''
+  return truncateSummary(firstLine, MAX_THOUGHT)
 }
 
 /**
@@ -21,8 +34,7 @@ export function summarizeThought(thought: string): string {
  */
 export function summarizeCommand(command: string): string {
   const trimmed = command.trim()
-  if (trimmed.length <= MAX_COMMAND) return trimmed
-  return trimmed.slice(0, MAX_COMMAND - 1) + '\u2026'
+  return truncateSummary(trimmed, MAX_COMMAND)
 }
 
 /**

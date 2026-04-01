@@ -32,6 +32,27 @@ export interface AppState {
   maxSteps: number
 }
 
+export function finalizeCompletedStepCategory(
+  step: Pick<StepState, 'category' | 'toolCalls'>,
+): StepCategory {
+  if (step.toolCalls.length === 0) return 'text'
+  return step.category
+}
+
+export function getStatusCategoryCounts(
+  steps: StepState[],
+  currentStep: StepState | null,
+): Partial<Record<StepCategory, number>> {
+  const categoryCounts: Partial<Record<StepCategory, number>> = {}
+
+  for (const step of currentStep ? [...steps, currentStep] : steps) {
+    if (step.category === 'text') continue
+    categoryCounts[step.category] = (categoryCounts[step.category] ?? 0) + 1
+  }
+
+  return categoryCounts
+}
+
 export function createInitialState(maxSteps: number): AppState {
   return {
     steps: [],

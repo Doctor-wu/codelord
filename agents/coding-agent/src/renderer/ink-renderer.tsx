@@ -9,7 +9,7 @@ import type { AgentEvent } from '@agent/core'
 import type { Renderer } from './types.js'
 import { App } from './ink/App.js'
 import type { AppState, StepState, ToolCallState } from './ink/state.js'
-import { createInitialState } from './ink/state.js'
+import { createInitialState, finalizeCompletedStepCategory } from './ink/state.js'
 import { classifyCommand, classifyToolName } from './ink/classify.js'
 import type { StepCategory } from './ink/theme.js'
 
@@ -49,13 +49,17 @@ class StateStore {
   stepStart(step: number): void {
     // Complete current step and push to history
     if (this.state.currentStep) {
-      this.state.currentStep.isComplete = true
-      this.state.steps = [...this.state.steps, this.state.currentStep]
+      const completedStep: StepState = {
+        ...this.state.currentStep,
+        category: finalizeCompletedStepCategory(this.state.currentStep),
+        isComplete: true,
+      }
+      this.state.steps = [...this.state.steps, completedStep]
     }
 
     this.state.currentStep = {
       step,
-      category: 'read',
+      category: 'text',
       thought: '',
       toolCalls: [],
       isComplete: false,
@@ -73,7 +77,12 @@ class StateStore {
   }
 
   textEnd(_text: string): void {
-    // thought is already accumulated via textDelta — nothing extra needed
+    if (this.state.currentStep && this.state.currentStep.toolCalls.length === 0) {
+      this.state.currentStep = {
+        ...this.state.currentStep,
+        category: 'text',
+      }
+    }
     this.emit()
   }
 
@@ -142,8 +151,12 @@ class StateStore {
   done(finalAnswer: string | null, error: string | null): void {
     // Complete current step
     if (this.state.currentStep) {
-      this.state.currentStep.isComplete = true
-      this.state.steps = [...this.state.steps, this.state.currentStep]
+      const completedStep: StepState = {
+        ...this.state.currentStep,
+        category: finalizeCompletedStepCategory(this.state.currentStep),
+        isComplete: true,
+      }
+      this.state.steps = [...this.state.steps, completedStep]
       this.state.currentStep = null
     }
 
