@@ -6,6 +6,7 @@ export type {
   AgentError,
   RunAgentOptions,
   ToolExecutionContext,
+  ToolExecutionResult,
   ToolHandler,
 } from './react-loop.js'
 
@@ -40,3 +41,15 @@ export type { LsOptions } from './tools/ls.js'
 
 export { askUserQuestionTool, ASK_USER_QUESTION_TOOL_NAME } from './tools/ask-user.js'
 export type { PendingQuestion, ResolvedQuestion } from './tools/ask-user.js'
+
+export {
+  builtinContracts,
+  bashContract,
+  fileReadContract,
+  fileWriteContract,
+  fileEditContract,
+  searchContract,
+  lsContract,
+  askUserQuestionContract,
+} from './tools/contracts.js'
+export type { ToolContract } from './tools/contracts.js'

@@ -36,13 +36,13 @@ export function createFileEditHandler(options: FileEditOptions = {}): ToolHandle
   return async (args) => {
     const filePath = args.file_path as string | undefined
     if (!filePath || typeof filePath !== 'string') {
-      return 'ERROR [INVALID_ARGS]: file_path is required and must be a string.'
+      return { output: 'ERROR [INVALID_ARGS]: file_path is required and must be a string.', isError: true, errorCode: 'INVALID_ARGS' }
     }
     if (typeof args.old_string !== 'string') {
-      return 'ERROR [INVALID_ARGS]: old_string is required and must be a string.'
+      return { output: 'ERROR [INVALID_ARGS]: old_string is required and must be a string.', isError: true, errorCode: 'INVALID_ARGS' }
     }
     if (typeof args.new_string !== 'string') {
-      return 'ERROR [INVALID_ARGS]: new_string is required and must be a string.'
+      return { output: 'ERROR [INVALID_ARGS]: new_string is required and must be a string.', isError: true, errorCode: 'INVALID_ARGS' }
     }
 
     const resolved = resolvePath(cwd, filePath)
@@ -54,22 +54,22 @@ export function createFileEditHandler(options: FileEditOptions = {}): ToolHandle
       content = await readFile(resolved, 'utf-8')
     } catch (err: unknown) {
       if (isNodeError(err) && err.code === 'ENOENT') {
-        return `ERROR [NOT_FOUND]: File not found: ${resolved}`
+        return { output: `ERROR [NOT_FOUND]: File not found: ${resolved}`, isError: true, errorCode: 'NOT_FOUND' }
       }
       if (isNodeError(err) && err.code === 'EACCES') {
-        return `ERROR [PERMISSION_DENIED]: Permission denied: ${resolved}`
+        return { output: `ERROR [PERMISSION_DENIED]: Permission denied: ${resolved}`, isError: true, errorCode: 'PERMISSION_DENIED' }
       }
-      return `ERROR: Failed to read file: ${err instanceof Error ? err.message : String(err)}`
+      return { output: `ERROR: Failed to read file: ${err instanceof Error ? err.message : String(err)}`, isError: true }
     }
 
     // Count exact occurrences
     const matchCount = countOccurrences(content, oldString)
 
     if (matchCount === 0) {
-      return `ERROR [NO_MATCH]: old_string not found in ${resolved}. No changes made.`
+      return { output: `ERROR [NO_MATCH]: old_string not found in ${resolved}. No changes made.`, isError: true, errorCode: 'NO_MATCH' }
     }
     if (matchCount > 1) {
-      return `ERROR [MULTI_MATCH]: old_string found ${matchCount} times in ${resolved}. Provide more context to match exactly once. No changes made.`
+      return { output: `ERROR [MULTI_MATCH]: old_string found ${matchCount} times in ${resolved}. Provide more context to match exactly once. No changes made.`, isError: true, errorCode: 'MULTI_MATCH' }
     }
 
     // Exactly one match — perform replacement
@@ -79,12 +79,12 @@ export function createFileEditHandler(options: FileEditOptions = {}): ToolHandle
       await writeFile(resolved, updated, 'utf-8')
     } catch (err: unknown) {
       if (isNodeError(err) && err.code === 'EACCES') {
-        return `ERROR [PERMISSION_DENIED]: Permission denied writing to: ${resolved}`
+        return { output: `ERROR [PERMISSION_DENIED]: Permission denied writing to: ${resolved}`, isError: true, errorCode: 'PERMISSION_DENIED' }
       }
-      return `ERROR: Failed to write file: ${err instanceof Error ? err.message : String(err)}`
+      return { output: `ERROR: Failed to write file: ${err instanceof Error ? err.message : String(err)}`, isError: true }
     }
 
-    return `OK: Replaced 1 occurrence in ${resolved}`
+    return { output: `OK: Replaced 1 occurrence in ${resolved}`, isError: false }
   }
 }
 

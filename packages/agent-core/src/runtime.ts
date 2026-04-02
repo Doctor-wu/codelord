@@ -476,12 +476,13 @@ export class AgentRuntime<TApi extends Api = Api> {
             isError = true
           } else {
             try {
-              resultText = await handler(tc.arguments, {
+              const result = await handler(tc.arguments, {
                 emitOutput: (stream, chunk) => {
                   this.emit({ type: 'tool_output_delta', toolName: tc.name, stream, chunk })
                 },
               })
-              isError = false
+              resultText = result.output
+              isError = result.isError
             } catch (e) {
               resultText = `Error executing tool "${tc.name}": ${e instanceof Error ? e.message : String(e)}`
               isError = true

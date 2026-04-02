@@ -17,10 +17,16 @@ export interface ToolExecutionContext {
   emitOutput: (stream: 'stdout' | 'stderr', chunk: string) => void
 }
 
+export interface ToolExecutionResult {
+  output: string
+  isError: boolean
+  errorCode?: string
+}
+
 export type ToolHandler = (
   args: Record<string, unknown>,
   context: ToolExecutionContext,
-) => Promise<string>
+) => Promise<ToolExecutionResult>
 
 // ---------------------------------------------------------------------------
 // Agent event types

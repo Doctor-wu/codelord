@@ -111,7 +111,7 @@ describe('AgentRuntime', () => {
         makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant),
       )
 
-    const handler = vi.fn().mockResolvedValue('hi\n')
+    const handler = vi.fn().mockResolvedValue({ output: 'hi\n', isError: false })
 
     const rt = new AgentRuntime({
       model: { id: 'test-model' } as never,
@@ -323,7 +323,7 @@ describe('AgentRuntime interrupt', () => {
         // First tool completes, but interrupt is requested during it
         rt.requestInterrupt()
       }
-      return `result-${toolCallCount}`
+      return { output: `result-${toolCallCount}`, isError: false }
     })
 
     const rt = new AgentRuntime({
@@ -469,7 +469,7 @@ describe('AgentRuntime multi-turn session', () => {
       model: { id: 'test-model' } as never,
       systemPrompt: 'test',
       tools: [],
-      toolHandlers: new Map([['x', async () => 'ok']]),
+      toolHandlers: new Map([['x', async () => ({ output: 'ok', isError: false })]]),
       apiKey: 'test-key',
       maxSteps: 2,
     })
@@ -576,7 +576,7 @@ describe('AgentRuntime per-burst step budget', () => {
       model: { id: 'test-model' } as never,
       systemPrompt: 'test',
       tools: [],
-      toolHandlers: new Map([['x', async () => 'ok']]),
+      toolHandlers: new Map([['x', async () => ({ output: 'ok', isError: false })]]),
       apiKey: 'test-key',
       maxSteps: 3,
     })
@@ -896,7 +896,7 @@ describe('AgentRuntime AskUserQuestion', () => {
       ], assistantWithBoth),
     )
 
-    const handler = vi.fn().mockResolvedValue('done')
+    const handler = vi.fn().mockResolvedValue({ output: 'done', isError: false })
 
     const rt = new AgentRuntime({
       model: { id: 'test-model' } as never,
@@ -915,5 +915,171 @@ describe('AgentRuntime AskUserQuestion', () => {
     // Messages: user + assistant + toolResult(bash) — no toolResult for AskUserQuestion yet
     expect(rt.messages).toHaveLength(3)
     expect(rt.pendingQuestion).not.toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// ToolExecutionResult structured isError semantics
+// ---------------------------------------------------------------------------
+
+describe('AgentRuntime ToolExecutionResult semantics', () => {
+  afterEach(() => {
+    streamSimpleMock.mockReset()
+  })
+
+  it('handler returning isError=true sets ToolResultMessage.isError=true', async () => {
+    const toolCall = {
+      type: 'toolCall',
+      id: 'tc-err',
+      name: 'file_edit',
+      arguments: {},
+    }
+    const assistantWithTool = makeAssistantMessage({
+      content: [toolCall],
+      stopReason: 'toolUse',
+    })
+    const finalAssistant = makeAssistantMessage({
+      content: [{ type: 'text', text: 'ok' }],
+    })
+
+    streamSimpleMock
+      .mockReturnValueOnce(
+        makeEventStream([
+          { type: 'toolcall_end', toolCall },
+          { type: 'done', message: assistantWithTool },
+        ], assistantWithTool),
+      )
+      .mockReturnValueOnce(
+        makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant),
+      )
+
+    const handler = vi.fn().mockResolvedValue({
+      output: 'ERROR [NO_MATCH]: old_string not found',
+      isError: true,
+      errorCode: 'NO_MATCH',
+    })
+
+    const events: unknown[] = []
+    const rt = new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map([['file_edit', handler]]),
+      apiKey: 'test-key',
+      onEvent: (e) => events.push(e),
+    })
+    rt.messages.push({ role: 'user', content: 'edit', timestamp: Date.now() })
+
+    await rt.run()
+
+    // tool_result event should have isError=true
+    const toolResultEvent = events.find((e: any) => e.type === 'tool_result') as any
+    expect(toolResultEvent.isError).toBe(true)
+    expect(toolResultEvent.result).toContain('ERROR [NO_MATCH]')
+
+    // ToolResultMessage in history should have isError=true
+    const toolResultMsg = rt.messages.find((m: any) => m.role === 'toolResult') as any
+    expect(toolResultMsg.isError).toBe(true)
+  })
+
+  it('handler returning isError=false sets ToolResultMessage.isError=false', async () => {
+    const toolCall = {
+      type: 'toolCall',
+      id: 'tc-ok',
+      name: 'search',
+      arguments: {},
+    }
+    const assistantWithTool = makeAssistantMessage({
+      content: [toolCall],
+      stopReason: 'toolUse',
+    })
+    const finalAssistant = makeAssistantMessage({
+      content: [{ type: 'text', text: 'done' }],
+    })
+
+    streamSimpleMock
+      .mockReturnValueOnce(
+        makeEventStream([
+          { type: 'toolcall_end', toolCall },
+          { type: 'done', message: assistantWithTool },
+        ], assistantWithTool),
+      )
+      .mockReturnValueOnce(
+        makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant),
+      )
+
+    // "No matches found" is a successful operation, not an error
+    const handler = vi.fn().mockResolvedValue({
+      output: 'No matches found for: xyz',
+      isError: false,
+    })
+
+    const events: unknown[] = []
+    const rt = new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map([['search', handler]]),
+      apiKey: 'test-key',
+      onEvent: (e) => events.push(e),
+    })
+    rt.messages.push({ role: 'user', content: 'search', timestamp: Date.now() })
+
+    await rt.run()
+
+    const toolResultEvent = events.find((e: any) => e.type === 'tool_result') as any
+    expect(toolResultEvent.isError).toBe(false)
+
+    const toolResultMsg = rt.messages.find((m: any) => m.role === 'toolResult') as any
+    expect(toolResultMsg.isError).toBe(false)
+  })
+
+  it('handler that throws is treated as execution error (isError=true)', async () => {
+    const toolCall = {
+      type: 'toolCall',
+      id: 'tc-throw',
+      name: 'broken',
+      arguments: {},
+    }
+    const assistantWithTool = makeAssistantMessage({
+      content: [toolCall],
+      stopReason: 'toolUse',
+    })
+    const finalAssistant = makeAssistantMessage({
+      content: [{ type: 'text', text: 'recovered' }],
+    })
+
+    streamSimpleMock
+      .mockReturnValueOnce(
+        makeEventStream([
+          { type: 'toolcall_end', toolCall },
+          { type: 'done', message: assistantWithTool },
+        ], assistantWithTool),
+      )
+      .mockReturnValueOnce(
+        makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant),
+      )
+
+    const handler = vi.fn().mockRejectedValue(new Error('internal crash'))
+
+    const events: unknown[] = []
+    const rt = new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map([['broken', handler]]),
+      apiKey: 'test-key',
+      onEvent: (e) => events.push(e),
+    })
+    rt.messages.push({ role: 'user', content: 'go', timestamp: Date.now() })
+
+    await rt.run()
+
+    const toolResultEvent = events.find((e: any) => e.type === 'tool_result') as any
+    expect(toolResultEvent.isError).toBe(true)
+    expect(toolResultEvent.result).toContain('internal crash')
+
+    const toolResultMsg = rt.messages.find((m: any) => m.role === 'toolResult') as any
+    expect(toolResultMsg.isError).toBe(true)
   })
 })

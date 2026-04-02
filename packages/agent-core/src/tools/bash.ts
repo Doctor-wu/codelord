@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { Type } from '@mariozechner/pi-ai'
 import type { Tool } from '@mariozechner/pi-ai'
-import type { ToolExecutionContext, ToolHandler } from '../react-loop.js'
+import type { ToolExecutionContext, ToolExecutionResult, ToolHandler } from '../react-loop.js'
 
 // ---------------------------------------------------------------------------
 // Bash tool definition
@@ -44,13 +44,13 @@ export function createBashToolHandler(options: BashToolOptions = {}): ToolHandle
   return async (
     args: Record<string, unknown>,
     context: ToolExecutionContext,
-  ): Promise<string> => {
+  ): Promise<ToolExecutionResult> => {
     const command = args.command as string
     if (!command || typeof command !== 'string') {
-      throw new Error('bash tool requires a "command" string argument')
+      return { output: 'ERROR [INVALID_ARGS]: bash tool requires a "command" string argument', isError: true, errorCode: 'INVALID_ARGS' }
     }
 
-    return new Promise<string>((resolve, reject) => {
+    return new Promise<ToolExecutionResult>((resolve, reject) => {
       const child = spawn('sh', ['-c', command], {
         cwd,
         env: { ...process.env },
@@ -98,7 +98,9 @@ export function createBashToolHandler(options: BashToolOptions = {}): ToolHandle
       child.on('close', (code) => {
         clearTimeout(timeoutId)
         const exitCode = didTimeout ? null : code ?? 1
-        resolve(formatOutput(exitCode, stdout, stderr, undefined, wasTruncated))
+        const output = formatOutput(exitCode, stdout, stderr, undefined, wasTruncated)
+        const isError = didTimeout || (exitCode !== null && exitCode !== 0)
+        resolve({ output, isError })
       })
 
       child.on('error', (err) => {

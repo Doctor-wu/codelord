@@ -7,15 +7,7 @@ import { resolveApiKey } from '../auth/index.js'
 import { InkRenderer, PlainTextRenderer } from '../renderer/index.js'
 import type { Renderer } from '../renderer/index.js'
 import { createToolKernel } from './tool-kernel.js'
-
-const SYSTEM_PROMPT = `You are a coding agent. You can execute bash commands to explore codebases, read files, run tests, and help debug issues.
-
-When investigating code:
-1. Start by understanding the project structure (ls, find, cat package.json)
-2. Read relevant files to understand the code
-3. If asked to fix something, explain what you found and suggest changes
-
-Always explain your reasoning before executing commands.`
+import { buildSystemPrompt } from './system-prompt.js'
 
 function readVersion(): string {
   const packageJson = JSON.parse(
@@ -63,14 +55,13 @@ export async function runAgentCommand(
     const model = resolveModel(config)
     const apiKey = await resolveApiKey(config)
 
-    const { tools, toolHandlers } = createToolKernel({
-      cwd: process.cwd(),
-      config,
-    })
+    const cwd = process.cwd()
+    const { tools, toolHandlers } = createToolKernel({ cwd, config })
+    const systemPrompt = buildSystemPrompt({ cwd })
 
     await runAgent({
       model,
-      systemPrompt: SYSTEM_PROMPT,
+      systemPrompt,
       tools,
       toolHandlers,
       userMessage: message,

@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { Type } from '@mariozechner/pi-ai'
 import type { Tool } from '@mariozechner/pi-ai'
-import type { ToolHandler } from '../react-loop.js'
+import type { ToolExecutionResult, ToolHandler } from '../react-loop.js'
 
 // ---------------------------------------------------------------------------
 // search — tool definition
@@ -53,7 +53,7 @@ export function createSearchHandler(options: SearchOptions = {}): ToolHandler {
   return async (args) => {
     const query = args.query as string | undefined
     if (!query || typeof query !== 'string') {
-      return 'ERROR [INVALID_ARGS]: query is required and must be a string.'
+      return { output: 'ERROR [INVALID_ARGS]: query is required and must be a string.', isError: true, errorCode: 'INVALID_ARGS' }
     }
 
     const searchPath = typeof args.path === 'string' ? resolvePath(cwd, args.path) : cwd
@@ -62,10 +62,9 @@ export function createSearchHandler(options: SearchOptions = {}): ToolHandler {
     const maxResults = Math.max(1, Number(args.max_results) || DEFAULT_MAX_RESULTS)
     const glob = typeof args.glob === 'string' ? args.glob : undefined
 
-    // Build rg command args
     const rgArgs = buildRgArgs({ query, searchPath, useRegex, contextLines, maxResults, glob })
 
-    return new Promise<string>((resolve) => {
+    return new Promise<ToolExecutionResult>((resolve) => {
       const child = spawn('rg', rgArgs, { cwd, env: { ...process.env } })
 
       let output = ''
@@ -82,13 +81,13 @@ export function createSearchHandler(options: SearchOptions = {}): ToolHandler {
         }
       })
 
-      child.stderr.on('data', (chunk: Buffer) => {
+      child.stderr.on('data', () => {
         // rg writes warnings to stderr; ignore for now
       })
 
       const timeoutId = setTimeout(() => {
         child.kill('SIGTERM')
-        resolve('ERROR: Search timed out.')
+        resolve({ output: 'ERROR: Search timed out.', isError: true })
       }, timeout)
 
       child.on('close', (code) => {
@@ -96,7 +95,7 @@ export function createSearchHandler(options: SearchOptions = {}): ToolHandler {
 
         // rg exit codes: 0=matches found, 1=no matches, 2=error
         if (code === 1 || (!output.trim() && code === 0)) {
-          resolve(`No matches found for: ${query}`)
+          resolve({ output: `No matches found for: ${query}`, isError: false })
           return
         }
 
@@ -104,17 +103,16 @@ export function createSearchHandler(options: SearchOptions = {}): ToolHandler {
         if (truncated) {
           result += `\n[output truncated at ${MAX_OUTPUT_CHARS} chars]`
         }
-        resolve(result || `No matches found for: ${query}`)
+        resolve({ output: result || `No matches found for: ${query}`, isError: false })
       })
 
       child.on('error', (err) => {
         clearTimeout(timeoutId)
-        // rg not available — try grep fallback
         if (isNodeError(err) && err.code === 'ENOENT') {
           resolve(grepFallback({ query, searchPath, useRegex, contextLines, maxResults, cwd, timeout }))
           return
         }
-        resolve(`ERROR: Search failed: ${err.message}`)
+        resolve({ output: `ERROR: Search failed: ${err.message}`, isError: true })
       })
     })
   }
@@ -171,7 +169,7 @@ interface GrepFallbackParams {
   timeout: number
 }
 
-function grepFallback(params: GrepFallbackParams): Promise<string> {
+function grepFallback(params: GrepFallbackParams): Promise<ToolExecutionResult> {
   const grepArgs: string[] = ['-rn', '--color=never']
 
   if (!params.useRegex) {
@@ -184,7 +182,7 @@ function grepFallback(params: GrepFallbackParams): Promise<string> {
 
   grepArgs.push('--', params.query, params.searchPath)
 
-  return new Promise<string>((resolve) => {
+  return new Promise<ToolExecutionResult>((resolve) => {
     const child = spawn('grep', grepArgs, { cwd: params.cwd, env: { ...process.env } })
 
     let output = ''
@@ -204,21 +202,21 @@ function grepFallback(params: GrepFallbackParams): Promise<string> {
 
     const timeoutId = setTimeout(() => {
       child.kill('SIGTERM')
-      resolve('ERROR: Search timed out.')
+      resolve({ output: 'ERROR: Search timed out.', isError: true })
     }, params.timeout)
 
     child.on('close', (code) => {
       clearTimeout(timeoutId)
       if (code === 1 || !output.trim()) {
-        resolve(`No matches found for: ${params.query}`)
+        resolve({ output: `No matches found for: ${params.query}`, isError: false })
         return
       }
-      resolve(output.trim())
+      resolve({ output: output.trim(), isError: false })
     })
 
     child.on('error', () => {
       clearTimeout(timeoutId)
-      resolve('ERROR: Neither rg nor grep is available.')
+      resolve({ output: 'ERROR: Neither rg nor grep is available.', isError: true })
     })
   })
 }

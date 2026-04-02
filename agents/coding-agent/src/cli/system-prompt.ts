@@ -1,0 +1,79 @@
+import { builtinContracts } from '@agent/core'
+import type { ToolContract } from '@agent/core'
+
+// ---------------------------------------------------------------------------
+// System prompt builder — shared by single-shot and REPL
+// ---------------------------------------------------------------------------
+
+export interface SystemPromptOptions {
+  cwd: string
+}
+
+/**
+ * Build the system prompt for the coding agent.
+ * This is the single source of truth — run.ts and repl.ts both use this.
+ */
+export function buildSystemPrompt(options: SystemPromptOptions): string {
+  const { cwd } = options
+
+  const sections: string[] = [
+    buildRoleSection(),
+    buildContextSection(cwd),
+    buildToolGuidanceSection(),
+  ]
+
+  return sections.join('\n\n')
+}
+
+// ---------------------------------------------------------------------------
+// Sections
+// ---------------------------------------------------------------------------
+
+function buildRoleSection(): string {
+  return `You are a coding agent. You help users understand, modify, debug, and build software projects.
+
+You have access to built-in tools for file operations, code search, directory browsing, and shell commands. Use the most specific tool for each task.`
+}
+
+function buildContextSection(cwd: string): string {
+  return `Working directory: ${cwd}`
+}
+
+function buildToolGuidanceSection(): string {
+  const lines: string[] = [
+    '## Tool usage guidelines',
+    '',
+    'IMPORTANT: Always prefer dedicated built-in tools over bash. bash is a fallback primitive for operations not covered by other tools.',
+    '',
+  ]
+
+  // Render each contract as a compact block
+  for (const [, contract] of builtinContracts) {
+    lines.push(renderContract(contract))
+    lines.push('')
+  }
+
+  return lines.join('\n')
+}
+
+function renderContract(c: ToolContract): string {
+  const lines: string[] = [`### ${c.toolName}`]
+
+  if (c.whenToUse.length > 0) {
+    lines.push(`Use when: ${c.whenToUse.join(' ')}`)
+  }
+  if (c.whenNotToUse.length > 0) {
+    lines.push(`Avoid: ${c.whenNotToUse.join(' ')}`)
+  }
+  if (c.preconditions.length > 0) {
+    lines.push(`Requires: ${c.preconditions.join(' ')}`)
+  }
+  if (c.failureSemantics.length > 0) {
+    lines.push(`Failures: ${c.failureSemantics.join(' ')}`)
+  }
+  if (c.fallbackHints.length > 0) {
+    lines.push(`On failure: ${c.fallbackHints.join(' ')}`)
+  }
+
+  return lines.join('\n')
+}

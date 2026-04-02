@@ -39,7 +39,7 @@ export function createFileReadHandler(options: FileReadOptions = {}): ToolHandle
   return async (args) => {
     const filePath = args.file_path as string | undefined
     if (!filePath || typeof filePath !== 'string') {
-      return 'ERROR [INVALID_ARGS]: file_path is required and must be a string.'
+      return { output: 'ERROR [INVALID_ARGS]: file_path is required and must be a string.', isError: true, errorCode: 'INVALID_ARGS' }
     }
 
     const resolved = resolvePath(cwd, filePath)
@@ -49,15 +49,15 @@ export function createFileReadHandler(options: FileReadOptions = {}): ToolHandle
       content = await readFile(resolved, 'utf-8')
     } catch (err: unknown) {
       if (isNodeError(err) && err.code === 'ENOENT') {
-        return `ERROR [NOT_FOUND]: File not found: ${resolved}`
+        return { output: `ERROR [NOT_FOUND]: File not found: ${resolved}`, isError: true, errorCode: 'NOT_FOUND' }
       }
       if (isNodeError(err) && err.code === 'EACCES') {
-        return `ERROR [PERMISSION_DENIED]: Permission denied: ${resolved}`
+        return { output: `ERROR [PERMISSION_DENIED]: Permission denied: ${resolved}`, isError: true, errorCode: 'PERMISSION_DENIED' }
       }
       if (isNodeError(err) && err.code === 'EISDIR') {
-        return `ERROR [INVALID_ARGS]: Path is a directory, not a file: ${resolved}`
+        return { output: `ERROR [INVALID_ARGS]: Path is a directory, not a file: ${resolved}`, isError: true, errorCode: 'INVALID_ARGS' }
       }
-      return `ERROR: Failed to read file: ${err instanceof Error ? err.message : String(err)}`
+      return { output: `ERROR: Failed to read file: ${err instanceof Error ? err.message : String(err)}`, isError: true }
     }
 
     const lines = content.split('\n')
@@ -78,7 +78,7 @@ export function createFileReadHandler(options: FileReadOptions = {}): ToolHandle
     }
     header += ')'
 
-    return `${header}\n${numbered}`
+    return { output: `${header}\n${numbered}`, isError: false }
   }
 }
 

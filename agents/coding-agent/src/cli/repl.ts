@@ -5,19 +5,11 @@ import type { AgentEvent, RunOutcome } from '@agent/core'
 import type { CodelordConfig } from '@agent/config'
 import { PlainTextRenderer } from '../renderer/index.js'
 import { createToolKernel } from './tool-kernel.js'
+import { buildSystemPrompt } from './system-prompt.js'
 
 // ---------------------------------------------------------------------------
 // REPL — minimal interactive shell over a single AgentRuntime
 // ---------------------------------------------------------------------------
-
-const SYSTEM_PROMPT = `You are a coding agent. You can execute bash commands to explore codebases, read files, run tests, and help debug issues.
-
-When investigating code:
-1. Start by understanding the project structure (ls, find, cat package.json)
-2. Read relevant files to understand the code
-3. If asked to fix something, explain what you found and suggest changes
-
-Always explain your reasoning before executing commands.`
 
 interface ReplOptions {
   model: Model<Api>
@@ -28,16 +20,15 @@ interface ReplOptions {
 export async function startRepl(options: ReplOptions): Promise<void> {
   const { model, apiKey, config } = options
 
-  const { tools, toolHandlers } = createToolKernel({
-    cwd: process.cwd(),
-    config,
-  })
+  const cwd = process.cwd()
+  const { tools, toolHandlers } = createToolKernel({ cwd, config })
+  const systemPrompt = buildSystemPrompt({ cwd })
 
   const renderer = new PlainTextRenderer()
 
   const runtime = new AgentRuntime({
     model,
-    systemPrompt: SYSTEM_PROMPT,
+    systemPrompt,
     tools,
     toolHandlers,
     apiKey,

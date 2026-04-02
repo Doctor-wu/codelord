@@ -55,7 +55,7 @@ export function createLsHandler(options: LsOptions = {}): ToolHandler {
     const maxEntries = Math.max(1, Number(args.max_entries) || DEFAULT_MAX_ENTRIES)
 
     if (typeFilter && typeFilter !== 'file' && typeFilter !== 'dir') {
-      return 'ERROR [INVALID_ARGS]: type must be "file" or "dir".'
+      return { output: 'ERROR [INVALID_ARGS]: type must be "file" or "dir".', isError: true, errorCode: 'INVALID_ARGS' }
     }
 
     const entries: string[] = []
@@ -65,15 +65,15 @@ export function createLsHandler(options: LsOptions = {}): ToolHandler {
       await collectEntries(dirPath, dirPath, recursive, glob, typeFilter as 'file' | 'dir' | undefined, entries, maxEntries)
     } catch (err: unknown) {
       if (isNodeError(err) && err.code === 'ENOENT') {
-        return `ERROR [NOT_FOUND]: Directory not found: ${dirPath}`
+        return { output: `ERROR [NOT_FOUND]: Directory not found: ${dirPath}`, isError: true, errorCode: 'NOT_FOUND' }
       }
       if (isNodeError(err) && err.code === 'EACCES') {
-        return `ERROR [PERMISSION_DENIED]: Permission denied: ${dirPath}`
+        return { output: `ERROR [PERMISSION_DENIED]: Permission denied: ${dirPath}`, isError: true, errorCode: 'PERMISSION_DENIED' }
       }
       if (isNodeError(err) && err.code === 'ENOTDIR') {
-        return `ERROR [INVALID_ARGS]: Path is not a directory: ${dirPath}`
+        return { output: `ERROR [INVALID_ARGS]: Path is not a directory: ${dirPath}`, isError: true, errorCode: 'INVALID_ARGS' }
       }
-      return `ERROR: Failed to list directory: ${err instanceof Error ? err.message : String(err)}`
+      return { output: `ERROR: Failed to list directory: ${err instanceof Error ? err.message : String(err)}`, isError: true }
     }
 
     if (entries.length >= maxEntries) {
@@ -81,14 +81,14 @@ export function createLsHandler(options: LsOptions = {}): ToolHandler {
     }
 
     if (entries.length === 0) {
-      return `${dirPath}: (empty)`
+      return { output: `${dirPath}: (empty)`, isError: false }
     }
 
     let result = entries.join('\n')
     if (truncated) {
       result += `\n[truncated at ${maxEntries} entries]`
     }
-    return result
+    return { output: result, isError: false }
   }
 }
 
