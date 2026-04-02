@@ -21,7 +21,8 @@ export interface ToolCallState {
 export interface StepState {
   step: number
   category: StepCategory
-  thought: string // accumulated text_delta
+  thinking: string // accumulated thinking_delta
+  text: string // accumulated text_delta
   toolCalls: ToolCallState[]
   isComplete: boolean
 }

@@ -9,7 +9,8 @@ function makeStep(overrides: Partial<StepState> = {}): StepState {
   return {
     step: 1,
     category: 'read',
-    thought: '',
+    thinking: '',
+    text: '',
     toolCalls: [],
     isComplete: true,
     ...overrides,
@@ -21,7 +22,7 @@ describe('finalizeCompletedStepCategory', () => {
     const category = finalizeCompletedStepCategory(
       makeStep({
         category: 'read',
-        thought: 'hi, I am codelord',
+        text: 'hi, I am codelord',
         toolCalls: [],
       }),
     )
@@ -55,7 +56,7 @@ describe('getStatusCategoryCounts', () => {
       [
         makeStep({
           category: 'text',
-          thought: 'hi there',
+          text: 'hi there',
         }),
         makeStep({
           category: 'read',

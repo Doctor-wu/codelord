@@ -13,7 +13,8 @@ function makeStep(overrides: Partial<StepState> = {}): StepState {
   return {
     step: 1,
     category: 'text',
-    thought: '',
+    thinking: '',
+    text: '',
     toolCalls: [],
     isComplete: true,
     ...overrides,
@@ -42,7 +43,7 @@ describe('CollapsedStep rendering', () => {
       <CollapsedStep
         step={makeStep({
           category: 'text',
-          thought: 'first line\nsecond line\nthird line',
+          text: 'first line\nsecond line\nthird line',
         })}
       />,
     )
@@ -53,12 +54,13 @@ describe('CollapsedStep rendering', () => {
     expect(output).not.toContain('┃')
   })
 
-  it('keeps full model text and moves tool summaries to a new line', () => {
+  it('renders thinking separately from assistant text before tool summaries', () => {
     const output = renderToString(
       <CollapsedStep
         step={makeStep({
           category: 'read',
-          thought: 'inspect project structure\ncheck renderer files',
+          thinking: 'inspect project structure',
+          text: 'check renderer files',
           toolCalls: [
             makeToolCall({
               args: { command: 'rg renderer' },
@@ -70,6 +72,7 @@ describe('CollapsedStep rendering', () => {
       />,
     )
 
+    expect(output).toContain('thinking')
     expect(output).toContain('inspect project structure')
     expect(output).toContain('check renderer files')
     expect(output).toMatch(/check renderer files\s+┃ READ\s+┃ Bash\(rg renderer\)/)
@@ -84,7 +87,7 @@ describe('CollapsedStep rendering', () => {
       <CollapsedStep
         step={makeStep({
           category: 'read',
-          thought: 'listing files',
+          text: 'listing files',
           toolCalls: [
             makeToolCall({
               result: [
@@ -177,7 +180,8 @@ describe('CurrentStep rendering', () => {
         step={makeStep({
           isComplete: false,
           category: 'text',
-          thought: '',
+          thinking: '',
+          text: '',
           toolCalls: [],
         })}
       />,
@@ -186,13 +190,14 @@ describe('CurrentStep rendering', () => {
     expect(output).toContain('thinking')
   })
 
-  it('streams the running tool title immediately and shows a working placeholder', () => {
+  it('renders thinking and assistant text before a running tool block', () => {
     const output = renderToString(
       <CurrentStep
         step={makeStep({
           isComplete: false,
           category: 'read',
-          thought: '',
+          thinking: 'inspect the workspace',
+          text: 'I am checking renderer files next.',
           toolCalls: [
             makeToolCall({
               result: undefined,
@@ -203,11 +208,13 @@ describe('CurrentStep rendering', () => {
       />,
     )
 
+    expect(output).toContain('thinking')
+    expect(output).toContain('inspect the workspace')
+    expect(output).toContain('I am checking renderer files next.')
     expect(output).toContain('READ')
     expect(output).toContain('●')
     expect(output).toContain('Bash(ls -la)')
     expect(output).toContain('building command...')
-    expect(output).not.toContain('thinking')
     expect(output).not.toContain('Tool call success')
   })
 
@@ -217,7 +224,8 @@ describe('CurrentStep rendering', () => {
         step={makeStep({
           isComplete: false,
           category: 'read',
-          thought: '',
+          thinking: '',
+          text: '',
           toolCalls: [
             makeToolCall({
               result: '',
@@ -241,7 +249,8 @@ describe('CurrentStep rendering', () => {
         step={makeStep({
           isComplete: false,
           category: 'read',
-          thought: '',
+          thinking: '',
+          text: '',
           toolCalls: [
             makeToolCall({
               result: 'stdout:\nfirst line\nsecond line',
@@ -303,7 +312,8 @@ describe('App rendering', () => {
     state.currentStep = makeStep({
       isComplete: false,
       category: 'write',
-      thought: '',
+      thinking: '',
+      text: '',
       toolCalls: [
         makeToolCall({
           args: { command: 'rm -f result.md' },
@@ -334,7 +344,8 @@ describe('App rendering', () => {
     state.currentStep = makeStep({
       isComplete: false,
       category: 'write',
-      thought: '',
+      thinking: '',
+      text: '',
       toolCalls: [
         makeToolCall({
           args: { command: 'cat > result.md' },

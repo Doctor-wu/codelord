@@ -13,19 +13,30 @@ interface CollapsedStepProps {
 }
 
 export function CollapsedStep({ step }: CollapsedStepProps) {
+  const hasThinking = Boolean(step.thinking)
+  const hasText = Boolean(step.text)
+
   if (step.category === 'text') {
-    return <StepTextBlock text={step.thought} />
+    return (
+      <Box flexDirection="column">
+        <StepTextBlock text={step.thinking} label="thinking" />
+        <StepTextBlock text={step.text} />
+      </Box>
+    )
   }
 
   return (
     <Box flexDirection="column">
-      <StepTextBlock text={step.thought} />
+      <StepTextBlock text={step.thinking} label="thinking" />
+      <Box marginTop={hasThinking && hasText ? 1 : 0}>
+        <StepTextBlock text={step.text} />
+      </Box>
 
       {step.toolCalls.map((toolCall, index) => (
         <Box
           key={`${step.step}-${index}`}
           flexDirection="column"
-          marginTop={step.thought || index > 0 ? 1 : 0}
+          marginTop={hasThinking || hasText || index > 0 ? 1 : 0}
         >
           <ToolCallLine toolCall={toolCall} />
           <ToolOutputBlock toolCall={toolCall} />

@@ -1,5 +1,5 @@
-import type { AgentEvent } from '@agent/core'
 import type { Renderer } from './types.js'
+import type { AgentEvent } from '@agent/core'
 
 // ---------------------------------------------------------------------------
 // PlainTextRenderer — stdout-only output for non-interactive use
@@ -8,18 +8,47 @@ import type { Renderer } from './types.js'
 const RESULT_TRUNCATE = 200
 
 export class PlainTextRenderer implements Renderer {
+  private thinkingOpen = false
+  private textOpen = false
+
   onEvent(event: AgentEvent): void {
     switch (event.type) {
       case 'step_start':
+        this.thinkingOpen = false
+        this.textOpen = false
         process.stdout.write(`--- Step ${event.step} ---\n`)
         break
 
+      case 'thinking_start':
+        this.openThinkingBlock()
+        break
+
+      case 'thinking_delta':
+        this.openThinkingBlock()
+        process.stdout.write(event.delta)
+        break
+
+      case 'thinking_end':
+        if (this.thinkingOpen) {
+          process.stdout.write('\n')
+          this.thinkingOpen = false
+        }
+        break
+
+      case 'text_start':
+        this.openTextBlock()
+        break
+
       case 'text_delta':
+        this.openTextBlock()
         process.stdout.write(event.delta)
         break
 
       case 'text_end':
-        process.stdout.write('\n')
+        if (this.textOpen) {
+          process.stdout.write('\n')
+          this.textOpen = false
+        }
         break
 
       case 'toolcall_end':
@@ -58,5 +87,19 @@ export class PlainTextRenderer implements Renderer {
 
   cleanup(): void {
     // Nothing to clean up for plain text output
+  }
+
+  private openThinkingBlock(): void {
+    if (this.thinkingOpen) return
+    this.thinkingOpen = true
+    this.textOpen = false
+    process.stdout.write('[thinking] ')
+  }
+
+  private openTextBlock(): void {
+    if (this.textOpen) return
+    this.textOpen = true
+    this.thinkingOpen = false
+    process.stdout.write('[assistant] ')
   }
 }

@@ -60,10 +60,24 @@ class StateStore {
     this.state.currentStep = {
       step,
       category: 'text',
-      thought: '',
+      thinking: '',
+      text: '',
       toolCalls: [],
       isComplete: false,
     }
+    this.emit()
+  }
+
+  thinkingDelta(delta: string): void {
+    if (!this.state.currentStep) return
+    this.state.currentStep = {
+      ...this.state.currentStep,
+      thinking: this.state.currentStep.thinking + delta,
+    }
+    this.emit()
+  }
+
+  thinkingEnd(_text: string): void {
     this.emit()
   }
 
@@ -71,7 +85,7 @@ class StateStore {
     if (!this.state.currentStep) return
     this.state.currentStep = {
       ...this.state.currentStep,
-      thought: this.state.currentStep.thought + delta,
+      text: this.state.currentStep.text + delta,
     }
     this.emit()
   }
@@ -407,6 +421,20 @@ export class InkRenderer implements Renderer {
     switch (event.type) {
       case 'step_start':
         this.store.stepStart(event.step)
+        break
+
+      case 'thinking_start':
+        break
+
+      case 'thinking_delta':
+        this.store.thinkingDelta(event.delta)
+        break
+
+      case 'thinking_end':
+        this.store.thinkingEnd(event.text)
+        break
+
+      case 'text_start':
         break
 
       case 'text_delta':

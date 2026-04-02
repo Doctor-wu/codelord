@@ -61,8 +61,12 @@ const VALID_TRANSITIONS: Record<LoopState, readonly LoopState[]> = {
 
 export type AgentEvent =
   | { type: 'step_start'; step: number }
-  | { type: 'text_delta'; delta: string }
-  | { type: 'text_end'; text: string }
+  | { type: 'thinking_start'; contentIndex: number }
+  | { type: 'thinking_delta'; contentIndex: number; delta: string }
+  | { type: 'thinking_end'; contentIndex: number; text: string }
+  | { type: 'text_start'; contentIndex: number }
+  | { type: 'text_delta'; contentIndex: number; delta: string }
+  | { type: 'text_end'; contentIndex: number; text: string }
   | { type: 'toolcall_start'; contentIndex: number; toolName: string; args: Record<string, unknown> }
   | { type: 'toolcall_delta'; contentIndex: number; toolName: string; args: Record<string, unknown> }
   | { type: 'toolcall_end'; toolCall: ToolCall }
@@ -123,6 +127,7 @@ export async function runAgent<TApi extends Api = Api>(
     userMessage,
     apiKey,
     maxSteps = 10,
+    streamOptions,
     onEvent,
   } = options
 
@@ -164,19 +169,38 @@ export async function runAgent<TApi extends Api = Api>(
     }
 
     const context: Context = { systemPrompt, messages, tools }
-    const eventStream = streamSimple(model, context, { apiKey })
+    const eventStream = streamSimple(model, context, {
+      ...streamOptions,
+      apiKey,
+    })
 
     let assistantMsg: AssistantMessage | undefined
     const toolCalls: ToolCall[] = []
 
     for await (const event of eventStream) {
       switch (event.type) {
+        case 'thinking_start':
+          emit({ type: 'thinking_start', contentIndex: event.contentIndex })
+          break
+
+        case 'thinking_delta':
+          emit({ type: 'thinking_delta', contentIndex: event.contentIndex, delta: event.delta })
+          break
+
+        case 'thinking_end':
+          emit({ type: 'thinking_end', contentIndex: event.contentIndex, text: event.content })
+          break
+
+        case 'text_start':
+          emit({ type: 'text_start', contentIndex: event.contentIndex })
+          break
+
         case 'text_delta':
-          emit({ type: 'text_delta', delta: event.delta })
+          emit({ type: 'text_delta', contentIndex: event.contentIndex, delta: event.delta })
           break
 
         case 'text_end':
-          emit({ type: 'text_end', text: event.content })
+          emit({ type: 'text_end', contentIndex: event.contentIndex, text: event.content })
           break
 
         case 'toolcall_start': {
