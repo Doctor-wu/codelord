@@ -1,7 +1,9 @@
 import { readFile, writeFile } from 'node:fs/promises'
+import { resolve, isAbsolute } from 'node:path'
 import { Type } from '@mariozechner/pi-ai'
 import type { Tool } from '@mariozechner/pi-ai'
 import type { ToolHandler } from '../react-loop.js'
+import type { ToolContract } from './tool-contract.js'
 
 // ---------------------------------------------------------------------------
 // file_edit — tool definition
@@ -45,7 +47,7 @@ export function createFileEditHandler(options: FileEditOptions = {}): ToolHandle
       return { output: 'ERROR [INVALID_ARGS]: new_string is required and must be a string.', isError: true, errorCode: 'INVALID_ARGS' }
     }
 
-    const resolved = resolvePath(cwd, filePath)
+    const resolved = isAbsolute(filePath) ? resolve(filePath) : resolve(cwd, filePath)
     const oldString = args.old_string as string
     const newString = args.new_string as string
 
@@ -62,7 +64,6 @@ export function createFileEditHandler(options: FileEditOptions = {}): ToolHandle
       return { output: `ERROR: Failed to read file: ${err instanceof Error ? err.message : String(err)}`, isError: true }
     }
 
-    // Count exact occurrences
     const matchCount = countOccurrences(content, oldString)
 
     if (matchCount === 0) {
@@ -72,7 +73,6 @@ export function createFileEditHandler(options: FileEditOptions = {}): ToolHandle
       return { output: `ERROR [MULTI_MATCH]: old_string found ${matchCount} times in ${resolved}. Provide more context to match exactly once. No changes made.`, isError: true, errorCode: 'MULTI_MATCH' }
     }
 
-    // Exactly one match — perform replacement
     const updated = content.replace(oldString, newString)
 
     try {
@@ -89,6 +89,39 @@ export function createFileEditHandler(options: FileEditOptions = {}): ToolHandle
 }
 
 // ---------------------------------------------------------------------------
+// file_edit — contract
+// ---------------------------------------------------------------------------
+
+export const fileEditContract: ToolContract = {
+  toolName: 'file_edit',
+  whenToUse: [
+    'Making a targeted change in an existing file.',
+    'Replacing a specific code block, line, or string.',
+  ],
+  whenNotToUse: [
+    'Do not use if you do not know the exact content to replace.',
+    'Do not use for creating new files — use file_write.',
+    'Do not use for whole-file rewrites — use file_write.',
+  ],
+  preconditions: [
+    'You must know the file path.',
+    'old_string must appear exactly once in the file.',
+    'Read the file first (file_read) if you are unsure of the exact content.',
+  ],
+  failureSemantics: [
+    'NO_MATCH: old_string was not found — the file does not contain that text.',
+    'MULTI_MATCH: old_string appears more than once — provide more surrounding context to make it unique.',
+    'NOT_FOUND: the file does not exist.',
+    'PERMISSION_DENIED: insufficient permissions.',
+  ],
+  fallbackHints: [
+    'On NO_MATCH: use file_read to see the actual file content, then construct the correct old_string.',
+    'On MULTI_MATCH: include more surrounding lines in old_string to make the match unique.',
+    'If the change is too complex for search-and-replace, use file_write to rewrite the entire file.',
+  ],
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -102,11 +135,6 @@ function countOccurrences(haystack: string, needle: string): number {
     pos = idx + 1
   }
   return count
-}
-
-function resolvePath(cwd: string, filePath: string): string {
-  if (filePath.startsWith('/')) return filePath
-  return `${cwd}/${filePath}`
 }
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {

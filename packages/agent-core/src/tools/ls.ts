@@ -1,8 +1,9 @@
 import { readdir, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, resolve, isAbsolute } from 'node:path'
 import { Type } from '@mariozechner/pi-ai'
 import type { Tool } from '@mariozechner/pi-ai'
 import type { ToolHandler } from '../react-loop.js'
+import type { ToolContract } from './tool-contract.js'
 
 // ---------------------------------------------------------------------------
 // ls — tool definition
@@ -48,7 +49,9 @@ export function createLsHandler(options: LsOptions = {}): ToolHandler {
   const { cwd = process.cwd() } = options
 
   return async (args) => {
-    const dirPath = typeof args.path === 'string' ? resolvePath(cwd, args.path) : cwd
+    const dirPath = typeof args.path === 'string'
+      ? (isAbsolute(args.path) ? resolve(args.path) : resolve(cwd, args.path))
+      : cwd
     const recursive = args.recursive === true
     const glob = typeof args.glob === 'string' ? args.glob : undefined
     const typeFilter = typeof args.type === 'string' ? args.type : undefined
@@ -169,13 +172,35 @@ function matchGlob(name: string, pattern: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// ls — contract
 // ---------------------------------------------------------------------------
 
-function resolvePath(cwd: string, filePath: string): string {
-  if (filePath.startsWith('/')) return filePath
-  return `${cwd}/${filePath}`
+export const lsContract: ToolContract = {
+  toolName: 'ls',
+  whenToUse: [
+    'Exploring project structure and understanding what files exist.',
+    'Building a mental map of a directory before reading or editing files.',
+    'Verifying a path exists before using file_read or file_edit.',
+  ],
+  whenNotToUse: [
+    'Do not use for reading file contents — use file_read.',
+    'Do not use for searching text inside files — use search.',
+  ],
+  preconditions: [],
+  failureSemantics: [
+    'NOT_FOUND: directory does not exist.',
+    'PERMISSION_DENIED: insufficient permissions.',
+    'Empty directory is NOT an error — the listing succeeded, the directory is simply empty.',
+  ],
+  fallbackHints: [
+    'Use recursive=true to see nested structure.',
+    'Use glob filter to narrow results in large directories.',
+  ],
 }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {
   return err instanceof Error && 'code' in err

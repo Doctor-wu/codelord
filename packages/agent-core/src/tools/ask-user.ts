@@ -1,5 +1,6 @@
 import { Type } from '@mariozechner/pi-ai'
 import type { Tool } from '@mariozechner/pi-ai'
+import type { ToolContract } from './tool-contract.js'
 
 // ---------------------------------------------------------------------------
 // AskUserQuestion — control tool name
@@ -74,4 +75,33 @@ export interface ResolvedQuestion {
   answer: string
   /** Timestamp when the answer was provided */
   resolvedAt: number
+}
+
+// ---------------------------------------------------------------------------
+// AskUserQuestion — contract
+// ---------------------------------------------------------------------------
+
+export const askUserQuestionContract: ToolContract = {
+  toolName: 'AskUserQuestion',
+  whenToUse: [
+    'Genuine ambiguity that would materially affect the outcome if guessed wrong.',
+    'Missing critical information that cannot be inferred from context or code.',
+  ],
+  whenNotToUse: [
+    'Do not ask for confirmation of routine actions.',
+    'Do not ask when you can figure out the answer from the codebase.',
+    'Do not use to defer decisions you should make yourself.',
+    'Do not ask rhetorical or obvious questions.',
+  ],
+  preconditions: [
+    'You must have already attempted to resolve the ambiguity using available tools.',
+    'Only one question can be pending at a time.',
+  ],
+  failureSemantics: [
+    'The user answer arrives as a normal user message, not a toolResult.',
+  ],
+  fallbackHints: [
+    'If the user does not answer, proceed with the default_plan_if_no_answer.',
+    'Provide clear options when possible to make answering easy.',
+  ],
 }

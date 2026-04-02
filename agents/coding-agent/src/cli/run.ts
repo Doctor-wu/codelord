@@ -56,8 +56,8 @@ export async function runAgentCommand(
     const apiKey = await resolveApiKey(config)
 
     const cwd = process.cwd()
-    const { tools, toolHandlers } = createToolKernel({ cwd, config })
-    const systemPrompt = buildSystemPrompt({ cwd })
+    const { tools, toolHandlers, contracts } = createToolKernel({ cwd, config })
+    const systemPrompt = buildSystemPrompt({ cwd, contracts })
 
     await runAgent({
       model,

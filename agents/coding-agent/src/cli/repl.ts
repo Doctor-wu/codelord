@@ -21,8 +21,8 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   const { model, apiKey, config } = options
 
   const cwd = process.cwd()
-  const { tools, toolHandlers } = createToolKernel({ cwd, config })
-  const systemPrompt = buildSystemPrompt({ cwd })
+  const { tools, toolHandlers, contracts } = createToolKernel({ cwd, config })
+  const systemPrompt = buildSystemPrompt({ cwd, contracts })
 
   const renderer = new PlainTextRenderer()
 

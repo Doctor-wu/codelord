@@ -1,8 +1,9 @@
 import { writeFile, mkdir } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { resolve, isAbsolute, dirname } from 'node:path'
 import { Type } from '@mariozechner/pi-ai'
 import type { Tool } from '@mariozechner/pi-ai'
 import type { ToolHandler } from '../react-loop.js'
+import type { ToolContract } from './tool-contract.js'
 
 // ---------------------------------------------------------------------------
 // file_write — tool definition
@@ -44,7 +45,7 @@ export function createFileWriteHandler(options: FileWriteOptions = {}): ToolHand
       return { output: 'ERROR [INVALID_ARGS]: content is required and must be a string.', isError: true, errorCode: 'INVALID_ARGS' }
     }
 
-    const resolved = resolvePath(cwd, filePath)
+    const resolved = isAbsolute(filePath) ? resolve(filePath) : resolve(cwd, filePath)
     const content = args.content as string
     const createDirs = args.create_directories === true
 
@@ -69,13 +70,36 @@ export function createFileWriteHandler(options: FileWriteOptions = {}): ToolHand
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// file_write — contract
 // ---------------------------------------------------------------------------
 
-function resolvePath(cwd: string, filePath: string): string {
-  if (filePath.startsWith('/')) return filePath
-  return `${cwd}/${filePath}`
+export const fileWriteContract: ToolContract = {
+  toolName: 'file_write',
+  whenToUse: [
+    'Creating a new file.',
+    'Overwriting an entire file with known complete content.',
+  ],
+  whenNotToUse: [
+    'Do not use for partial edits — use file_edit instead.',
+    'Do not use if you only need to change a few lines in an existing file.',
+  ],
+  preconditions: [
+    'You must have the complete file content ready.',
+    'Parent directory must exist, or set create_directories=true.',
+  ],
+  failureSemantics: [
+    'NOT_FOUND: parent directory does not exist (and create_directories is false).',
+    'PERMISSION_DENIED: insufficient permissions.',
+  ],
+  fallbackHints: [
+    'On NOT_FOUND, retry with create_directories=true.',
+    'If only changing part of a file, switch to file_edit.',
+  ],
 }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {
   return err instanceof Error && 'code' in err

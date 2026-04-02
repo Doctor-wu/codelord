@@ -263,3 +263,44 @@ describe('search', () => {
     expect(result.errorCode).toBe('INVALID_ARGS')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Path resolution — .. and relative paths
+// ---------------------------------------------------------------------------
+
+describe('path resolution with .. and relative paths', () => {
+  it('file_read resolves .. correctly', async () => {
+    mkdirSync(join(testDir, 'sub'), { recursive: true })
+    writeFileSync(join(testDir, 'root.txt'), 'hello\n')
+    const handler = createFileReadHandler({ cwd: join(testDir, 'sub') })
+    const result = await handler({ file_path: '../root.txt' }, noopContext)
+    expect(result.isError).toBe(false)
+    expect(result.output).toContain('hello')
+  })
+
+  it('file_write resolves .. correctly', async () => {
+    mkdirSync(join(testDir, 'sub'), { recursive: true })
+    const handler = createFileWriteHandler({ cwd: join(testDir, 'sub') })
+    const result = await handler({ file_path: '../written.txt', content: 'ok' }, noopContext)
+    expect(result.isError).toBe(false)
+    expect(readFileSync(join(testDir, 'written.txt'), 'utf-8')).toBe('ok')
+  })
+
+  it('file_edit resolves .. correctly', async () => {
+    mkdirSync(join(testDir, 'sub'), { recursive: true })
+    writeFileSync(join(testDir, 'edit-me.txt'), 'old value\n')
+    const handler = createFileEditHandler({ cwd: join(testDir, 'sub') })
+    const result = await handler({ file_path: '../edit-me.txt', old_string: 'old value', new_string: 'new value' }, noopContext)
+    expect(result.isError).toBe(false)
+    expect(readFileSync(join(testDir, 'edit-me.txt'), 'utf-8')).toBe('new value\n')
+  })
+
+  it('ls resolves .. correctly', async () => {
+    mkdirSync(join(testDir, 'sub'), { recursive: true })
+    writeFileSync(join(testDir, 'top.txt'), '')
+    const handler = createLsHandler({ cwd: join(testDir, 'sub') })
+    const result = await handler({ path: '..' }, noopContext)
+    expect(result.isError).toBe(false)
+    expect(result.output).toContain('top.txt')
+  })
+})

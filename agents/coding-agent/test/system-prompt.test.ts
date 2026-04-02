@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { buildSystemPrompt } from '../src/cli/system-prompt.js'
+import { builtinContracts } from '@agent/core'
 
 describe('buildSystemPrompt', () => {
-  const prompt = buildSystemPrompt({ cwd: '/test/project' })
+  const prompt = buildSystemPrompt({ cwd: '/test/project', contracts: builtinContracts })
 
   it('includes the working directory', () => {
     expect(prompt).toContain('/test/project')
@@ -39,7 +40,17 @@ describe('buildSystemPrompt', () => {
   })
 
   it('is deterministic (same input produces same output)', () => {
-    const prompt2 = buildSystemPrompt({ cwd: '/test/project' })
+    const prompt2 = buildSystemPrompt({ cwd: '/test/project', contracts: builtinContracts })
     expect(prompt).toBe(prompt2)
+  })
+
+  it('does not import contracts itself — uses only what is passed in', () => {
+    // Pass a subset — only that subset should appear
+    const subset = builtinContracts.slice(0, 2)
+    const limited = buildSystemPrompt({ cwd: '/x', contracts: subset })
+    expect(limited).toContain('### bash')
+    expect(limited).toContain('### file_read')
+    expect(limited).not.toContain('### file_edit')
+    expect(limited).not.toContain('### AskUserQuestion')
   })
 })

@@ -9,28 +9,59 @@ import {
   lsContract,
   askUserQuestionContract,
 } from '../src/tools/contracts.js'
-import type { ToolContract } from '../src/tools/contracts.js'
+import type { ToolContract } from '../src/tools/tool-contract.js'
+
+// Also verify contracts are colocated — import directly from each module
+import { bashContract as bashDirect } from '../src/tools/bash.js'
+import { fileReadContract as fileReadDirect } from '../src/tools/file-read.js'
+import { fileWriteContract as fileWriteDirect } from '../src/tools/file-write.js'
+import { fileEditContract as fileEditDirect } from '../src/tools/file-edit.js'
+import { searchContract as searchDirect } from '../src/tools/search.js'
+import { lsContract as lsDirect } from '../src/tools/ls.js'
+import { askUserQuestionContract as askDirect } from '../src/tools/ask-user.js'
 
 // ---------------------------------------------------------------------------
-// Every built-in tool has a contract
+// Contracts are colocated in each tool module
 // ---------------------------------------------------------------------------
 
-describe('ToolContract existence', () => {
-  const expectedTools = [
-    'bash', 'file_read', 'file_write', 'file_edit', 'search', 'ls', 'AskUserQuestion',
-  ]
+describe('Contracts colocated in tool modules', () => {
+  it('bash contract is the same object from bash.ts and contracts.ts', () => {
+    expect(bashContract).toBe(bashDirect)
+  })
+  it('file_read contract is colocated', () => {
+    expect(fileReadContract).toBe(fileReadDirect)
+  })
+  it('file_write contract is colocated', () => {
+    expect(fileWriteContract).toBe(fileWriteDirect)
+  })
+  it('file_edit contract is colocated', () => {
+    expect(fileEditContract).toBe(fileEditDirect)
+  })
+  it('search contract is colocated', () => {
+    expect(searchContract).toBe(searchDirect)
+  })
+  it('ls contract is colocated', () => {
+    expect(lsContract).toBe(lsDirect)
+  })
+  it('AskUserQuestion contract is colocated', () => {
+    expect(askUserQuestionContract).toBe(askDirect)
+  })
+})
 
-  for (const name of expectedTools) {
-    it(`${name} has a contract in builtinContracts`, () => {
-      expect(builtinContracts.has(name)).toBe(true)
-      const c = builtinContracts.get(name)!
-      expect(c.toolName).toBe(name)
-      expect(c.whenToUse.length).toBeGreaterThan(0)
-    })
-  }
+// ---------------------------------------------------------------------------
+// builtinContracts is a stable ordered array
+// ---------------------------------------------------------------------------
 
-  it('builtinContracts contains exactly the expected tools', () => {
-    expect([...builtinContracts.keys()].sort()).toEqual(expectedTools.sort())
+describe('builtinContracts aggregation', () => {
+  it('contains all 7 tools', () => {
+    expect(builtinContracts).toHaveLength(7)
+  })
+
+  it('has stable order', () => {
+    const names = builtinContracts.map(c => c.toolName)
+    expect(names).toEqual([
+      'bash', 'file_read', 'file_write', 'file_edit', 'search', 'ls', 'AskUserQuestion',
+    ])
   })
 })
 
@@ -48,15 +79,15 @@ describe('ToolContract structure', () => {
     expect(Array.isArray(c.fallbackHints)).toBe(true)
   }
 
-  for (const [name, contract] of builtinContracts) {
-    it(`${name} contract has all required fields`, () => {
+  for (const contract of builtinContracts) {
+    it(`${contract.toolName} contract has all required fields`, () => {
       assertContractShape(contract)
     })
   }
 })
 
 // ---------------------------------------------------------------------------
-// Key semantic boundaries are expressed
+// Key semantic boundaries
 // ---------------------------------------------------------------------------
 
 describe('Key contract boundaries', () => {

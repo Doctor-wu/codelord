@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { Type } from '@mariozechner/pi-ai'
 import type { Tool } from '@mariozechner/pi-ai'
 import type { ToolExecutionContext, ToolExecutionResult, ToolHandler } from '../react-loop.js'
+import type { ToolContract } from './tool-contract.js'
 
 // ---------------------------------------------------------------------------
 // Bash tool definition
@@ -139,4 +140,34 @@ export function createBashToolHandler(options: BashToolOptions = {}): ToolHandle
 
     return output
   }
+}
+
+// ---------------------------------------------------------------------------
+// Bash tool contract
+// ---------------------------------------------------------------------------
+
+export const bashContract: ToolContract = {
+  toolName: 'bash',
+  whenToUse: [
+    'Shell pipelines, git commands, build tools, test runners, package managers.',
+    'Commands that combine multiple operations (pipes, redirects, loops).',
+    'Any operation not covered by a dedicated built-in tool.',
+  ],
+  whenNotToUse: [
+    'Do not use bash cat/head/tail when you already know the file path — use file_read.',
+    'Do not use bash sed/awk for precise edits — use file_edit.',
+    'Do not use bash ls for simple directory browsing — use ls.',
+    'Do not use bash grep/rg for code search — use search.',
+  ],
+  preconditions: [
+    'The command must be a valid shell command.',
+  ],
+  failureSemantics: [
+    'Non-zero exit code means the command failed (isError=true).',
+    'Timeout means the command ran too long (isError=true).',
+  ],
+  fallbackHints: [
+    'Check stderr output for error details.',
+    'For permission errors, consider if the command needs elevated privileges.',
+  ],
 }

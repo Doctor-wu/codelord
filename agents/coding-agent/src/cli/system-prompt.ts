@@ -1,4 +1,3 @@
-import { builtinContracts } from '@agent/core'
 import type { ToolContract } from '@agent/core'
 
 // ---------------------------------------------------------------------------
@@ -7,19 +6,21 @@ import type { ToolContract } from '@agent/core'
 
 export interface SystemPromptOptions {
   cwd: string
+  contracts: readonly ToolContract[]
 }
 
 /**
  * Build the system prompt for the coding agent.
  * This is the single source of truth — run.ts and repl.ts both use this.
+ * Contracts are passed in from the tool kernel, not imported directly.
  */
 export function buildSystemPrompt(options: SystemPromptOptions): string {
-  const { cwd } = options
+  const { cwd, contracts } = options
 
   const sections: string[] = [
     buildRoleSection(),
     buildContextSection(cwd),
-    buildToolGuidanceSection(),
+    buildToolGuidanceSection(contracts),
   ]
 
   return sections.join('\n\n')
@@ -39,7 +40,7 @@ function buildContextSection(cwd: string): string {
   return `Working directory: ${cwd}`
 }
 
-function buildToolGuidanceSection(): string {
+function buildToolGuidanceSection(contracts: readonly ToolContract[]): string {
   const lines: string[] = [
     '## Tool usage guidelines',
     '',
@@ -47,8 +48,7 @@ function buildToolGuidanceSection(): string {
     '',
   ]
 
-  // Render each contract as a compact block
-  for (const [, contract] of builtinContracts) {
+  for (const contract of contracts) {
     lines.push(renderContract(contract))
     lines.push('')
   }

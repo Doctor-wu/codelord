@@ -1,7 +1,9 @@
 import { readFile } from 'node:fs/promises'
+import { resolve, isAbsolute } from 'node:path'
 import { Type } from '@mariozechner/pi-ai'
 import type { Tool } from '@mariozechner/pi-ai'
 import type { ToolHandler } from '../react-loop.js'
+import type { ToolContract } from './tool-contract.js'
 
 // ---------------------------------------------------------------------------
 // file_read — tool definition
@@ -42,7 +44,7 @@ export function createFileReadHandler(options: FileReadOptions = {}): ToolHandle
       return { output: 'ERROR [INVALID_ARGS]: file_path is required and must be a string.', isError: true, errorCode: 'INVALID_ARGS' }
     }
 
-    const resolved = resolvePath(cwd, filePath)
+    const resolved = isAbsolute(filePath) ? resolve(filePath) : resolve(cwd, filePath)
 
     let content: string
     try {
@@ -83,13 +85,36 @@ export function createFileReadHandler(options: FileReadOptions = {}): ToolHandle
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// file_read — contract
 // ---------------------------------------------------------------------------
 
-function resolvePath(cwd: string, filePath: string): string {
-  if (filePath.startsWith('/')) return filePath
-  return `${cwd}/${filePath}`
+export const fileReadContract: ToolContract = {
+  toolName: 'file_read',
+  whenToUse: [
+    'Reading file contents when you already know the path.',
+    'Inspecting specific line ranges of large files.',
+  ],
+  whenNotToUse: [
+    'Do not use for locating files — use search or ls first.',
+    'Do not use when you do not know the file path yet.',
+  ],
+  preconditions: [
+    'You must know the file path. If unknown, use ls or search to find it first.',
+  ],
+  failureSemantics: [
+    'NOT_FOUND: file does not exist at the given path.',
+    'PERMISSION_DENIED: insufficient permissions.',
+    'INVALID_ARGS: path is a directory or arguments are missing.',
+  ],
+  fallbackHints: [
+    'On NOT_FOUND, use ls to verify the path or search to locate the file.',
+    'Use offset/limit for large files to avoid excessive output.',
+  ],
 }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {
   return err instanceof Error && 'code' in err

@@ -1,7 +1,9 @@
 import { spawn } from 'node:child_process'
+import { resolve, isAbsolute } from 'node:path'
 import { Type } from '@mariozechner/pi-ai'
 import type { Tool } from '@mariozechner/pi-ai'
 import type { ToolExecutionResult, ToolHandler } from '../react-loop.js'
+import type { ToolContract } from './tool-contract.js'
 
 // ---------------------------------------------------------------------------
 // search — tool definition
@@ -56,7 +58,9 @@ export function createSearchHandler(options: SearchOptions = {}): ToolHandler {
       return { output: 'ERROR [INVALID_ARGS]: query is required and must be a string.', isError: true, errorCode: 'INVALID_ARGS' }
     }
 
-    const searchPath = typeof args.path === 'string' ? resolvePath(cwd, args.path) : cwd
+    const searchPath = typeof args.path === 'string'
+      ? (isAbsolute(args.path) ? resolve(args.path) : resolve(cwd, args.path))
+      : cwd
     const useRegex = args.regex === true
     const contextLines = Math.max(0, Number(args.context_lines) || 0)
     const maxResults = Math.max(1, Number(args.max_results) || DEFAULT_MAX_RESULTS)
@@ -222,13 +226,37 @@ function grepFallback(params: GrepFallbackParams): Promise<ToolExecutionResult> 
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// search — contract
 // ---------------------------------------------------------------------------
 
-function resolvePath(cwd: string, filePath: string): string {
-  if (filePath.startsWith('/')) return filePath
-  return `${cwd}/${filePath}`
+export const searchContract: ToolContract = {
+  toolName: 'search',
+  whenToUse: [
+    'Locating code, symbols, error messages, or config values across the codebase.',
+    'Finding which files contain a specific pattern when the location is unknown.',
+  ],
+  whenNotToUse: [
+    'Do not use when you already know the file path — use file_read directly.',
+    'Do not use for browsing directory structure — use ls.',
+  ],
+  preconditions: [
+    'A search query must be provided.',
+  ],
+  failureSemantics: [
+    'No matches found is NOT an error — the search completed successfully, there are simply no results.',
+    'INVALID_ARGS: missing or invalid query.',
+    'Timeout: search took too long.',
+  ],
+  fallbackHints: [
+    'On no matches: try a broader query, different spelling, or remove glob filters.',
+    'Use ls first to understand the directory structure, then narrow the search path.',
+    'Try regex mode for more flexible pattern matching.',
+  ],
 }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {
   return err instanceof Error && 'code' in err
