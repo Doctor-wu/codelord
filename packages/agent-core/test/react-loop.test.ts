@@ -4,11 +4,16 @@ const { streamSimpleMock } = vi.hoisted(() => ({
   streamSimpleMock: vi.fn(),
 }))
 
-vi.mock('@mariozechner/pi-ai', () => ({
-  streamSimple: streamSimpleMock,
-}))
+vi.mock('@mariozechner/pi-ai', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@mariozechner/pi-ai')>()
+  return {
+    ...actual,
+    streamSimple: streamSimpleMock,
+  }
+})
 
 import { runAgent } from '../src/react-loop.js'
+import { ASK_USER_QUESTION_TOOL_NAME } from '../src/tools/ask-user.js'
 
 function makeAssistantMessage(overrides = {}) {
   return {
@@ -85,5 +90,49 @@ describe('runAgent thinking support', () => {
       'text_end',
       'done',
     ])
+  })
+})
+
+describe('runAgent single-shot AskUserQuestion compat', () => {
+  afterEach(() => {
+    streamSimpleMock.mockReset()
+  })
+
+  it('returns an error when agent calls AskUserQuestion in single-shot mode', async () => {
+    const askToolCall = {
+      type: 'toolCall',
+      id: 'tc-ask',
+      name: ASK_USER_QUESTION_TOOL_NAME,
+      arguments: {
+        question: 'Which env?',
+        why_ask: 'Not specified',
+      },
+    }
+
+    const assistantWithAsk = makeAssistantMessage({
+      content: [askToolCall],
+      stopReason: 'toolUse',
+    })
+
+    streamSimpleMock.mockReturnValueOnce(
+      makeEventStream([
+        { type: 'toolcall_end', toolCall: askToolCall },
+        { type: 'done', message: assistantWithAsk },
+      ], assistantWithAsk),
+    )
+
+    const result = await runAgent({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map(),
+      userMessage: 'deploy',
+      apiKey: 'test-key',
+    })
+
+    expect(result.type).toBe('error')
+    expect(result.error).toContain('Agent requires user input')
+    expect(result.error).toContain('Which env?')
+    expect(result.error).toContain('Not specified')
   })
 })
