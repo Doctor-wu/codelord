@@ -23,12 +23,6 @@ export type ToolHandler = (
 ) => Promise<string>
 
 // ---------------------------------------------------------------------------
-// FSM state definitions (legacy alias — prefer RuntimeState from runtime.ts)
-// ---------------------------------------------------------------------------
-
-export type LoopState = 'IDLE' | 'STREAMING' | 'TOOL_EXEC' | 'DONE' | 'ERROR'
-
-// ---------------------------------------------------------------------------
 // Agent event types
 // ---------------------------------------------------------------------------
 
@@ -131,7 +125,7 @@ export async function runAgent<TApi extends Api = Api>(
       type: 'success',
       text: outcome.text,
       messages: runtime.messages,
-      steps: runtime.stepCount,
+      steps: runtime.burstStepCount,
     }
   }
 
@@ -142,7 +136,7 @@ export async function runAgent<TApi extends Api = Api>(
       type: 'error',
       error: `Agent requires user input and cannot proceed in single-shot mode. Question: ${q?.question ?? '(unknown)'}. Reason: ${q?.whyAsk ?? '(unknown)'}`,
       messages: runtime.messages,
-      steps: runtime.stepCount,
+      steps: runtime.burstStepCount,
     }
   }
 
@@ -150,6 +144,6 @@ export async function runAgent<TApi extends Api = Api>(
     type: 'error',
     error: outcome.type === 'error' ? outcome.error : 'Unexpected blocked state',
     messages: runtime.messages,
-    steps: runtime.stepCount,
+    steps: runtime.burstStepCount,
   }
 }

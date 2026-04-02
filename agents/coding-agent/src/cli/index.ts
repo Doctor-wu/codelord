@@ -3,7 +3,9 @@ import type { CodelordConfig } from '@agent/config'
 import { readFileSync } from 'node:fs'
 import { cac } from 'cac'
 import { runInit } from './init.js'
-import { runAgentCommand } from './run.js'
+import { runAgentCommand, resolveModel } from './run.js'
+import { startRepl } from './repl.js'
+import { resolveApiKey } from '../auth/index.js'
 
 interface CliFlags {
   plain?: boolean
@@ -85,7 +87,12 @@ export async function runCli(argv = process.argv): Promise<void> {
   }
 
   if (cli.args.length === 0) {
-    cli.outputHelp()
+    // No message argument — enter interactive REPL
+    const flags = readFlags(cli.options)
+    const config = loadConfig(toConfigOverrides(flags))
+    const model = resolveModel(config)
+    const apiKey = await resolveApiKey(config)
+    await startRepl({ model, apiKey, config })
     return
   }
 

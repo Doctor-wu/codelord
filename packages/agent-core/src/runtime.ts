@@ -15,7 +15,7 @@ import { ASK_USER_QUESTION_TOOL_NAME, askUserQuestionTool } from './tools/ask-us
 import type { PendingQuestion, ResolvedQuestion } from './tools/ask-user.js'
 
 // ---------------------------------------------------------------------------
-// Runtime state — replaces the linear LoopState
+// Runtime state — current control phase of the runtime
 // ---------------------------------------------------------------------------
 
 /**
@@ -23,24 +23,24 @@ import type { PendingQuestion, ResolvedQuestion } from './tools/ask-user.js'
  * STREAMING   – LLM stream in progress
  * TOOL_EXEC   – executing tool calls
  * BLOCKED     – execution paused at a safe boundary, waiting for external input
- * DONE        – terminal: agent finished naturally
- * ERROR       – terminal: unrecoverable error
+ * READY       – last burst completed, session alive, ready for next turn
+ *
+ * Note: success/error are burst outcomes (returned from run()), not runtime states.
+ * After any burst completes, the runtime transitions to READY.
  */
 export type RuntimeState =
   | 'IDLE'
   | 'STREAMING'
   | 'TOOL_EXEC'
   | 'BLOCKED'
-  | 'DONE'
-  | 'ERROR'
+  | 'READY'
 
 const VALID_TRANSITIONS: Record<RuntimeState, readonly RuntimeState[]> = {
-  IDLE: ['STREAMING'],
-  STREAMING: ['TOOL_EXEC', 'BLOCKED', 'DONE', 'ERROR'],
-  TOOL_EXEC: ['STREAMING', 'BLOCKED', 'ERROR'],
+  IDLE: ['STREAMING', 'BLOCKED'],
+  STREAMING: ['TOOL_EXEC', 'BLOCKED', 'READY'],
+  TOOL_EXEC: ['STREAMING', 'BLOCKED', 'READY'],
   BLOCKED: ['STREAMING'],
-  DONE: [],
-  ERROR: [],
+  READY: ['STREAMING'],
 } as const
 
 // ---------------------------------------------------------------------------
@@ -102,12 +102,14 @@ export class AgentRuntime<TApi extends Api = Api> {
   // --- Session state (survives across run() bursts) ---
   readonly messages: Message[] = []
   private _state: RuntimeState = 'IDLE'
-  private _stepCount = 0
+  private _burstStepCount = 0
+  private _sessionStepCount = 0
   private _pendingInbound: Message[] = []
   private _partial: PartialAssistant | null = null
   private _pendingQuestion: PendingQuestion | null = null
   private _waitingUserAnswered = false
   private _resolvedQuestions: ResolvedQuestion[] = []
+  private _lastOutcome: RunOutcome | null = null
 
   // --- Interrupt control ---
   private _interruptRequested = false
@@ -137,11 +139,17 @@ export class AgentRuntime<TApi extends Api = Api> {
   // --- Public accessors ---
 
   get state(): RuntimeState { return this._state }
-  get stepCount(): number { return this._stepCount }
+  /** Steps taken in the current/last burst (resets each burst) */
+  get burstStepCount(): number { return this._burstStepCount }
+  /** Cumulative steps across all bursts in this session (observability only) */
+  get sessionStepCount(): number { return this._sessionStepCount }
+  /** @deprecated Use burstStepCount or sessionStepCount */
+  get stepCount(): number { return this._sessionStepCount }
   get partial(): PartialAssistant | null { return this._partial }
   get interruptRequested(): boolean { return this._interruptRequested }
   get pendingQuestion(): PendingQuestion | null { return this._pendingQuestion }
   get resolvedQuestions(): readonly ResolvedQuestion[] { return this._resolvedQuestions }
+  get lastOutcome(): RunOutcome | null { return this._lastOutcome }
 
   // --- Inbound message injection ---
 
@@ -149,9 +157,6 @@ export class AgentRuntime<TApi extends Api = Api> {
    * Enqueue a raw message to be injected at the next safe boundary.
    */
   enqueue(message: Message): void {
-    if (this._state === 'DONE' || this._state === 'ERROR') {
-      throw new Error(`Cannot enqueue messages in terminal state: ${this._state}`)
-    }
     this._pendingInbound.push(message)
   }
 
@@ -171,7 +176,6 @@ export class AgentRuntime<TApi extends Api = Api> {
    * - If IDLE/BLOCKED: sets the flag so the next run() will immediately block.
    */
   requestInterrupt(): void {
-    if (this._state === 'DONE' || this._state === 'ERROR') return
     this._interruptRequested = true
     // If currently streaming, signal abort to the LLM stream
     this._abortController?.abort()
@@ -240,68 +244,90 @@ export class AgentRuntime<TApi extends Api = Api> {
     return { type: 'blocked', reason: 'interrupted' }
   }
 
+  /**
+   * Reset burst step counter. Called at the start of every new burst.
+   */
+  private resetBurst(): void {
+    this._burstStepCount = 0
+  }
+
   // --- Core execution burst ---
 
   async run(): Promise<RunOutcome> {
     // Resume from BLOCKED
     if (this._state === 'BLOCKED') {
-      // If interrupt is still pending (e.g. called requestInterrupt then run immediately), stay blocked
+      // These are re-checks of an already-blocked state, not new bursts.
+      // They do not overwrite lastOutcome.
       if (this._interruptRequested) {
         this._interruptRequested = false
         return { type: 'blocked', reason: 'interrupted' }
       }
-      // Resume after user answered a pending question
       if (this._waitingUserAnswered) {
         this._waitingUserAnswered = false
+        this.resetBurst()
         this.drainPending()
         this.transition('STREAMING')
       } else if (this._pendingQuestion) {
-        // Still waiting for user to answer
         return { type: 'blocked', reason: 'waiting_user' }
       } else if (this._pendingInbound.length === 0) {
         return { type: 'blocked', reason: 'pending_input' }
       } else {
+        this.resetBurst()
         this.drainPending()
         this.transition('STREAMING')
       }
     }
 
-    // First call: IDLE -> STREAMING
+    // First call: IDLE -> STREAMING (only if there's input)
     if (this._state === 'IDLE') {
-      // Check interrupt before even starting
       if (this._interruptRequested) {
         this._interruptRequested = false
-        this.transition('STREAMING')
         this.transition('BLOCKED')
-        return { type: 'blocked', reason: 'interrupted' }
+        return this.finishBurst({ type: 'blocked', reason: 'interrupted' })
       }
+      if (this._pendingInbound.length === 0 && this.messages.length === 0) {
+        // No input at all — don't start an empty burst
+        return { type: 'blocked', reason: 'pending_input' }
+      }
+      this.resetBurst()
+      this.drainPending()
+      this.transition('STREAMING')
+    }
+
+    // Next turn from READY state
+    if (this._state === 'READY') {
+      if (this._pendingInbound.length === 0) {
+        // No new work — don't overwrite lastOutcome
+        return { type: 'blocked', reason: 'pending_input' }
+      }
+      this.resetBurst()
+      this.drainPending()
       this.transition('STREAMING')
     }
 
     if (this._state !== 'STREAMING') {
-      return this._state === 'DONE'
-        ? { type: 'success', text: this.extractFinalText() }
-        : { type: 'error', error: `Cannot run() in state: ${this._state}` }
+      return this.finishBurst({ type: 'error', error: `Cannot run() in state: ${this._state}` })
     }
 
     // --- Main execution loop ---
     while (this._state === 'STREAMING') {
-      this._stepCount++
-      this.emit({ type: 'step_start', step: this._stepCount })
+      this._burstStepCount++
+      this._sessionStepCount++
+      this.emit({ type: 'step_start', step: this._burstStepCount })
 
-      if (this._stepCount > this.maxSteps) {
-        this.transition('ERROR')
+      if (this._burstStepCount > this.maxSteps) {
+        this.transition('READY')
         const error = `Max steps (${this.maxSteps}) exceeded`
         this.emit({ type: 'error', error })
-        const result = { type: 'error' as const, error, messages: this.messages, steps: this._stepCount }
+        const result = { type: 'error' as const, error, messages: this.messages, steps: this._burstStepCount }
         this.emit({ type: 'done', result })
-        return { type: 'error', error }
+        return this.finishBurst({ type: 'error', error })
       }
 
       // --- SAFE INJECTION POINT: before each LLM call ---
       this.drainPending()
       const interrupted = this.consumeInterrupt()
-      if (interrupted) return interrupted
+      if (interrupted) return this.finishBurst(interrupted)
 
       // Set up abort controller for this streaming turn
       this._abortController = new AbortController()
@@ -374,12 +400,12 @@ export class AgentRuntime<TApi extends Api = Api> {
                 streamAborted = true
                 break
               }
-              this.transition('ERROR')
+              this.transition('READY')
               const errMsg = event.error.errorMessage ?? 'Unknown stream error'
               this.emit({ type: 'error', error: errMsg })
-              const errResult = { type: 'error' as const, error: errMsg, messages: this.messages, steps: this._stepCount }
+              const errResult = { type: 'error' as const, error: errMsg, messages: this.messages, steps: this._burstStepCount }
               this.emit({ type: 'done', result: errResult })
-              return { type: 'error', error: errMsg }
+              return this.finishBurst({ type: 'error', error: errMsg })
             }
           }
         }
@@ -400,7 +426,7 @@ export class AgentRuntime<TApi extends Api = Api> {
         // This is intentional: partial content is preserved but not committed
         this._interruptRequested = false
         this.transition('BLOCKED')
-        return { type: 'blocked', reason: 'interrupted' }
+        return this.finishBurst({ type: 'blocked', reason: 'interrupted' })
       }
 
       if (!assistantMsg) {
@@ -420,10 +446,10 @@ export class AgentRuntime<TApi extends Api = Api> {
           if (tc.name === ASK_USER_QUESTION_TOOL_NAME) {
             if (this._pendingQuestion) {
               // Guard: only one pending question at a time
-              this.transition('ERROR')
+              this.transition('READY')
               const error = 'AskUserQuestion called while another question is already pending'
               this.emit({ type: 'error', error })
-              return { type: 'error', error }
+              return this.finishBurst({ type: 'error', error })
             }
             const args = tc.arguments as Record<string, unknown>
             this._pendingQuestion = {
@@ -436,7 +462,7 @@ export class AgentRuntime<TApi extends Api = Api> {
             }
             this.emit({ type: 'waiting_user', question: this._pendingQuestion })
             this.transition('BLOCKED')
-            return { type: 'blocked', reason: 'waiting_user' }
+            return this.finishBurst({ type: 'blocked', reason: 'waiting_user' })
           }
 
           this.emit({ type: 'tool_exec_start', toolName: tc.name, args: tc.arguments })
@@ -480,33 +506,41 @@ export class AgentRuntime<TApi extends Api = Api> {
             // Remaining tools in this batch are skipped
             this._interruptRequested = false
             this.transition('BLOCKED')
-            return { type: 'blocked', reason: 'interrupted' }
+            return this.finishBurst({ type: 'blocked', reason: 'interrupted' })
           }
         }
 
         // --- SAFE INJECTION POINT: after tool batch completes ---
         this.drainPending()
         const toolBatchInterrupt = this.consumeInterrupt()
-        if (toolBatchInterrupt) return toolBatchInterrupt
+        if (toolBatchInterrupt) return this.finishBurst(toolBatchInterrupt)
 
         this.transition('STREAMING')
       } else if (assistantMsg.stopReason === 'stop') {
-        this.transition('DONE')
+        this.transition('READY')
       } else {
-        this.transition('ERROR')
+        this.transition('READY')
         const error = `Unexpected stop reason: ${assistantMsg.stopReason}`
         this.emit({ type: 'error', error })
-        const result = { type: 'error' as const, error, messages: this.messages, steps: this._stepCount }
+        const result = { type: 'error' as const, error, messages: this.messages, steps: this._burstStepCount }
         this.emit({ type: 'done', result })
-        return { type: 'error', error }
+        return this.finishBurst({ type: 'error', error })
       }
     }
 
-    // Loop exited — we're in DONE
+    // Loop exited — burst completed successfully (state is READY)
     const text = this.extractFinalText()
-    const result = { type: 'success' as const, text, messages: this.messages, steps: this._stepCount }
+    const result = { type: 'success' as const, text, messages: this.messages, steps: this._burstStepCount }
     this.emit({ type: 'done', result })
-    return { type: 'success', text }
+    return this.finishBurst({ type: 'success', text })
+  }
+
+  /**
+   * Record the outcome and return it.
+   */
+  private finishBurst(outcome: RunOutcome): RunOutcome {
+    this._lastOutcome = outcome
+    return outcome
   }
 
   // --- Helpers ---

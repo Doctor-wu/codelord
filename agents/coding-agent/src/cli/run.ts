@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs'
 import { getModels } from '@mariozechner/pi-ai'
 import type { Api, Model } from '@mariozechner/pi-ai'
-import { bashTool, createBashToolHandler, runAgent } from '@agent/core'
+import { runAgent } from '@agent/core'
 import type { CodelordConfig } from '@agent/config'
 import { resolveApiKey } from '../auth/index.js'
 import { InkRenderer, PlainTextRenderer } from '../renderer/index.js'
 import type { Renderer } from '../renderer/index.js'
+import { createToolKernel } from './tool-kernel.js'
 
 const SYSTEM_PROMPT = `You are a coding agent. You can execute bash commands to explore codebases, read files, run tests, and help debug issues.
 
@@ -23,7 +24,7 @@ function readVersion(): string {
   return packageJson.version
 }
 
-function resolveModel(config: CodelordConfig): Model<Api> {
+export function resolveModel(config: CodelordConfig): Model<Api> {
   const models = getModels(config.provider as never) as Model<Api>[]
   const model = models.find((candidate) => candidate.id === config.model)
 
@@ -62,21 +63,15 @@ export async function runAgentCommand(
     const model = resolveModel(config)
     const apiKey = await resolveApiKey(config)
 
-    const toolHandlers = new Map([
-      [
-        'bash',
-        createBashToolHandler({
-          cwd: process.cwd(),
-          timeout: config.bash.timeout,
-          maxOutput: config.bash.maxOutput,
-        }),
-      ],
-    ])
+    const { tools, toolHandlers } = createToolKernel({
+      cwd: process.cwd(),
+      config,
+    })
 
     await runAgent({
       model,
       systemPrompt: SYSTEM_PROMPT,
-      tools: [bashTool],
+      tools,
       toolHandlers,
       userMessage: message,
       apiKey,

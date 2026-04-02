@@ -78,8 +78,8 @@ describe('AgentRuntime', () => {
     const outcome = await rt.run()
 
     expect(outcome).toEqual({ type: 'success', text: 'Hello world' })
-    expect(rt.state).toBe('DONE')
-    expect(rt.stepCount).toBe(1)
+    expect(rt.state).toBe('READY')
+    expect(rt.burstStepCount).toBe(1)
     expect(rt.messages).toHaveLength(2) // user + assistant
   })
 
@@ -125,27 +125,40 @@ describe('AgentRuntime', () => {
     const outcome = await rt.run()
 
     expect(outcome).toEqual({ type: 'success', text: 'Done!' })
-    expect(rt.state).toBe('DONE')
-    expect(rt.stepCount).toBe(2)
+    expect(rt.state).toBe('READY')
+    expect(rt.burstStepCount).toBe(2)
     expect(handler).toHaveBeenCalledOnce()
   })
 
-  it('rejects enqueue on terminal state', async () => {
-    const assistantMessage = makeAssistantMessage({
+  it('allows enqueue and next turn after burst completion', async () => {
+    const msg1 = makeAssistantMessage({
       content: [{ type: 'text', text: 'bye' }],
     })
 
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([{ type: 'done', message: assistantMessage }], assistantMessage),
+      makeEventStream([{ type: 'done', message: msg1 }], msg1),
     )
 
     const rt = createRuntime()
     rt.messages.push({ role: 'user', content: 'Hi', timestamp: Date.now() })
     await rt.run()
 
-    expect(rt.state).toBe('DONE')
-    expect(() => rt.enqueue({ role: 'user', content: 'more', timestamp: Date.now() }))
-      .toThrow('Cannot enqueue messages in terminal state: DONE')
+    expect(rt.state).toBe('READY')
+
+    // Enqueue works after burst completion
+    rt.enqueueUserMessage('follow up')
+
+    const msg2 = makeAssistantMessage({
+      content: [{ type: 'text', text: 'still here' }],
+    })
+    streamSimpleMock.mockReturnValueOnce(
+      makeEventStream([{ type: 'done', message: msg2 }], msg2),
+    )
+
+    const outcome = await rt.run()
+    expect(outcome).toEqual({ type: 'success', text: 'still here' })
+    // All messages accumulated on the same runtime
+    expect(rt.messages).toHaveLength(4) // user + assistant + user + assistant
   })
 
   it('drains pending messages before LLM call', async () => {
@@ -379,7 +392,7 @@ describe('AgentRuntime interrupt', () => {
     const outcome2 = await rt.run()
 
     expect(outcome2).toEqual({ type: 'success', text: 'Resumed!' })
-    expect(rt.state).toBe('DONE')
+    expect(rt.state).toBe('READY')
   })
 })
 
@@ -410,6 +423,289 @@ describe('AgentRuntime enqueueUserMessage', () => {
     expect(rt.messages[1].role).toBe('user')
     expect(rt.messages[1].content).toBe('second')
     expect(rt.messages[1]).toHaveProperty('timestamp')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Re-arm / multi-turn session tests
+// ---------------------------------------------------------------------------
+
+describe('AgentRuntime multi-turn session', () => {
+  afterEach(() => {
+    streamSimpleMock.mockReset()
+  })
+
+  it('continues a multi-turn conversation on the same runtime after success', async () => {
+    const msg1 = makeAssistantMessage({ content: [{ type: 'text', text: 'Turn 1' }] })
+    const msg2 = makeAssistantMessage({ content: [{ type: 'text', text: 'Turn 2' }] })
+    const msg3 = makeAssistantMessage({ content: [{ type: 'text', text: 'Turn 3' }] })
+
+    streamSimpleMock
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg1 }], msg1))
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg2 }], msg2))
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg3 }], msg3))
+
+    const rt = createRuntime()
+
+    // Turn 1
+    rt.enqueueUserMessage('first')
+    expect(await rt.run()).toEqual({ type: 'success', text: 'Turn 1' })
+    expect(rt.state).toBe('READY')
+
+    // Turn 2 — same runtime, history accumulates
+    rt.enqueueUserMessage('second')
+    expect(await rt.run()).toEqual({ type: 'success', text: 'Turn 2' })
+    expect(rt.messages).toHaveLength(4) // u1 + a1 + u2 + a2
+
+    // Turn 3
+    rt.enqueueUserMessage('third')
+    expect(await rt.run()).toEqual({ type: 'success', text: 'Turn 3' })
+    expect(rt.messages).toHaveLength(6) // u1 + a1 + u2 + a2 + u3 + a3
+  })
+
+  it('continues after error when new input is enqueued', async () => {
+    // First run: hits max steps → ERROR (maxSteps=2, but tool loop forces 2 steps before error on 3rd)
+    const rt = new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map([['x', async () => 'ok']]),
+      apiKey: 'test-key',
+      maxSteps: 2,
+    })
+
+    // Two rounds of tool use will exhaust maxSteps
+    const toolMsg = makeAssistantMessage({
+      content: [{ type: 'toolCall', id: 'tc', name: 'x', arguments: {} }],
+      stopReason: 'toolUse',
+    })
+    const tc = { type: 'toolCall', id: 'tc', name: 'x', arguments: {} }
+
+    streamSimpleMock
+      .mockReturnValueOnce(makeEventStream([{ type: 'toolcall_end', toolCall: tc }, { type: 'done', message: toolMsg }], toolMsg))
+      .mockReturnValueOnce(makeEventStream([{ type: 'toolcall_end', toolCall: tc }, { type: 'done', message: toolMsg }], toolMsg))
+
+    rt.enqueueUserMessage('go')
+    const outcome1 = await rt.run()
+    expect(outcome1.type).toBe('error')
+    expect(rt.state).toBe('READY')
+
+    // Re-arm: enqueue new message and run again
+    const recovery = makeAssistantMessage({ content: [{ type: 'text', text: 'Recovered' }] })
+    streamSimpleMock.mockReturnValueOnce(
+      makeEventStream([{ type: 'done', message: recovery }], recovery),
+    )
+
+    rt.enqueueUserMessage('try again')
+    const outcome2 = await rt.run()
+    expect(outcome2).toEqual({ type: 'success', text: 'Recovered' })
+    expect(rt.state).toBe('READY')
+  })
+
+  it('returns pending_input (not stale outcome) when run() called without new input', async () => {
+    const msg = makeAssistantMessage({ content: [{ type: 'text', text: 'done' }] })
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg }], msg))
+
+    const rt = createRuntime()
+    rt.enqueueUserMessage('hi')
+    await rt.run()
+
+    // No new input — returns pending_input, not stale success
+    const outcome = await rt.run()
+    expect(outcome).toEqual({ type: 'blocked', reason: 'pending_input' })
+    // lastOutcome still records the previous burst result
+    expect(rt.lastOutcome).toEqual({ type: 'success', text: 'done' })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Per-burst step budget tests
+// ---------------------------------------------------------------------------
+
+describe('AgentRuntime per-burst step budget', () => {
+  afterEach(() => {
+    streamSimpleMock.mockReset()
+  })
+
+  it('resets burstStepCount on each new turn', async () => {
+    const msg1 = makeAssistantMessage({ content: [{ type: 'text', text: 'T1' }] })
+    const msg2 = makeAssistantMessage({ content: [{ type: 'text', text: 'T2' }] })
+
+    streamSimpleMock
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg1 }], msg1))
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg2 }], msg2))
+
+    const rt = createRuntime()
+
+    rt.enqueueUserMessage('first')
+    await rt.run()
+    expect(rt.burstStepCount).toBe(1)
+    expect(rt.sessionStepCount).toBe(1)
+
+    rt.enqueueUserMessage('second')
+    await rt.run()
+    // Burst resets, session accumulates
+    expect(rt.burstStepCount).toBe(1)
+    expect(rt.sessionStepCount).toBe(2)
+  })
+
+  it('resets burstStepCount when resuming from waiting_user', async () => {
+    const askToolCall = {
+      type: 'toolCall',
+      id: 'tc-ask',
+      name: ASK_USER_QUESTION_TOOL_NAME,
+      arguments: { question: 'Which?', why_ask: 'Need to know' },
+    }
+
+    // Burst 1: 2 steps of tool use, then AskUserQuestion on step 3
+    const toolMsg = makeAssistantMessage({
+      content: [{ type: 'toolCall', id: 'tc', name: 'x', arguments: {} }],
+      stopReason: 'toolUse',
+    })
+    const tc = { type: 'toolCall', id: 'tc', name: 'x', arguments: {} }
+    const askMsg = makeAssistantMessage({
+      content: [askToolCall],
+      stopReason: 'toolUse',
+    })
+
+    streamSimpleMock
+      .mockReturnValueOnce(makeEventStream([{ type: 'toolcall_end', toolCall: tc }, { type: 'done', message: toolMsg }], toolMsg))
+      .mockReturnValueOnce(makeEventStream([{ type: 'toolcall_end', toolCall: askToolCall }, { type: 'done', message: askMsg }], askMsg))
+
+    const rt = new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map([['x', async () => 'ok']]),
+      apiKey: 'test-key',
+      maxSteps: 3,
+    })
+
+    rt.enqueueUserMessage('go')
+    const outcome1 = await rt.run()
+    expect(outcome1).toEqual({ type: 'blocked', reason: 'waiting_user' })
+    expect(rt.burstStepCount).toBe(2) // 2 steps consumed before blocking
+
+    // Answer and resume — new burst gets fresh budget
+    rt.answerPendingQuestion('postgres')
+
+    const resumeMsg = makeAssistantMessage({ content: [{ type: 'text', text: 'ok' }] })
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: resumeMsg }], resumeMsg))
+
+    const outcome2 = await rt.run()
+    expect(outcome2).toEqual({ type: 'success', text: 'ok' })
+    // Burst reset: only 1 step in this burst, not 3
+    expect(rt.burstStepCount).toBe(1)
+    expect(rt.sessionStepCount).toBe(3) // cumulative
+  })
+
+  it('resets burstStepCount when resuming from interrupted', async () => {
+    const abortedMsg = makeAssistantMessage({ stopReason: 'aborted', errorMessage: 'aborted' })
+
+    const rt = createRuntime()
+    rt.messages.push({ role: 'user', content: 'Hi', timestamp: Date.now() })
+
+    streamSimpleMock.mockReturnValueOnce({
+      async *[Symbol.asyncIterator]() {
+        yield { type: 'text_delta', contentIndex: 0, delta: 'partial' }
+        rt.requestInterrupt()
+        yield { type: 'error', error: abortedMsg }
+      },
+      async result() { return abortedMsg },
+    })
+
+    await rt.run()
+    expect(rt.burstStepCount).toBe(1)
+
+    // Resume after interrupt — new burst
+    const resumeMsg = makeAssistantMessage({ content: [{ type: 'text', text: 'ok' }] })
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: resumeMsg }], resumeMsg))
+
+    rt.enqueueUserMessage('continue')
+    await rt.run()
+    expect(rt.burstStepCount).toBe(1) // reset, not 2
+    expect(rt.sessionStepCount).toBe(2)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// lastOutcome recording semantics
+// ---------------------------------------------------------------------------
+
+describe('AgentRuntime lastOutcome semantics', () => {
+  afterEach(() => {
+    streamSimpleMock.mockReset()
+  })
+
+  it('records interrupted blocked outcome in lastOutcome (stream abort)', async () => {
+    const abortedMsg = makeAssistantMessage({ stopReason: 'aborted', errorMessage: 'aborted' })
+
+    const rt = createRuntime()
+    rt.messages.push({ role: 'user', content: 'Hi', timestamp: Date.now() })
+
+    streamSimpleMock.mockReturnValueOnce({
+      async *[Symbol.asyncIterator]() {
+        yield { type: 'text_delta', contentIndex: 0, delta: 'partial' }
+        rt.requestInterrupt()
+        yield { type: 'error', error: abortedMsg }
+      },
+      async result() { return abortedMsg },
+    })
+
+    await rt.run()
+    expect(rt.lastOutcome).toEqual({ type: 'blocked', reason: 'interrupted' })
+  })
+
+  it('records waiting_user blocked outcome in lastOutcome', async () => {
+    const askToolCall = {
+      type: 'toolCall',
+      id: 'tc-ask',
+      name: ASK_USER_QUESTION_TOOL_NAME,
+      arguments: { question: 'Which?', why_ask: 'Need to know' },
+    }
+    const assistantWithAsk = makeAssistantMessage({
+      content: [askToolCall],
+      stopReason: 'toolUse',
+    })
+
+    streamSimpleMock.mockReturnValueOnce(
+      makeEventStream([
+        { type: 'toolcall_end', toolCall: askToolCall },
+        { type: 'done', message: assistantWithAsk },
+      ], assistantWithAsk),
+    )
+
+    const rt = createRuntime()
+    rt.messages.push({ role: 'user', content: 'go', timestamp: Date.now() })
+    await rt.run()
+
+    expect(rt.lastOutcome).toEqual({ type: 'blocked', reason: 'waiting_user' })
+  })
+
+  it('READY no-input does not overwrite lastOutcome', async () => {
+    const msg = makeAssistantMessage({ content: [{ type: 'text', text: 'done' }] })
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg }], msg))
+
+    const rt = createRuntime()
+    rt.enqueueUserMessage('hi')
+    await rt.run()
+    expect(rt.lastOutcome).toEqual({ type: 'success', text: 'done' })
+
+    // No-op call — should not overwrite
+    const noWork = await rt.run()
+    expect(noWork).toEqual({ type: 'blocked', reason: 'pending_input' })
+    // lastOutcome still reflects the real burst
+    expect(rt.lastOutcome).toEqual({ type: 'success', text: 'done' })
+  })
+
+  it('IDLE no-input returns pending_input without calling streamSimple', async () => {
+    const rt = createRuntime()
+
+    const outcome = await rt.run()
+    expect(outcome).toEqual({ type: 'blocked', reason: 'pending_input' })
+    expect(rt.state).toBe('IDLE')
+    expect(rt.lastOutcome).toBeNull()
+    expect(streamSimpleMock).not.toHaveBeenCalled()
   })
 })
 
@@ -549,7 +845,7 @@ describe('AgentRuntime AskUserQuestion', () => {
 
     const outcome2 = await rt.run()
     expect(outcome2).toEqual({ type: 'success', text: 'Using postgres!' })
-    expect(rt.state).toBe('DONE')
+    expect(rt.state).toBe('READY')
   })
 
   it('returns waiting_user if run() called without answering', async () => {
