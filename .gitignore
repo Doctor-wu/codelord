@@ -4,3 +4,4 @@ dist/
 .codelord
 .oauth-credentials.json
 *.tsbuildinfo
+.alma-snapshots
