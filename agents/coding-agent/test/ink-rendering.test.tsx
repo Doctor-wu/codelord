@@ -2,7 +2,7 @@ import React from 'react'
 import { renderToString } from 'ink'
 import { describe, expect, it } from 'vitest'
 import { App } from '../src/renderer/ink/App.js'
-import { classifyCommand } from '../src/renderer/ink/classify.js'
+import { classifyCommand, classifyToolName } from '../src/renderer/ink/classify.js'
 import { CollapsedStep } from '../src/renderer/ink/CollapsedStep.js'
 import { CurrentStep } from '../src/renderer/ink/CurrentStep.js'
 import { formatToolTitleLines } from '../src/renderer/ink/ToolCallLine.js'
@@ -386,5 +386,163 @@ describe('Command classification', () => {
     expect(
       classifyCommand("pwd && if [ -e result.md ]; then rm -f result.md; fi"),
     ).toBe('write')
+  })
+})
+
+describe('Built-in tool classification', () => {
+  it('classifies file_read as read', () => {
+    expect(classifyToolName('file_read')).toBe('read')
+  })
+
+  it('classifies file_write as write', () => {
+    expect(classifyToolName('file_write')).toBe('write')
+  })
+
+  it('classifies file_edit as write', () => {
+    expect(classifyToolName('file_edit')).toBe('write')
+  })
+
+  it('classifies search as read', () => {
+    expect(classifyToolName('search')).toBe('read')
+  })
+
+  it('classifies ls as read', () => {
+    expect(classifyToolName('ls')).toBe('read')
+  })
+})
+
+describe('Built-in tool rendering', () => {
+  it('renders file_read with Read display name and file path', () => {
+    const output = renderToString(
+      <CollapsedStep
+        step={makeStep({
+          category: 'read',
+          toolCalls: [
+            makeToolCall({
+              name: 'file_read',
+              args: { file_path: '/src/index.ts' },
+              command: '/src/index.ts',
+              result: '1\tconst x = 1;\n2\tconst y = 2;',
+            }),
+          ],
+        })}
+      />,
+    )
+
+    expect(output).toContain('Read(/src/index.ts)')
+    expect(output).toContain('Tool call success')
+  })
+
+  it('renders file_edit with Edit display name', () => {
+    const output = renderToString(
+      <CollapsedStep
+        step={makeStep({
+          category: 'write',
+          toolCalls: [
+            makeToolCall({
+              name: 'file_edit',
+              args: { file_path: 'code.ts', old_string: 'a', new_string: 'b' },
+              command: 'code.ts',
+              result: 'OK: Replaced 1 occurrence in code.ts',
+            }),
+          ],
+        })}
+      />,
+    )
+
+    expect(output).toContain('Edit(code.ts)')
+    expect(output).toContain('Tool call success')
+  })
+
+  it('renders file_edit error with failed footer', () => {
+    const output = renderToString(
+      <CollapsedStep
+        step={makeStep({
+          category: 'error',
+          toolCalls: [
+            makeToolCall({
+              name: 'file_edit',
+              args: { file_path: 'code.ts' },
+              command: 'code.ts',
+              result: 'ERROR [NO_MATCH]: old_string not found',
+              isError: true,
+            }),
+          ],
+        })}
+      />,
+    )
+
+    expect(output).toContain('Edit(code.ts)')
+    expect(output).toContain('Tool call failed')
+  })
+
+  it('renders search with Search display name and query', () => {
+    const output = renderToString(
+      <CollapsedStep
+        step={makeStep({
+          category: 'read',
+          toolCalls: [
+            makeToolCall({
+              name: 'search',
+              args: { query: 'TODO' },
+              command: 'TODO',
+              result: 'src/index.ts:1:// TODO fix this',
+            }),
+          ],
+        })}
+      />,
+    )
+
+    expect(output).toContain('Search(TODO)')
+  })
+
+  it('renders ls with Ls display name', () => {
+    const output = renderToString(
+      <CollapsedStep
+        step={makeStep({
+          category: 'read',
+          toolCalls: [
+            makeToolCall({
+              name: 'ls',
+              args: { path: 'src' },
+              command: 'src',
+              result: 'index.ts\nutils/',
+            }),
+          ],
+        })}
+      />,
+    )
+
+    expect(output).toContain('Ls(src)')
+  })
+})
+
+describe('Idle state (REPL)', () => {
+  it('does not show thinking spinner when isIdle is true', () => {
+    const state = createInitialState(10, true)
+    const output = renderToString(
+      <App
+        state={state}
+        version="0.0.1"
+        provider="openai"
+        model="gpt-5.4"
+      />,
+    )
+
+    expect(output).not.toContain('thinking')
+  })
+
+  it('shows thinking spinner when isIdle is false (single-shot default)', () => {
+    const state = createInitialState(10)
+    const output = renderToString(
+      <App
+        state={state}
+        version="0.0.1"
+        provider="openai"
+        model="gpt-5.4"
+      />,
+    )
+
+    expect(output).toContain('thinking')
   })
 })

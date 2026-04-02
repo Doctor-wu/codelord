@@ -38,7 +38,7 @@ export function App({ state, version, provider, model }: AppProps) {
         </Box>
       )}
 
-      {state.isRunning && !state.currentStep && (
+      {state.isRunning && !state.isIdle && !state.currentStep && (
         <Box marginTop={state.steps.length > 0 ? 1 : 0}>
           <WorkingIndicator />
         </Box>

@@ -3,9 +3,9 @@ import type { Api, Model } from '@mariozechner/pi-ai'
 import { AgentRuntime } from '@agent/core'
 import type { AgentEvent, RunOutcome } from '@agent/core'
 import type { CodelordConfig } from '@agent/config'
-import { PlainTextRenderer } from '../renderer/index.js'
 import { createToolKernel } from './tool-kernel.js'
 import { buildSystemPrompt } from './system-prompt.js'
+import { createRenderer } from './run.js'
 
 // ---------------------------------------------------------------------------
 // REPL — minimal interactive shell over a single AgentRuntime
@@ -24,7 +24,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   const { tools, toolHandlers, contracts } = createToolKernel({ cwd, config })
   const systemPrompt = buildSystemPrompt({ cwd, contracts })
 
-  const renderer = new PlainTextRenderer()
+  const renderer = createRenderer(config, { idle: true })
 
   const runtime = new AgentRuntime({
     model,
@@ -70,6 +70,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     if (input === '/exit') {
       console.log('Bye!')
       rl.close()
+      renderer.cleanup()
       return
     }
 
@@ -132,4 +133,5 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 
   // stdin closed (e.g. piped input exhausted)
   rl.close()
+  renderer.cleanup()
 }

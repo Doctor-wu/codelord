@@ -4,6 +4,7 @@ import type { ToolCallState } from './state.js'
 import { classifyToolCall } from './classify.js'
 import { STEP_COLORS } from './theme.js'
 import { getDisplayWidth, normalizeInline } from './summarize.js'
+import { formatToolDisplayName } from '../tool-display.js'
 
 interface ToolCallLineProps {
   toolCall: ToolCallState
@@ -13,11 +14,6 @@ interface ToolCallLineProps {
 interface ToolTitleLine {
   text: string
   highlightsToolName: boolean
-}
-
-function formatToolName(toolName: string): string {
-  if (toolName.toLowerCase() === 'bash') return 'Bash'
-  return toolName.slice(0, 1).toUpperCase() + toolName.slice(1)
 }
 
 function useBreathingPhase(isActive: boolean): number {
@@ -43,7 +39,7 @@ export function ToolCallLine({ toolCall, isRunning = false }: ToolCallLineProps)
   const { stdout } = useStdout()
   const category = classifyToolCall(toolCall)
   const color = STEP_COLORS[category]
-  const toolName = formatToolName(toolCall.name)
+  const toolName = formatToolDisplayName(toolCall.name)
   const availableWidth = Math.max(18, (stdout?.columns ?? 80) - 12)
   const titleLines = formatToolTitleLines({
     toolName,

@@ -9,7 +9,7 @@ import type { Renderer } from '../renderer/index.js'
 import { createToolKernel } from './tool-kernel.js'
 import { buildSystemPrompt } from './system-prompt.js'
 
-function readVersion(): string {
+export function readVersion(): string {
   const packageJson = JSON.parse(
     readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'),
   ) as { version: string }
@@ -31,8 +31,8 @@ export function resolveModel(config: CodelordConfig): Model<Api> {
   return model
 }
 
-function createRenderer(config: CodelordConfig, plain?: boolean): Renderer {
-  if (plain || !process.stdout.isTTY || !process.stdin.isTTY) {
+export function createRenderer(config: CodelordConfig, options?: { plain?: boolean; idle?: boolean }): Renderer {
+  if (options?.plain || !process.stdout.isTTY || !process.stdin.isTTY) {
     return new PlainTextRenderer()
   }
 
@@ -41,6 +41,7 @@ function createRenderer(config: CodelordConfig, plain?: boolean): Renderer {
     model: config.model,
     version: readVersion(),
     maxSteps: config.maxSteps,
+    idle: options?.idle,
   })
 }
 
@@ -49,7 +50,7 @@ export async function runAgentCommand(
   config: CodelordConfig,
   options: { plain?: boolean } = {},
 ): Promise<void> {
-  const renderer = createRenderer(config, options.plain)
+  const renderer = createRenderer(config, { plain: options.plain })
 
   try {
     const model = resolveModel(config)

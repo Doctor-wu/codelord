@@ -172,22 +172,33 @@ function sliceByDisplayWidthAtWordBoundary(text: string, maxWidth: number): stri
  */
 export function summarizeResult(result: string, isError: boolean, toolName: string): string {
   if (isError) {
-    // Extract first meaningful line from error
     const firstLine = result.split('\n').find((l) => l.trim().length > 0) ?? 'failed'
     const short = firstLine.trim().slice(0, 50)
     return `error: ${short}`
   }
 
-  // Count lines in the output
+  // Tool-specific summaries
+  switch (toolName) {
+    case 'file_edit':
+      return '1 replacement'
+    case 'file_write': {
+      const match = result.match(/Wrote (\d+) lines/)
+      return match ? `${match[1]} lines written` : 'done'
+    }
+    case 'search': {
+      if (result.startsWith('No matches')) return 'no matches'
+      const matchLines = result.split('\n').filter((l) => /^\S+:\d+:/.test(l))
+      return matchLines.length > 0 ? `${matchLines.length} matches` : 'done'
+    }
+  }
+
   const lines = result.split('\n')
   const nonEmpty = lines.filter((l) => l.trim().length > 0)
 
-  // ls-like commands → item count
   if (/^(ls|find|tree|glob)\b/i.test(toolName)) {
     return `${nonEmpty.length} items`
   }
 
-  // Commands with line-based output
   if (nonEmpty.length > 0) {
     return `${nonEmpty.length} lines`
   }

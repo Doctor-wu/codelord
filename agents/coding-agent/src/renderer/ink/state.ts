@@ -34,6 +34,8 @@ export interface AppState {
   error: string | null
   startTime: number
   isRunning: boolean
+  /** Renderer mounted but no agent activity yet (REPL waiting for first input) */
+  isIdle: boolean
   maxSteps: number
 }
 
@@ -58,14 +60,15 @@ export function getStatusCategoryCounts(
   return categoryCounts
 }
 
-export function createInitialState(maxSteps: number): AppState {
+export function createInitialState(maxSteps: number, idle = false): AppState {
   return {
     steps: [],
     currentStep: null,
     finalAnswer: null,
     error: null,
     startTime: Date.now(),
-    isRunning: true,
+    isRunning: !idle,
+    isIdle: idle,
     maxSteps,
   }
 }

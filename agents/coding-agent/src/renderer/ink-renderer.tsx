@@ -12,6 +12,7 @@ import type { AppState, StepState, ToolCallState } from './ink/state.js'
 import { createInitialState, finalizeCompletedStepCategory } from './ink/state.js'
 import { classifyCommand, classifyToolName } from './ink/classify.js'
 import type { StepCategory } from './ink/theme.js'
+import { extractToolCommand } from './tool-display.js'
 
 // ---------------------------------------------------------------------------
 // Event emitter bridge: InkRenderer pushes events, React component subscribes
@@ -23,8 +24,8 @@ class StateStore {
   private state: AppState
   private listeners: Set<StateListener> = new Set()
 
-  constructor(maxSteps: number) {
-    this.state = createInitialState(maxSteps)
+  constructor(maxSteps: number, idle = false) {
+    this.state = createInitialState(maxSteps, idle)
   }
 
   getState(): AppState {
@@ -47,6 +48,12 @@ class StateStore {
   // --- State mutation methods ---
 
   stepStart(step: number): void {
+    // Clear idle state on first activity
+    if (this.state.isIdle) {
+      this.state.isIdle = false
+      this.state.isRunning = true
+    }
+
     // Complete current step and push to history
     if (this.state.currentStep) {
       const completedStep: StepState = {
@@ -103,9 +110,7 @@ class StateStore {
   toolCallEnd(toolName: string, args: Record<string, unknown>): void {
     if (!this.state.currentStep) return
 
-    const command = typeof args.command === 'string'
-      ? args.command
-      : toolName
+    const command = extractToolCommand(toolName, args)
 
     const toolCalls = [...this.state.currentStep.toolCalls]
     const existingIndex = findLatestPendingToolCallIndex(toolCalls, toolName)
@@ -143,9 +148,7 @@ class StateStore {
     if (!this.state.currentStep) return
 
     const streamKey = `tool-${contentIndex}`
-    const command = typeof args.command === 'string'
-      ? args.command
-      : toolName
+    const command = extractToolCommand(toolName, args)
     const toolCalls = [...this.state.currentStep.toolCalls]
     const existingIndex = toolCalls.findIndex((toolCall) => toolCall.streamKey === streamKey)
 
@@ -183,9 +186,7 @@ class StateStore {
     if (!this.state.currentStep) return
 
     const streamKey = `tool-${contentIndex}`
-    const command = typeof args.command === 'string'
-      ? args.command
-      : toolName
+    const command = extractToolCommand(toolName, args)
     const toolCalls = [...this.state.currentStep.toolCalls]
     const existingIndex = toolCalls.findIndex((toolCall) => toolCall.streamKey === streamKey)
 
@@ -226,9 +227,7 @@ class StateStore {
     const existingIndex = findLatestPendingToolCallIndex(toolCalls, toolName)
 
     if (existingIndex === undefined) {
-      const command = typeof args.command === 'string'
-        ? args.command
-        : toolName
+      const command = extractToolCommand(toolName, args)
 
       toolCalls.push({
         name: toolName,
@@ -395,6 +394,8 @@ export interface InkRendererConfig {
   model: string
   version: string
   maxSteps: number
+  /** Start in idle state (no thinking spinner). Use for REPL mode. */
+  idle?: boolean
 }
 
 export class InkRenderer implements Renderer {
@@ -404,7 +405,7 @@ export class InkRenderer implements Renderer {
 
   constructor(config: InkRendererConfig) {
     this.config = config
-    this.store = new StateStore(config.maxSteps)
+    this.store = new StateStore(config.maxSteps, config.idle)
 
     // Mount Ink
     this.inkInstance = render(

@@ -1,5 +1,6 @@
 import type { Renderer } from './types.js'
 import type { AgentEvent } from '@agent/core'
+import { extractToolCommand, formatToolDisplayName } from './tool-display.js'
 
 // ---------------------------------------------------------------------------
 // PlainTextRenderer — stdout-only output for non-interactive use
@@ -57,11 +58,12 @@ export class PlainTextRenderer implements Renderer {
         )
         break
 
-      case 'tool_exec_start':
-        process.stdout.write(
-          `[exec] ${(event.args.command as string) ?? event.toolName}\n`,
-        )
+      case 'tool_exec_start': {
+        const displayName = formatToolDisplayName(event.toolName)
+        const cmd = extractToolCommand(event.toolName, event.args as Record<string, unknown>)
+        process.stdout.write(`[exec] ${displayName} ${cmd}\n`)
         break
+      }
 
       case 'tool_result': {
         const result = event.result.length > RESULT_TRUNCATE

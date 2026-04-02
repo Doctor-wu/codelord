@@ -85,8 +85,20 @@ export function classifyCommand(command: string): ToolStepCategory {
 
 /**
  * Classify a non-bash tool call by tool name.
+ * Explicit map for known built-in tools, heuristic fallback for unknown.
  */
+const TOOL_CATEGORIES: Record<string, ToolStepCategory> = {
+  file_read: 'read',
+  file_write: 'write',
+  file_edit: 'write',
+  search: 'read',
+  ls: 'read',
+}
+
 export function classifyToolName(toolName: string): ToolStepCategory {
+  const explicit = TOOL_CATEGORIES[toolName]
+  if (explicit) return explicit
+
   const lower = toolName.toLowerCase()
   if (lower.includes('write') || lower.includes('edit') || lower.includes('create')) return 'write'
   if (lower.includes('test') || lower.includes('check') || lower.includes('lint')) return 'verify'
