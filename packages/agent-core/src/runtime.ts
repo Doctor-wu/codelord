@@ -12,7 +12,7 @@ import type {
 } from '@mariozechner/pi-ai'
 import type { AgentEvent, ToolHandler } from './react-loop.js'
 import { ASK_USER_QUESTION_TOOL_NAME, askUserQuestionTool } from './tools/ask-user.js'
-import type { PendingQuestion } from './tools/ask-user.js'
+import type { PendingQuestion, ResolvedQuestion } from './tools/ask-user.js'
 
 // ---------------------------------------------------------------------------
 // Runtime state — replaces the linear LoopState
@@ -107,6 +107,7 @@ export class AgentRuntime<TApi extends Api = Api> {
   private _partial: PartialAssistant | null = null
   private _pendingQuestion: PendingQuestion | null = null
   private _waitingUserAnswered = false
+  private _resolvedQuestions: ResolvedQuestion[] = []
 
   // --- Interrupt control ---
   private _interruptRequested = false
@@ -140,6 +141,7 @@ export class AgentRuntime<TApi extends Api = Api> {
   get partial(): PartialAssistant | null { return this._partial }
   get interruptRequested(): boolean { return this._interruptRequested }
   get pendingQuestion(): PendingQuestion | null { return this._pendingQuestion }
+  get resolvedQuestions(): readonly ResolvedQuestion[] { return this._resolvedQuestions }
 
   // --- Inbound message injection ---
 
@@ -179,8 +181,9 @@ export class AgentRuntime<TApi extends Api = Api> {
 
   /**
    * Provide the user's answer to a pending AskUserQuestion.
-   * This injects a toolResult into the message history and prepares
-   * the runtime for resumption via run().
+   * The answer enters message history as a normal user message.
+   * Question-answer correlation is preserved in the runtime side channel,
+   * not via toolResult role.
    */
   answerPendingQuestion(answer: string): void {
     if (!this._pendingQuestion) {
@@ -190,15 +193,20 @@ export class AgentRuntime<TApi extends Api = Api> {
       throw new Error(`Cannot answer question in state: ${this._state}`)
     }
 
-    const toolResultMsg: ToolResultMessage = {
-      role: 'toolResult',
-      toolCallId: this._pendingQuestion.toolCallId,
-      toolName: ASK_USER_QUESTION_TOOL_NAME,
-      content: [{ type: 'text', text: answer }],
-      isError: false,
+    // Record correlation in side channel before clearing
+    this._resolvedQuestions.push({
+      question: this._pendingQuestion,
+      answer,
+      resolvedAt: Date.now(),
+    })
+
+    // User answer enters history as a normal user message
+    this.messages.push({
+      role: 'user',
+      content: answer,
       timestamp: Date.now(),
-    }
-    this.messages.push(toolResultMsg)
+    })
+
     this._pendingQuestion = null
     this._waitingUserAnswered = true
   }

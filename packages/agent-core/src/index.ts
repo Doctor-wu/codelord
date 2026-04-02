@@ -25,4 +25,4 @@ export { bashTool, createBashToolHandler } from './tools/bash.js'
 export type { BashToolOptions } from './tools/bash.js'
 
 export { askUserQuestionTool, ASK_USER_QUESTION_TOOL_NAME } from './tools/ask-user.js'
-export type { PendingQuestion } from './tools/ask-user.js'
+export type { PendingQuestion, ResolvedQuestion } from './tools/ask-user.js'

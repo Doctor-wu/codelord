@@ -62,3 +62,16 @@ export interface PendingQuestion {
   /** Predefined options */
   options?: string[]
 }
+
+// ---------------------------------------------------------------------------
+// ResolvedQuestion — lightweight record of a question-answer pair
+// ---------------------------------------------------------------------------
+
+export interface ResolvedQuestion {
+  /** The original pending question */
+  question: PendingQuestion
+  /** The user's answer text */
+  answer: string
+  /** Timestamp when the answer was provided */
+  resolvedAt: number
+}

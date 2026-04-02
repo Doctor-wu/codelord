@@ -524,11 +524,20 @@ describe('AgentRuntime AskUserQuestion', () => {
     rt.answerPendingQuestion('postgres')
     expect(rt.pendingQuestion).toBeNull()
 
-    // The toolResult should be in messages
+    // The answer should be a normal user message, NOT a toolResult
     const lastMsg = rt.messages[rt.messages.length - 1]
-    expect(lastMsg.role).toBe('toolResult')
-    expect((lastMsg as any).toolCallId).toBe('tc-ask-1')
-    expect((lastMsg as any).toolName).toBe(ASK_USER_QUESTION_TOOL_NAME)
+    expect(lastMsg.role).toBe('user')
+    expect(lastMsg.content).toBe('postgres')
+    // No toolResult for AskUserQuestion in history
+    const hasAskToolResult = rt.messages.some(
+      (m: any) => m.role === 'toolResult' && m.toolName === ASK_USER_QUESTION_TOOL_NAME,
+    )
+    expect(hasAskToolResult).toBe(false)
+
+    // Correlation preserved in side channel
+    expect(rt.resolvedQuestions).toHaveLength(1)
+    expect(rt.resolvedQuestions[0].question.toolCallId).toBe('tc-ask-1')
+    expect(rt.resolvedQuestions[0].answer).toBe('postgres')
 
     // Resume: run again
     const resumeAssistant = makeAssistantMessage({
