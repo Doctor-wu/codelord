@@ -1,12 +1,14 @@
 import type { Api, Model } from '@mariozechner/pi-ai'
 import { AgentRuntime } from '@agent/core'
-import type { AgentEvent } from '@agent/core'
+import type { AgentEvent, LifecycleEvent } from '@agent/core'
 import type { CodelordConfig } from '@agent/config'
 import { createToolKernel } from './tool-kernel.js'
 import { buildSystemPrompt } from './system-prompt.js'
 import { createRenderer } from './run.js'
 import { SessionStore } from '../session-store.js'
 import { CheckpointManager } from '../checkpoint-manager.js'
+import { TraceRecorder } from '../trace-recorder.js'
+import { TraceStore } from '../trace-store.js'
 
 // ---------------------------------------------------------------------------
 // REPL — interactive shell with Ink as sole stdout owner
@@ -60,6 +62,16 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   // Wrap mutating handlers with checkpoint protection
   const wrappedHandlers = checkpointManager.wrapHandlers(toolHandlers)
 
+  // --- Trace infrastructure ---
+  const traceStore = new TraceStore()
+  let activeRecorder: TraceRecorder | null = null
+
+  // Fan-out lifecycle events to renderer + active trace recorder
+  const fanOutLifecycle = (event: LifecycleEvent) => {
+    renderer.onLifecycleEvent?.(event)
+    activeRecorder?.onLifecycleEvent(event)
+  }
+
   const runtime = new AgentRuntime({
     model,
     systemPrompt,
@@ -68,7 +80,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     apiKey,
     maxSteps: config.maxSteps,
     onEvent: (event: AgentEvent) => renderer.onEvent(event),
-    onLifecycleEvent: (event) => renderer.onLifecycleEvent?.(event),
+    onLifecycleEvent: fanOutLifecycle,
     router,
     safetyPolicy,
     sessionId,
@@ -132,6 +144,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 
   process.on('SIGINT', () => {
     if (running) {
+      activeRecorder?.recordInterruptRequest()
       runtime.requestInterrupt()
     } else {
       saveSession()
@@ -229,30 +242,44 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     saveSession()
 
     // --- Drive runtime ---
+    activeRecorder = new TraceRecorder({
+      sessionId, cwd, provider: config.provider, model: config.model, systemPrompt,
+    })
     checkpointManager.beginBurst()
     running = true
+    let outcome: import('@agent/core').RunOutcome
     try {
-      await runtime.run()
+      outcome = await runtime.run()
     } catch {
-      // Errors are already emitted as lifecycle events
+      outcome = { type: 'error', error: 'Unhandled runtime error' }
     }
     running = false
     checkpointManager.endBurst()
+
+    // Finalize and persist trace
+    try { traceStore.save(activeRecorder.finalize(outcome)) } catch { /* best effort */ }
+    activeRecorder = null
 
     saveSession()
 
     // If runtime has pending inbound (queued during this run), re-run
     while (runtime.pendingInboundCount > 0) {
       renderer.setRunning(true, queueInfo())
+      activeRecorder = new TraceRecorder({
+        sessionId, cwd, provider: config.provider, model: config.model, systemPrompt,
+      })
       checkpointManager.beginBurst()
       running = true
+      let rerunOutcome: import('@agent/core').RunOutcome
       try {
-        await runtime.run()
+        rerunOutcome = await runtime.run()
       } catch {
-        // handled by lifecycle events
+        rerunOutcome = { type: 'error', error: 'Unhandled runtime error' }
       }
       running = false
       checkpointManager.endBurst()
+      try { traceStore.save(activeRecorder.finalize(rerunOutcome)) } catch { /* best effort */ }
+      activeRecorder = null
       saveSession()
     }
   }

@@ -199,6 +199,10 @@ export type LifecycleEvent =
   | { type: 'tool_call_completed'; toolCall: ToolCallLifecycle }
   // --- Usage telemetry ---
   | { type: 'usage_updated'; usage: UsageAggregate; timestamp: number }
+  // --- Queue ---
+  | { type: 'queue_drained'; count: number; messages: { content: string; enqueuedAt: number }[]; injectedAt: number }
+  // --- Question ---
+  | { type: 'question_answered'; question: string; whyAsk: string; askedAt: number; answer: string; answeredAt: number }
   // --- Session status ---
   | { type: 'blocked_enter'; reason: 'waiting_user' | 'interrupted' | 'pending_input'; question?: string; questionDetail?: QuestionDetail; reasoning?: AssistantReasoningState; timestamp: number }
   | { type: 'blocked_exit'; timestamp: number }

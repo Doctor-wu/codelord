@@ -69,3 +69,11 @@ export { toSessionMeta, resolveResumeState } from './session-snapshot.js'
 export type { SessionSnapshot, SessionMeta } from './session-snapshot.js'
 
 export type { CheckpointRecord, FileSnapshot } from './checkpoint.js'
+
+export { redact, previewText, safePreview } from './redact.js'
+export type { RedactionHit, RedactionResult } from './redact.js'
+
+export type {
+  TraceRun, TraceStep, TraceEvent,
+  TraceLLMCall, TraceToolExecution, TraceQueueMessage, TraceAskUser, TraceUserInterrupt,
+} from './trace.js'

@@ -62,6 +62,8 @@ export interface PendingQuestion {
   defaultPlanIfNoAnswer?: string
   /** Predefined options */
   options?: string[]
+  /** When the question was asked */
+  askedAt: number
 }
 
 // ---------------------------------------------------------------------------

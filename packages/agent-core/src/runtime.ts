@@ -327,20 +327,32 @@ export class AgentRuntime<TApi extends Api = Api> {
       throw new Error(`Cannot answer question in state: ${this._state}`)
     }
 
+    const answeredAt = Date.now()
+
+    // Emit question_answered lifecycle event
+    this.emitLifecycle({
+      type: 'question_answered',
+      question: this._pendingQuestion.question,
+      whyAsk: this._pendingQuestion.whyAsk,
+      askedAt: this._pendingQuestion.askedAt,
+      answer,
+      answeredAt,
+    })
+
     // Record correlation in side channel before clearing
     this._resolvedQuestions.push({
       question: this._pendingQuestion,
       answer,
-      resolvedAt: Date.now(),
+      resolvedAt: answeredAt,
     })
 
     // User answer enters history as a normal user message
     this.messages.push({
       role: 'user',
       content: answer,
-      timestamp: Date.now(),
+      timestamp: answeredAt,
     })
-    this.emitLifecycle({ type: 'user_turn', id: `user-${Date.now()}`, content: answer, timestamp: Date.now() })
+    this.emitLifecycle({ type: 'user_turn', id: `user-${answeredAt}`, content: answer, timestamp: answeredAt })
 
     this._pendingQuestion = null
     this._waitingUserAnswered = true
@@ -358,8 +370,19 @@ export class AgentRuntime<TApi extends Api = Api> {
 
   private drainPending(): boolean {
     if (this._pendingInbound.length === 0) return false
-    this.messages.push(...this._pendingInbound)
+    const drained = [...this._pendingInbound]
+    const injectedAt = Date.now()
+    this.messages.push(...drained)
     this._pendingInbound = []
+    this.emitLifecycle({
+      type: 'queue_drained',
+      count: drained.length,
+      messages: drained.map(m => ({
+        content: typeof m.content === 'string' ? m.content : '[non-text]',
+        enqueuedAt: m.timestamp ?? injectedAt,
+      })),
+      injectedAt,
+    })
     return true
   }
 
@@ -638,6 +661,7 @@ export class AgentRuntime<TApi extends Api = Api> {
               expectedAnswerFormat: args.expected_answer_format as string | undefined,
               defaultPlanIfNoAnswer: args.default_plan_if_no_answer as string | undefined,
               options: args.options as string[] | undefined,
+              askedAt: Date.now(),
             }
             this.emit({ type: 'waiting_user', question: this._pendingQuestion })
             if (this._currentReasoning) {

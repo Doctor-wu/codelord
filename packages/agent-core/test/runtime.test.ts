@@ -1348,3 +1348,124 @@ describe('AgentRuntime usage accounting', () => {
     expect(rt2.usageAggregate.llmCalls).toBe(2)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Lifecycle event: queue_drained
+// ---------------------------------------------------------------------------
+
+describe('AgentRuntime queue_drained lifecycle event', () => {
+  afterEach(() => {
+    streamSimpleMock.mockReset()
+  })
+
+  it('emits queue_drained when pending messages are injected', async () => {
+    const msg = makeAssistantMessage({ content: [{ type: 'text', text: 'ok' }] })
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg }], msg))
+
+    const lifecycleEvents: unknown[] = []
+    const rt = new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map(),
+      apiKey: 'test-key',
+      onLifecycleEvent: (e) => lifecycleEvents.push(e),
+    })
+    rt.enqueueUserMessage('hello')
+    rt.enqueueUserMessage('world')
+    await rt.run()
+
+    const drainEvents = lifecycleEvents.filter((e: any) => e.type === 'queue_drained') as any[]
+    expect(drainEvents.length).toBeGreaterThanOrEqual(1)
+    // First drain should have both messages
+    expect(drainEvents[0].count).toBe(2)
+    expect(drainEvents[0].messages).toHaveLength(2)
+    expect(drainEvents[0].messages[0].content).toBe('hello')
+    expect(drainEvents[0].injectedAt).toBeGreaterThan(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Lifecycle event: question_answered
+// ---------------------------------------------------------------------------
+
+describe('AgentRuntime question_answered lifecycle event', () => {
+  afterEach(() => {
+    streamSimpleMock.mockReset()
+  })
+
+  it('emits question_answered when user answers a pending question', async () => {
+    const askToolCall = {
+      type: 'toolCall',
+      id: 'tc-ask',
+      name: ASK_USER_QUESTION_TOOL_NAME,
+      arguments: { question: 'Which DB?', why_ask: 'Need to know' },
+    }
+    const assistantWithAsk = makeAssistantMessage({
+      content: [askToolCall],
+      stopReason: 'toolUse',
+    })
+
+    streamSimpleMock.mockReturnValueOnce(
+      makeEventStream([
+        { type: 'toolcall_end', toolCall: askToolCall },
+        { type: 'done', message: assistantWithAsk },
+      ], assistantWithAsk),
+    )
+
+    const lifecycleEvents: unknown[] = []
+    const rt = new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map(),
+      apiKey: 'test-key',
+      onLifecycleEvent: (e) => lifecycleEvents.push(e),
+    })
+    rt.enqueueUserMessage('setup')
+    await rt.run()
+
+    // Answer the question
+    rt.answerPendingQuestion('postgres')
+
+    const answered = lifecycleEvents.filter((e: any) => e.type === 'question_answered') as any[]
+    expect(answered).toHaveLength(1)
+    expect(answered[0].question).toBe('Which DB?')
+    expect(answered[0].answer).toBe('postgres')
+    expect(answered[0].askedAt).toBeGreaterThan(0)
+    expect(answered[0].answeredAt).toBeGreaterThanOrEqual(answered[0].askedAt)
+  })
+
+  it('PendingQuestion has askedAt timestamp', async () => {
+    const askToolCall = {
+      type: 'toolCall',
+      id: 'tc-ask',
+      name: ASK_USER_QUESTION_TOOL_NAME,
+      arguments: { question: 'Which?', why_ask: 'Need' },
+    }
+    const assistantWithAsk = makeAssistantMessage({
+      content: [askToolCall],
+      stopReason: 'toolUse',
+    })
+
+    streamSimpleMock.mockReturnValueOnce(
+      makeEventStream([
+        { type: 'toolcall_end', toolCall: askToolCall },
+        { type: 'done', message: assistantWithAsk },
+      ], assistantWithAsk),
+    )
+
+    const rt = new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map(),
+      apiKey: 'test-key',
+    })
+    rt.enqueueUserMessage('go')
+    await rt.run()
+
+    expect(rt.pendingQuestion).not.toBeNull()
+    expect(rt.pendingQuestion!.askedAt).toBeGreaterThan(0)
+  })
+})
