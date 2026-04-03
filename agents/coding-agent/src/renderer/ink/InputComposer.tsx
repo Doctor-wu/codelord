@@ -1,20 +1,24 @@
 // ---------------------------------------------------------------------------
-// InputComposer — minimal Ink-managed text input for the REPL
+// InputComposer — Ink-managed text input with session state indicator
 // ---------------------------------------------------------------------------
 
-import React, { useState, useCallback } from 'react'
+import React, { useState } from 'react'
 import { Box, Text, useInput } from 'ink'
+import Spinner from 'ink-spinner'
+import { APP_COLOR } from './theme.js'
+
+export type SessionMode = 'idle' | 'running' | 'waiting_answer' | 'interrupted' | 'error'
 
 interface InputComposerProps {
   /** Whether the input field is active (accepts keystrokes) */
   isActive: boolean
   /** Called when the user submits a line (Enter) */
   onSubmit: (text: string) => void
-  /** Prompt prefix */
-  prompt?: string
+  /** Current session mode for status display */
+  mode?: SessionMode
 }
 
-export function InputComposer({ isActive, onSubmit, prompt = '> ' }: InputComposerProps) {
+export function InputComposer({ isActive, onSubmit, mode = 'idle' }: InputComposerProps) {
   const [value, setValue] = useState('')
   const [cursor, setCursor] = useState(0)
 
@@ -54,19 +58,78 @@ export function InputComposer({ isActive, onSubmit, prompt = '> ' }: InputCompos
     }
   }, { isActive })
 
-  if (!isActive) return null
+  // Status line (always visible)
+  const statusLine = <StatusLine mode={mode} isActive={isActive} />
+
+  if (!isActive) {
+    return (
+      <Box flexDirection="column" marginTop={1}>
+        {statusLine}
+      </Box>
+    )
+  }
 
   // Render the input line with a cursor indicator
   const before = value.slice(0, cursor)
   const cursorChar = value[cursor] ?? ' '
   const after = value.slice(cursor + 1)
+  const prompt = mode === 'waiting_answer' ? '» ' : '> '
+  const promptColor = mode === 'waiting_answer' ? 'yellow' : 'cyan'
 
   return (
-    <Box marginTop={1}>
-      <Text color="cyan" bold>{prompt}</Text>
-      <Text>{before}</Text>
-      <Text inverse>{cursorChar}</Text>
-      <Text>{after}</Text>
+    <Box flexDirection="column" marginTop={1}>
+      {statusLine}
+      <Box>
+        <Text color={promptColor} bold>{prompt}</Text>
+        <Text>{before}</Text>
+        <Text inverse>{cursorChar}</Text>
+        <Text>{after}</Text>
+      </Box>
     </Box>
   )
+}
+
+function StatusLine({ mode, isActive }: { mode: SessionMode; isActive: boolean }) {
+  switch (mode) {
+    case 'running':
+      return (
+        <Box>
+          <Text color={APP_COLOR}><Spinner type="dots" /></Text>
+          <Text dimColor> working</Text>
+          <Text dimColor>  </Text>
+          <Text dimColor italic>Ctrl+C to interrupt</Text>
+        </Box>
+      )
+    case 'waiting_answer':
+      return (
+        <Box>
+          <Text color="yellow">? </Text>
+          <Text color="yellow">answer the question above</Text>
+          <Text dimColor>  Enter to send</Text>
+        </Box>
+      )
+    case 'interrupted':
+      return (
+        <Box>
+          <Text color="yellow">⏸ </Text>
+          <Text color="yellow">interrupted</Text>
+          <Text dimColor>  continue with your next input</Text>
+        </Box>
+      )
+    case 'error':
+      return (
+        <Box>
+          <Text color="red">✗ </Text>
+          <Text color="red">error occurred</Text>
+        </Box>
+      )
+    case 'idle':
+    default:
+      if (!isActive) return null
+      return (
+        <Box>
+          <Text dimColor>Enter to send · /exit to quit · Ctrl+C to interrupt</Text>
+        </Box>
+      )
+  }
 }

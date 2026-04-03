@@ -510,7 +510,20 @@ export class AgentRuntime<TApi extends Api = Api> {
             if (this._currentReasoning) {
               this._currentReasoning.status = 'blocked'
             }
-            this.emitLifecycle({ type: 'blocked_enter', reason: 'waiting_user', question: this._pendingQuestion.question, reasoning: this._currentReasoning ? { ...this._currentReasoning } : undefined, timestamp: Date.now() })
+            this.emitLifecycle({
+              type: 'blocked_enter',
+              reason: 'waiting_user',
+              question: this._pendingQuestion.question,
+              questionDetail: {
+                question: this._pendingQuestion.question,
+                whyAsk: this._pendingQuestion.whyAsk,
+                options: this._pendingQuestion.options,
+                expectedAnswerFormat: this._pendingQuestion.expectedAnswerFormat,
+                defaultPlanIfNoAnswer: this._pendingQuestion.defaultPlanIfNoAnswer,
+              },
+              reasoning: this._currentReasoning ? { ...this._currentReasoning } : undefined,
+              timestamp: Date.now(),
+            })
             this.transition('BLOCKED')
             return this.finishBurst({ type: 'blocked', reason: 'waiting_user' }, true)
           }

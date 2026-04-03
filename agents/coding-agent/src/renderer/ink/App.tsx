@@ -1,15 +1,17 @@
 // ---------------------------------------------------------------------------
-// App — top-level Ink component, consumes TimelineState
+// App — top-level Ink component, production-grade conversation timeline
 // ---------------------------------------------------------------------------
 
 import { Box, Text } from 'ink'
 import type { TimelineState, TimelineItem, AssistantItem, ToolCallItem, UserItem, QuestionItem, StatusItem } from './timeline-projection.js'
 import { Header } from './Header.js'
 import { WorkingIndicator } from './WorkingIndicator.js'
-import { StepTextBlock } from './StepTextBlock.js'
 import { ToolCallCard } from './ToolCallCard.js'
+import { QuestionCard } from './QuestionCard.js'
 import { TimelineStatusBar } from './TimelineStatusBar.js'
 import { InputComposer } from './InputComposer.js'
+import type { SessionMode } from './InputComposer.js'
+import { projectDisplayReason } from '@agent/core'
 
 interface AppProps {
   state: TimelineState
@@ -27,6 +29,9 @@ export function App({ state, version, provider, model, maxSteps, inputActive, on
   const lastItem = state.items[state.items.length - 1]
   const isStreaming = lastItem?.type === 'assistant' && (lastItem as AssistantItem).isStreaming
 
+  // Derive session mode for the composer
+  const sessionMode = deriveSessionMode(state)
+
   return (
     <Box flexDirection="column">
       <Header
@@ -38,7 +43,7 @@ export function App({ state, version, provider, model, maxSteps, inputActive, on
 
       {/* Timeline items */}
       {state.items.map((item, index) => (
-        <TimelineItemView key={itemKey(item)} item={item} isLast={index === state.items.length - 1} />
+        <TimelineItemView key={item.id} item={item} isLast={index === state.items.length - 1} />
       ))}
 
       {/* Working indicator when running but no content yet */}
@@ -56,11 +61,19 @@ export function App({ state, version, provider, model, maxSteps, inputActive, on
 
       {/* Input composer (REPL mode) */}
       {onInputSubmit && (
-        <InputComposer isActive={!!inputActive} onSubmit={onInputSubmit} />
+        <InputComposer
+          isActive={!!inputActive}
+          onSubmit={onInputSubmit}
+          mode={sessionMode}
+        />
       )}
     </Box>
   )
 }
+
+// ---------------------------------------------------------------------------
+// Timeline item dispatch
+// ---------------------------------------------------------------------------
 
 function TimelineItemView({ item, isLast }: { item: TimelineItem; isLast: boolean }) {
   switch (item.type) {
@@ -71,11 +84,15 @@ function TimelineItemView({ item, isLast }: { item: TimelineItem; isLast: boolea
     case 'tool_call':
       return <ToolCallCard item={item} isLast={isLast} />
     case 'question':
-      return <QuestionItemView item={item} />
+      return <QuestionCard item={item} />
     case 'status':
       return <StatusItemView item={item} />
   }
 }
+
+// ---------------------------------------------------------------------------
+// Conversation layer: user + assistant
+// ---------------------------------------------------------------------------
 
 function UserItemView({ item }: { item: UserItem }) {
   return (
@@ -89,32 +106,48 @@ function UserItemView({ item }: { item: UserItem }) {
 function AssistantItemView({ item }: { item: AssistantItem }) {
   if (!item.thinking && !item.text) return null
 
+  // Lightweight reasoning projection: show intent/why as a subtle line
+  const reasoningSummary = item.reasoning ? projectDisplayReason(item.reasoning) : null
+  const showReasoning = reasoningSummary && !item.text && item.thinking
+
   return (
     <Box flexDirection="column" marginTop={1}>
-      {item.thinking && <StepTextBlock text={item.thinking} label="thinking" />}
+      {/* Reasoning intent (only while thinking, before text arrives) */}
+      {showReasoning && (
+        <Box>
+          <Text dimColor italic>↳ {reasoningSummary}</Text>
+        </Box>
+      )}
+
+      {/* Thinking block */}
+      {item.thinking && (
+        <Box flexDirection="column">
+          <Text dimColor italic>thinking</Text>
+          <Box paddingLeft={2}>
+            <Text dimColor>{item.thinking}</Text>
+          </Box>
+        </Box>
+      )}
+
+      {/* Assistant text */}
       {item.text && (
         <Box marginTop={item.thinking ? 1 : 0}>
-          <StepTextBlock text={item.text} />
+          <Text>{item.text}</Text>
         </Box>
       )}
     </Box>
   )
 }
 
-function QuestionItemView({ item }: { item: QuestionItem }) {
-  return (
-    <Box marginTop={1}>
-      <Text color="yellow" bold>{'? '}</Text>
-      <Text color="yellow">{item.question}</Text>
-    </Box>
-  )
-}
+// ---------------------------------------------------------------------------
+// Control layer: status
+// ---------------------------------------------------------------------------
 
 function StatusItemView({ item }: { item: StatusItem }) {
   if (item.status === 'error') {
     return (
       <Box marginTop={1}>
-        <Text color="red" bold>Error: </Text>
+        <Text color="red" bold>✗ Error: </Text>
         <Text color="red">{item.message}</Text>
       </Box>
     )
@@ -122,13 +155,28 @@ function StatusItemView({ item }: { item: StatusItem }) {
   if (item.status === 'interrupted') {
     return (
       <Box marginTop={1}>
-        <Text color="yellow" dimColor>[interrupted] {item.message}</Text>
+        <Text color="yellow" bold>⏸ </Text>
+        <Text color="yellow">Agent paused</Text>
       </Box>
     )
   }
   return null
 }
 
-function itemKey(item: TimelineItem): string {
-  return item.id
+// ---------------------------------------------------------------------------
+// Session mode derivation
+// ---------------------------------------------------------------------------
+
+function deriveSessionMode(state: TimelineState): SessionMode {
+  if (state.isRunning) return 'running'
+
+  // Check the last item for blocked states
+  const lastItem = state.items[state.items.length - 1]
+  if (lastItem?.type === 'question') return 'waiting_answer'
+  if (lastItem?.type === 'status') {
+    if ((lastItem as StatusItem).status === 'interrupted') return 'interrupted'
+    if ((lastItem as StatusItem).status === 'error') return 'error'
+  }
+
+  return 'idle'
 }

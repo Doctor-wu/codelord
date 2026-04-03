@@ -36,6 +36,7 @@ export type {
   LifecycleEvent,
   AssistantReasoningState,
   ReasoningStatus,
+  QuestionDetail,
 } from './events.js'
 
 export { bashTool, createBashToolHandler, bashContract } from './tools/bash.js'

@@ -27,7 +27,7 @@ describe('App rendering', () => {
     expect(output).toContain('thinking')
   })
 
-  it('renders the tool block instead of thinking once a tool call exists', () => {
+  it('renders the tool card instead of thinking once a tool call exists', () => {
     const state: TimelineState = {
       ...createInitialTimelineState(),
       items: [{
@@ -55,12 +55,11 @@ describe('App rendering', () => {
       />,
     )
 
-    expect(output).toContain('WRITE')
     expect(output).toContain('Bash(rm -f result.md)')
-    expect(output).not.toContain('Tool call success')
+    expect(output).toContain('building')
   })
 
-  it('keeps rendering the tool block during execution after output starts streaming', () => {
+  it('keeps rendering the tool card during execution after output starts streaming', () => {
     const tc = createToolCallLifecycle({
       id: 'tc-1',
       toolName: 'bash',
@@ -90,11 +89,9 @@ describe('App rendering', () => {
       />,
     )
 
-    expect(output).toContain('WRITE')
     expect(output).toContain('●')
     expect(output).toContain('Bash(cat > result.md)')
     expect(output).toContain('writing file')
-    expect(output).not.toContain('Tool call success')
   })
 })
 

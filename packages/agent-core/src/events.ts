@@ -143,9 +143,21 @@ export type LifecycleEvent =
   | { type: 'tool_call_updated'; toolCall: ToolCallLifecycle }
   | { type: 'tool_call_completed'; toolCall: ToolCallLifecycle }
   // --- Session status ---
-  | { type: 'blocked_enter'; reason: 'waiting_user' | 'interrupted' | 'pending_input'; question?: string; reasoning?: AssistantReasoningState; timestamp: number }
+  | { type: 'blocked_enter'; reason: 'waiting_user' | 'interrupted' | 'pending_input'; question?: string; questionDetail?: QuestionDetail; reasoning?: AssistantReasoningState; timestamp: number }
   | { type: 'blocked_exit'; timestamp: number }
   | { type: 'session_done'; success: boolean; text?: string; error?: string; timestamp: number }
+
+// ---------------------------------------------------------------------------
+// QuestionDetail — full question metadata for UI rendering
+// ---------------------------------------------------------------------------
+
+export interface QuestionDetail {
+  question: string
+  whyAsk?: string
+  options?: string[]
+  expectedAnswerFormat?: string
+  defaultPlanIfNoAnswer?: string
+}
 
 // ---------------------------------------------------------------------------
 // Helper: create a fresh ToolCallLifecycle

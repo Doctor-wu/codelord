@@ -2,7 +2,7 @@
 // Timeline Projection — reduces LifecycleEvents into a stable view model
 // ---------------------------------------------------------------------------
 
-import type { LifecycleEvent, ToolCallLifecycle, AssistantReasoningState } from '@agent/core'
+import type { LifecycleEvent, ToolCallLifecycle, AssistantReasoningState, QuestionDetail } from '@agent/core'
 
 // ---------------------------------------------------------------------------
 // Timeline item types
@@ -35,6 +35,7 @@ export interface QuestionItem {
   type: 'question'
   id: string
   question: string
+  detail: QuestionDetail | null
   reasoning: AssistantReasoningState | null
   timestamp: number
 }
@@ -145,6 +146,7 @@ export function reduceLifecycleEvent(state: TimelineState, event: LifecycleEvent
           type: 'question',
           id: `question-${nextId}`,
           question: event.question,
+          detail: event.questionDetail ?? null,
           reasoning: event.reasoning ?? null,
           timestamp: event.timestamp,
         })

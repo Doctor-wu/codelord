@@ -185,9 +185,8 @@ describe('Interrupted display deduplication', () => {
       timestamp: 1,
     })
     const output = renderApp(state)
-    const matches = output.match(/interrupted/gi)
-    // Should appear once (in the status item)
-    expect(matches!.length).toBe(1)
+    const matches = output.match(/Agent paused/g)
+    expect(matches).toHaveLength(1)
   })
 })
 
@@ -309,5 +308,193 @@ describe('Timeline ordering stability', () => {
     expect(state.items.map(i => i.type)).toEqual(['user', 'assistant', 'user', 'assistant'])
     expect((state.items[0] as UserItem).content).toBe('first')
     expect((state.items[2] as UserItem).content).toBe('second')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 8. QuestionCard with full detail
+// ---------------------------------------------------------------------------
+
+describe('QuestionCard detail display', () => {
+  beforeEach(() => _resetProvisionalIdCounter())
+
+  it('question item carries full detail when provided', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, {
+      type: 'blocked_enter',
+      reason: 'waiting_user',
+      question: 'Pick a color',
+      questionDetail: {
+        question: 'Pick a color',
+        whyAsk: 'Need to set the theme',
+        options: ['red', 'blue', 'green'],
+        expectedAnswerFormat: 'one word',
+        defaultPlanIfNoAnswer: 'use blue',
+      },
+      timestamp: 1,
+    })
+
+    const item = state.items[0] as QuestionItem
+    expect(item.detail).not.toBeNull()
+    expect(item.detail!.whyAsk).toBe('Need to set the theme')
+    expect(item.detail!.options).toEqual(['red', 'blue', 'green'])
+    expect(item.detail!.expectedAnswerFormat).toBe('one word')
+    expect(item.detail!.defaultPlanIfNoAnswer).toBe('use blue')
+  })
+
+  it('question card renders all detail fields', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, {
+      type: 'blocked_enter',
+      reason: 'waiting_user',
+      question: 'Pick a color',
+      questionDetail: {
+        question: 'Pick a color',
+        whyAsk: 'Need to set the theme',
+        options: ['red', 'blue'],
+      },
+      timestamp: 1,
+    })
+
+    const output = renderApp(state)
+    expect(output).toContain('Pick a color')
+    expect(output).toContain('Need to set the theme')
+    expect(output).toContain('red')
+    expect(output).toContain('blue')
+  })
+
+  it('question item has null detail when not provided', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, {
+      type: 'blocked_enter',
+      reason: 'waiting_user',
+      question: 'Simple question',
+      timestamp: 1,
+    })
+
+    const item = state.items[0] as QuestionItem
+    expect(item.detail).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 9. ToolCallCard route/safety/reasoning display
+// ---------------------------------------------------------------------------
+
+describe('ToolCallCard production display', () => {
+  beforeEach(() => _resetProvisionalIdCounter())
+
+  it('renders route info when tool was routed', () => {
+    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'file_read', args: { file_path: 'x.ts' }, command: 'x.ts' })
+    tc.route = { wasRouted: true, ruleId: 'bash_cat', originalToolName: 'bash', originalArgs: { command: 'cat x.ts' }, reason: 'cat → Read' }
+    tc.phase = 'completed'
+    tc.result = 'file contents'
+    tc.completedAt = Date.now()
+
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'tool_call_completed', toolCall: tc })
+
+    const output = renderApp(state)
+    expect(output).toContain('Read(x.ts)')
+    expect(output).toContain('Bash')
+    expect(output).toContain('→')
+  })
+
+  it('renders safety blocked prominently', () => {
+    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'rm -rf /' }, command: 'rm -rf /' })
+    tc.safety = { riskLevel: 'dangerous', allowed: false, ruleId: 'rm_rf', reason: 'destructive command' }
+    tc.phase = 'blocked'
+    tc.isError = true
+    tc.result = 'BLOCKED'
+    tc.completedAt = Date.now()
+
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'tool_call_completed', toolCall: tc })
+
+    const output = renderApp(state)
+    expect(output).toContain('BLOCKED')
+    expect(output).toContain('dangerous')
+  })
+
+  it('renders displayReason when present', () => {
+    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'ls' }, command: 'ls' })
+    tc.displayReason = 'checking project structure'
+    tc.phase = 'executing'
+    tc.executionStartedAt = Date.now()
+
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc })
+
+    const output = renderApp(state)
+    expect(output).toContain('checking project structure')
+  })
+
+  it('renders completion with duration', () => {
+    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'echo hi' }, command: 'echo hi' })
+    tc.phase = 'completed'
+    tc.result = 'hi'
+    tc.executionStartedAt = 1000
+    tc.completedAt = 2500
+
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'tool_call_completed', toolCall: tc })
+
+    const output = renderApp(state)
+    expect(output).toContain('done')
+    expect(output).toContain('1.5s')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 10. Session mode derivation
+// ---------------------------------------------------------------------------
+
+describe('Session mode in composer', () => {
+  beforeEach(() => _resetProvisionalIdCounter())
+
+  it('derives waiting_answer mode when last item is question', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, {
+      type: 'blocked_enter',
+      reason: 'waiting_user',
+      question: 'What?',
+      timestamp: 1,
+    })
+
+    const output = renderToString(
+      <App state={state} version="0.0.1" provider="test" model="test" maxSteps={10}
+        inputActive={true} onInputSubmit={() => {}} />,
+    )
+    expect(output).toContain('answer the question')
+  })
+
+  it('derives interrupted mode when last item is interrupted status', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, {
+      type: 'blocked_enter',
+      reason: 'interrupted',
+      timestamp: 1,
+    })
+
+    const output = renderToString(
+      <App state={state} version="0.0.1" provider="test" model="test" maxSteps={10}
+        inputActive={true} onInputSubmit={() => {}} />,
+    )
+    expect(output).toContain('interrupted')
+    expect(output).toContain('continue')
+  })
+
+  it('shows working status when running', () => {
+    const state: TimelineState = {
+      ...createInitialTimelineState(),
+      isRunning: true,
+    }
+
+    const output = renderToString(
+      <App state={state} version="0.0.1" provider="test" model="test" maxSteps={10}
+        inputActive={false} onInputSubmit={() => {}} />,
+    )
+    expect(output).toContain('working')
+    expect(output).toContain('Ctrl+C')
   })
 })
