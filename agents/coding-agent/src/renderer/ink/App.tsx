@@ -24,9 +24,13 @@ interface AppProps {
   maxSteps: number
   inputActive?: boolean
   onInputSubmit?: (text: string) => void
+  /** Messages queued during running */
+  pendingQueue?: string[]
+  /** Whether the agent is currently running */
+  isRunning?: boolean
 }
 
-export function App({ state, version, provider, model, maxSteps, inputActive, onInputSubmit }: AppProps) {
+export function App({ state, version, provider, model, maxSteps, inputActive, onInputSubmit, pendingQueue, isRunning }: AppProps) {
   const sessionMode = deriveSessionMode(state)
 
   return (
@@ -49,6 +53,8 @@ export function App({ state, version, provider, model, maxSteps, inputActive, on
           isActive={!!inputActive}
           onSubmit={onInputSubmit}
           mode={sessionMode}
+          pendingQueue={pendingQueue ?? []}
+          isRunning={!!isRunning}
         />
       )}
     </Box>

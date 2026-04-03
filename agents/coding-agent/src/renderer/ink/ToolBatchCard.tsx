@@ -22,25 +22,15 @@ export function ToolBatchCard({ item, isLast }: ToolBatchCardProps) {
   const allDone = completedCount === total
 
   const batchReasoning = reasoning ? projectDisplayReason(reasoning) : null
-
-  // Progress bar segments
-  const progressBar = toolCalls.map(tc => {
-    if (tc.phase === 'completed') return tc.isError ? '✗' : '━'
-    if (tc.phase === 'blocked') return '⊘'
-    if (tc.phase === 'executing' || tc.phase === 'generating' || tc.phase === 'routed' || tc.phase === 'checked') return '◉'
-    return '·'
-  }).join('')
-
   const headerColor = allDone ? LANE.muted : LANE.assistant
 
   return (
     <Box flexDirection="column" marginTop={1}>
       {/* ── Batch header ── */}
       <Box>
-        <Text color={headerColor}>{GLYPH.batchTop}{GLYPH.thickRule} </Text>
-        <Text color={headerColor} bold>WORK GROUP</Text>
-        <Text color={headerColor}> [{progressBar}] </Text>
-        <Text dimColor>{completedCount}/{total}</Text>
+        <Text color={headerColor}>{GLYPH.batchTop} </Text>
+        <Text color={headerColor}>work group</Text>
+        <Text dimColor> {completedCount}/{total}</Text>
         {hasBlocked && <Text color={LANE.error}> blocked</Text>}
       </Box>
 
@@ -57,23 +47,19 @@ export function ToolBatchCard({ item, isLast }: ToolBatchCardProps) {
         const isActiveStep = tc.phase === 'executing' || tc.phase === 'generating' || tc.phase === 'routed' || tc.phase === 'checked'
         const isCompletedStep = tc.phase === 'completed'
         const isLastStep = index === total - 1
+        const rail = isLastStep && allDone ? GLYPH.batchBot : GLYPH.batchMid
 
         return (
           <Box key={tc.id} flexDirection="column">
-            {/* Step index marker */}
             <Box>
-              <Text color={headerColor}>{isLastStep && allDone ? GLYPH.batchBot : GLYPH.batchMid} </Text>
-              <Text dimColor={isCompletedStep} bold={isActiveStep}>
-                {isActiveStep ? GLYPH.live : GLYPH.settled} {index + 1}/{total}
-              </Text>
-            </Box>
-            {/* Tool view, indented under the batch rail */}
-            <Box paddingLeft={2}>
-              <ToolCallView
-                tc={tc}
-                isLast={isLast && isLastStep}
-                dimCompleted={!allDone}
-              />
+              <Text color={headerColor}>{rail} </Text>
+              <Box>
+                <ToolCallView
+                  tc={tc}
+                  isLast={isLast && isLastStep}
+                  dimCompleted={!allDone}
+                />
+              </Box>
             </Box>
           </Box>
         )
@@ -82,8 +68,8 @@ export function ToolBatchCard({ item, isLast }: ToolBatchCardProps) {
       {/* ── Batch footer ── */}
       {allDone && (
         <Box>
-          <Text color={headerColor}>{GLYPH.batchBot}{GLYPH.thickRule} </Text>
-          <Text dimColor>{total} steps {GLYPH.phaseDone}</Text>
+          <Text color={headerColor}>{GLYPH.batchBot} </Text>
+          <Text dimColor>{total} steps done</Text>
         </Box>
       )}
     </Box>

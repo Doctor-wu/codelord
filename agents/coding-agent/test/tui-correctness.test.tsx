@@ -623,3 +623,83 @@ describe('ToolCallCard progressive execution', () => {
     expect(output).toContain('│')
   })
 })
+
+// ---------------------------------------------------------------------------
+// 12. Queue input support
+// ---------------------------------------------------------------------------
+
+describe('Queue input during running', () => {
+  beforeEach(() => _resetProvisionalIdCounter())
+
+  it('composer is visible and active during running (for queue input)', () => {
+    const state: TimelineState = {
+      ...createInitialTimelineState(),
+      isRunning: true,
+    }
+
+    const output = renderToString(
+      <App state={state} version="0.0.1" provider="test" model="test" maxSteps={10}
+        inputActive={true} onInputSubmit={() => {}} isRunning={true} />,
+    )
+    // Prompt should be visible
+    expect(output).toContain('>')
+    // Should show queue hint
+    expect(output).toContain('queue')
+  })
+
+  it('shows pending queue count when messages are queued', () => {
+    const state: TimelineState = {
+      ...createInitialTimelineState(),
+      isRunning: true,
+    }
+
+    const output = renderToString(
+      <App state={state} version="0.0.1" provider="test" model="test" maxSteps={10}
+        inputActive={true} onInputSubmit={() => {}} pendingQueue={['msg1', 'msg2']} isRunning={true} />,
+    )
+    expect(output).toContain('2 queued')
+  })
+
+  it('shows queue preview for pending messages', () => {
+    const state: TimelineState = {
+      ...createInitialTimelineState(),
+      isRunning: true,
+    }
+
+    const output = renderToString(
+      <App state={state} version="0.0.1" provider="test" model="test" maxSteps={10}
+        inputActive={true} onInputSubmit={() => {}} pendingQueue={['fix the bug', 'then run tests']} isRunning={true} />,
+    )
+    expect(output).toContain('fix the bug')
+    expect(output).toContain('then run tests')
+  })
+
+  it('queue preview truncates long messages', () => {
+    const longMsg = 'A'.repeat(100)
+    const state: TimelineState = {
+      ...createInitialTimelineState(),
+      isRunning: true,
+    }
+
+    const output = renderToString(
+      <App state={state} version="0.0.1" provider="test" model="test" maxSteps={10}
+        inputActive={true} onInputSubmit={() => {}} pendingQueue={[longMsg]} isRunning={true} />,
+    )
+    // Should be truncated with ellipsis
+    expect(output).toContain('…')
+    expect(output).not.toContain(longMsg)
+  })
+
+  it('empty queue shows no queue indicator', () => {
+    const state: TimelineState = {
+      ...createInitialTimelineState(),
+      isRunning: true,
+    }
+
+    const output = renderToString(
+      <App state={state} version="0.0.1" provider="test" model="test" maxSteps={10}
+        inputActive={true} onInputSubmit={() => {}} pendingQueue={[]} isRunning={true} />,
+    )
+    expect(output).not.toContain('queued')
+  })
+})

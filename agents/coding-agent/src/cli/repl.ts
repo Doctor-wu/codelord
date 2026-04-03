@@ -39,8 +39,6 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   })
 
   // --- Interrupt handling ---
-  // When runtime is running, Ctrl+C requests interrupt.
-  // When idle (waiting for input), Ctrl+C exits.
   let running = false
 
   process.on('SIGINT', () => {
@@ -53,23 +51,16 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   })
 
   // --- Main REPL loop ---
-  // All output goes through Ink. No direct terminal writes.
   while (true) {
     renderer.setRunning(false)
     const line = await renderer.waitForInput()
 
-    // null means input closed (cleanup)
     if (line === null) break
 
-    // Preserve original text for timeline; only trim for command detection
     const trimmed = line.trim()
-
     if (!trimmed) continue
 
-    // --- Slash commands ---
-    if (trimmed === '/exit') {
-      break
-    }
+    if (trimmed === '/exit') break
 
     // --- Inject input into runtime ---
     renderer.setRunning(true)
@@ -80,14 +71,39 @@ export async function startRepl(options: ReplOptions): Promise<void> {
       runtime.enqueueUserMessage(line)
     }
 
-    // --- Drive runtime ---
+    // --- Drive runtime, then drain any queued messages ---
     running = true
     try {
       await runtime.run()
     } catch {
-      // Errors are already emitted as lifecycle events and rendered by Ink
+      // Errors are already emitted as lifecycle events
     }
     running = false
+
+    // --- Drain queue: enqueue all pending messages at once, then run once ---
+    let queued = renderer.drainQueue()
+    while (queued.length > 0) {
+      let shouldExit = false
+      for (const msg of queued) {
+        const qTrimmed = msg.trim()
+        if (!qTrimmed) continue
+        if (qTrimmed === '/exit') { shouldExit = true; break }
+        runtime.enqueueUserMessage(msg)
+      }
+      if (shouldExit) { renderer.cleanup(); return }
+
+      renderer.setRunning(true)
+      running = true
+      try {
+        await runtime.run()
+      } catch {
+        // handled by lifecycle events
+      }
+      running = false
+
+      // Check if more messages arrived during this run
+      queued = renderer.drainQueue()
+    }
   }
 
   renderer.cleanup()

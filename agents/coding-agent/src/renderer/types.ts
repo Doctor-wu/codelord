@@ -18,11 +18,8 @@ export interface Renderer {
 // ---------------------------------------------------------------------------
 
 export interface InteractiveRenderer extends Renderer {
-  /**
-   * Wait for the next user input line submitted through the Ink shell.
-   * Resolves with the raw text (not trimmed). Returns null if input is closed.
-   */
   waitForInput(): Promise<string | null>
-  /** Signal that the agent is now running (hides input composer) */
   setRunning(running: boolean): void
+  /** Drain messages queued during running. Returns them in submission order. */
+  drainQueue(): string[]
 }

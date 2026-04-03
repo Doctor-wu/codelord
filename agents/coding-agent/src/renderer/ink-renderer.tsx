@@ -46,8 +46,6 @@ class TimelineStore {
     }
   }
 
-  // --- Raw stream events (high-frequency deltas) ---
-
   onRawEvent(event: AgentEvent): void {
     switch (event.type) {
       case 'thinking_delta':
@@ -58,11 +56,8 @@ class TimelineStore {
         this.state = applyTextDelta(this.state, event.delta)
         this.notify()
         break
-      // Other raw events are handled via lifecycle or ignored
     }
   }
-
-  // --- Lifecycle events (stable semantic events) ---
 
   onLifecycleEvent(event: LifecycleEvent): void {
     this.state = reduceLifecycleEvent(this.state, event)
@@ -71,19 +66,31 @@ class TimelineStore {
 }
 
 // ---------------------------------------------------------------------------
-// Input state bridge: REPL waits for input, Ink component submits it
+// Input state bridge: supports both direct resolve and queue mode
 // ---------------------------------------------------------------------------
 
 class InputBridge {
   private _isActive = false
+  private _isRunning = false
   private _resolve: ((value: string | null) => void) | null = null
+  private _pendingQueue: string[] = []
   private _listeners: Set<(active: boolean) => void> = new Set()
+  private _queueListeners: Set<(queue: string[]) => void> = new Set()
 
   get isActive(): boolean { return this._isActive }
+  get isRunning(): boolean { return this._isRunning }
+  get pendingQueue(): string[] { return this._pendingQueue }
 
   setActive(active: boolean): void {
     this._isActive = active
     for (const listener of this._listeners) listener(active)
+  }
+
+  setRunning(running: boolean): void {
+    this._isRunning = running
+    // During running, input stays active for queue input
+    this._isActive = true
+    for (const listener of this._listeners) listener(true)
   }
 
   subscribe(listener: (active: boolean) => void): () => void {
@@ -91,9 +98,23 @@ class InputBridge {
     return () => this._listeners.delete(listener)
   }
 
+  subscribeQueue(listener: (queue: string[]) => void): () => void {
+    this._queueListeners.add(listener)
+    return () => this._queueListeners.delete(listener)
+  }
+
+  private notifyQueue(): void {
+    const snapshot = [...this._pendingQueue]
+    for (const listener of this._queueListeners) listener(snapshot)
+  }
+
   /** Called by the Ink InputComposer when user presses Enter */
   submit(text: string): void {
-    if (this._resolve) {
+    if (this._isRunning) {
+      // Queue mode: don't resolve, just enqueue
+      this._pendingQueue.push(text)
+      this.notifyQueue()
+    } else if (this._resolve) {
       const resolve = this._resolve
       this._resolve = null
       resolve(text)
@@ -107,7 +128,13 @@ class InputBridge {
     })
   }
 
-  /** Called on cleanup to unblock any pending wait */
+  /** Drain all pending queue messages. Returns them in order. */
+  drainQueue(): string[] {
+    const messages = this._pendingQueue.splice(0)
+    this.notifyQueue()
+    return messages
+  }
+
   close(): void {
     if (this._resolve) {
       this._resolve(null)
@@ -132,6 +159,8 @@ interface BridgeProps {
 function Bridge({ store, inputBridge, version, provider, model, maxSteps }: BridgeProps) {
   const [state, setState] = useState<TimelineState>(store.getState())
   const [inputActive, setInputActive] = useState(inputBridge?.isActive ?? false)
+  const [pendingQueue, setPendingQueue] = useState<string[]>([])
+  const [isRunning, setIsRunning] = useState(inputBridge?.isRunning ?? false)
 
   useEffect(() => {
     return store.subscribe(setState)
@@ -140,7 +169,15 @@ function Bridge({ store, inputBridge, version, provider, model, maxSteps }: Brid
   useEffect(() => {
     if (!inputBridge) return
     setInputActive(inputBridge.isActive)
-    return inputBridge.subscribe(setInputActive)
+    return inputBridge.subscribe((active) => {
+      setInputActive(active)
+      setIsRunning(inputBridge.isRunning)
+    })
+  }, [inputBridge])
+
+  useEffect(() => {
+    if (!inputBridge) return
+    return inputBridge.subscribeQueue(setPendingQueue)
   }, [inputBridge])
 
   const handleSubmit = inputBridge
@@ -156,6 +193,8 @@ function Bridge({ store, inputBridge, version, provider, model, maxSteps }: Brid
       maxSteps={maxSteps}
       inputActive={inputActive}
       onInputSubmit={handleSubmit}
+      pendingQueue={pendingQueue}
+      isRunning={isRunning}
     />
   )
 }
@@ -169,9 +208,7 @@ export interface InkRendererConfig {
   model: string
   version: string
   maxSteps: number
-  /** Start in idle state (no thinking spinner). Use for REPL mode. */
   idle?: boolean
-  /** Enable interactive input (REPL mode). */
   interactive?: boolean
 }
 
@@ -186,7 +223,6 @@ export class InkRenderer implements InteractiveRenderer {
     this.store = new TimelineStore(config.idle)
     this.inputBridge = config.interactive ? new InputBridge() : null
 
-    // Mount Ink
     this.inkInstance = render(
       <Bridge
         store={this.store}
@@ -198,22 +234,18 @@ export class InkRenderer implements InteractiveRenderer {
       />,
     )
 
-    // If interactive, start with input active
     if (this.inputBridge) {
       this.inputBridge.setActive(true)
     }
   }
 
   onEvent(event: AgentEvent): void {
-    // Raw stream events go directly to the store for delta processing
     this.store.onRawEvent(event)
   }
 
   onLifecycleEvent(event: LifecycleEvent): void {
     this.store.onLifecycleEvent(event)
   }
-
-  // --- InteractiveRenderer ---
 
   async waitForInput(): Promise<string | null> {
     if (!this.inputBridge) throw new Error('waitForInput requires interactive mode')
@@ -222,8 +254,13 @@ export class InkRenderer implements InteractiveRenderer {
 
   setRunning(running: boolean): void {
     if (this.inputBridge) {
-      this.inputBridge.setActive(!running)
+      this.inputBridge.setRunning(running)
     }
+  }
+
+  /** Drain queued messages submitted during running */
+  drainQueue(): string[] {
+    return this.inputBridge?.drainQueue() ?? []
   }
 
   cleanup(): void {

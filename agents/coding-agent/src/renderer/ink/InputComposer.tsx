@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// InputComposer — command deck: always-visible control center
+// InputComposer — command deck with queue input support
 // ---------------------------------------------------------------------------
 
 import React, { useState } from 'react'
@@ -13,9 +13,19 @@ interface InputComposerProps {
   isActive: boolean
   onSubmit: (text: string) => void
   mode?: SessionMode
+  /** Messages queued during running */
+  pendingQueue?: string[]
+  /** Whether the agent is currently running */
+  isRunning?: boolean
 }
 
-export function InputComposer({ isActive, onSubmit, mode = 'idle' }: InputComposerProps) {
+export function InputComposer({
+  isActive,
+  onSubmit,
+  mode = 'idle',
+  pendingQueue = [],
+  isRunning = false,
+}: InputComposerProps) {
   const [value, setValue] = useState('')
   const [cursor, setCursor] = useState(0)
   const { stdout } = useStdout()
@@ -28,7 +38,7 @@ export function InputComposer({ isActive, onSubmit, mode = 'idle' }: InputCompos
       const submitted = value
       setValue('')
       setCursor(0)
-      onSubmit(submitted)
+      if (submitted.trim()) onSubmit(submitted)
       return
     }
 
@@ -59,16 +69,22 @@ export function InputComposer({ isActive, onSubmit, mode = 'idle' }: InputCompos
   const borderColor = getBorderColor(mode)
   const promptColor = getPromptColor(mode, isActive)
   const promptChar = mode === 'waiting_answer' ? '»' : '>'
+  const queueCount = pendingQueue.length
 
   return (
     <Box flexDirection="column" marginTop={1}>
       {/* ── Deck separator ── */}
-      <Text color={borderColor}>{GLYPH.thickRule.repeat(width)}</Text>
+      <Text color={borderColor}>{GLYPH.thinRule.repeat(width)}</Text>
 
       {/* ── Status strip ── */}
-      <StatusStrip mode={mode} />
+      <StatusStrip mode={mode} queueCount={queueCount} />
 
-      {/* ── Input row — always user lane hue for prompt ── */}
+      {/* ── Queue preview (when messages are pending) ── */}
+      {queueCount > 0 && (
+        <QueuePreview queue={pendingQueue} />
+      )}
+
+      {/* ── Input row ── */}
       <Box>
         <Text color={promptColor} bold={isActive}>{promptChar} </Text>
         {isActive ? (
@@ -79,7 +95,7 @@ export function InputComposer({ isActive, onSubmit, mode = 'idle' }: InputCompos
       </Box>
 
       {/* ── Hint bar ── */}
-      <HintBar mode={mode} />
+      <HintBar mode={mode} isRunning={isRunning} />
     </Box>
   )
 }
@@ -102,14 +118,17 @@ function InputField({ value, cursor }: { value: string; cursor: number }) {
   )
 }
 
-function StatusStrip({ mode }: { mode: SessionMode }) {
+function StatusStrip({ mode, queueCount }: { mode: SessionMode; queueCount: number }) {
   switch (mode) {
     case 'running':
       return (
         <Box>
           <Text color={APP_COLOR}><Spinner type="dots" /></Text>
           <Text color={APP_COLOR} bold> working</Text>
-          <Text dimColor>  {GLYPH.thinRule}  Ctrl+C to interrupt</Text>
+          {queueCount > 0 && (
+            <Text color={LANE.user}> {GLYPH.thinRule} {queueCount} queued</Text>
+          )}
+          <Text dimColor>  {GLYPH.thinRule}  Enter to queue · Ctrl+C to interrupt</Text>
         </Box>
       )
     case 'waiting_answer':
@@ -143,7 +162,32 @@ function StatusStrip({ mode }: { mode: SessionMode }) {
   }
 }
 
-function HintBar({ mode }: { mode: SessionMode }) {
+function QueuePreview({ queue }: { queue: string[] }) {
+  // Show up to 3 most recent queued messages
+  const visible = queue.slice(-3)
+  const hidden = queue.length - visible.length
+
+  return (
+    <Box flexDirection="column">
+      {hidden > 0 && (
+        <Box>
+          <Text color={LANE.userMuted}>  +{hidden} more queued</Text>
+        </Box>
+      )}
+      {visible.map((msg, i) => {
+        const preview = msg.length > 60 ? msg.slice(0, 57) + '…' : msg
+        return (
+          <Box key={i}>
+            <Text color={LANE.userMuted}>  {GLYPH.settled} </Text>
+            <Text color={LANE.userMuted}>{preview}</Text>
+          </Box>
+        )
+      })}
+    </Box>
+  )
+}
+
+function HintBar({ mode, isRunning }: { mode: SessionMode; isRunning: boolean }) {
   if (mode === 'running') return null
   return (
     <Box>
@@ -154,7 +198,6 @@ function HintBar({ mode }: { mode: SessionMode }) {
   )
 }
 
-/** Deck border color — follows the dominant semantic lane for the current mode */
 function getBorderColor(mode: SessionMode): string {
   switch (mode) {
     case 'running': return APP_COLOR
@@ -165,11 +208,8 @@ function getBorderColor(mode: SessionMode): string {
   }
 }
 
-/** Prompt character color — always user lane family, dimmed when inactive */
 function getPromptColor(mode: SessionMode, isActive: boolean): string {
   if (!isActive) return LANE.userMuted
-  // Active prompt is always user lane primary, regardless of mode
-  // Exception: waiting_answer uses control color to signal "answer required"
   if (mode === 'waiting_answer') return LANE.control
   return LANE.user
 }
