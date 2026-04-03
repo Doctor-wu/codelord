@@ -15,11 +15,12 @@ interface ReplOptions {
   model: Model<Api>
   apiKey: string
   config: CodelordConfig
-  forceNew?: boolean
+  /** If set, resume this specific session instead of creating a new one */
+  resumeSessionId?: string
 }
 
 export async function startRepl(options: ReplOptions): Promise<void> {
-  const { model, apiKey, config, forceNew = false } = options
+  const { model, apiKey, config, resumeSessionId } = options
 
   const cwd = process.cwd()
   const { tools, toolHandlers, contracts, router, safetyPolicy } = createToolKernel({ cwd, config })
@@ -45,38 +46,35 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   let sessionId: string
   let sessionCreatedAt: number
 
-  // --- Try to resume previous session ---
-  let resumed = false
-  if (!forceNew) {
-    const resumable = store.findResumable(cwd)
-    if (resumable) {
-      const snapshot = store.loadSnapshot(resumable.sessionId)
-      if (snapshot) {
-        const { wasDowngraded, interruptedDuring } = runtime.hydrateFromSnapshot(snapshot)
-        sessionId = snapshot.sessionId
-        sessionCreatedAt = snapshot.createdAt
+  // --- Resume or new ---
+  if (resumeSessionId) {
+    const snapshot = store.loadSnapshot(resumeSessionId)
+    if (snapshot) {
+      const { wasDowngraded, interruptedDuring } = runtime.hydrateFromSnapshot(snapshot)
+      sessionId = snapshot.sessionId
+      sessionCreatedAt = snapshot.createdAt
 
-        // Hydrate timeline for UI continuity
-        const timeline = store.loadTimeline(resumable.sessionId)
-        if (timeline) {
-          renderer.hydrateTimeline(timeline)
-        }
-
-        // If state was downgraded from in-flight, emit a status event
-        if (wasDowngraded && interruptedDuring) {
-          renderer.onLifecycleEvent?.({
-            type: 'blocked_enter',
-            reason: 'interrupted',
-            timestamp: Date.now(),
-          })
-        }
-
-        resumed = true
+      // Hydrate timeline for UI continuity
+      const timeline = store.loadTimeline(resumeSessionId)
+      if (timeline) {
+        renderer.hydrateTimeline(timeline)
       }
-    }
-  }
 
-  if (!resumed) {
+      // If state was downgraded from in-flight, emit a status event
+      if (wasDowngraded && interruptedDuring) {
+        renderer.onLifecycleEvent?.({
+          type: 'blocked_enter',
+          reason: 'interrupted',
+          timestamp: Date.now(),
+        })
+      }
+    } else {
+      // Snapshot missing — fall through to new session
+      sessionId = store.newSessionId()
+      sessionCreatedAt = Date.now()
+    }
+  } else {
+    // Default: always new session
     sessionId = store.newSessionId()
     sessionCreatedAt = Date.now()
   }
@@ -109,12 +107,19 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   // --- Interrupt handling ---
   let running = false
 
+  const printResumeHint = () => {
+    if (runtime.messages.length > 0) {
+      process.stderr.write(`\nTo resume this session:\n  codelord --resume ${sessionId}\n`)
+    }
+  }
+
   process.on('SIGINT', () => {
     if (running) {
       runtime.requestInterrupt()
     } else {
-      saveSession() // save before exit
+      saveSession()
       renderer.cleanup()
+      printResumeHint()
       process.exit(0)
     }
   })
@@ -168,4 +173,5 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 
   saveSession() // save on clean exit
   renderer.cleanup()
+  printResumeHint()
 }

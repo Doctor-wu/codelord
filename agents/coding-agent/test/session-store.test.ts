@@ -103,7 +103,7 @@ describe('SessionStore', () => {
     expect(meta!.pendingInboundCount).toBe(1)
   })
 
-  // --- findResumable ---
+  // --- findResumable (by cwd) ---
 
   it('finds the most recent resumable session for a cwd', () => {
     const store = createStore()
@@ -133,28 +133,72 @@ describe('SessionStore', () => {
     expect(store.findResumable('/tmp/project')).toBeNull()
   })
 
-  // --- --new skips resume (tested via findResumable returning non-null) ---
+  // --- findLatest (cross-cwd) ---
 
-  it('--new scenario: findResumable returns a session but caller ignores it', () => {
+  it('findLatest returns the most recent session regardless of cwd', () => {
     const store = createStore()
-    const snapshot = makeSnapshot({ cwd: '/tmp/project' })
-    store.save(snapshot)
+    const s1 = makeSnapshot({ cwd: '/tmp/a', updatedAt: 1000 })
+    const s2 = makeSnapshot({ cwd: '/tmp/b', updatedAt: 3000 })
+    const s3 = makeSnapshot({ cwd: '/tmp/c', updatedAt: 2000 })
 
-    // findResumable would return it
-    expect(store.findResumable('/tmp/project')).not.toBeNull()
+    store.save(s1)
+    store.save(s2)
+    store.save(s3)
 
-    // But with --new, the caller creates a new session ID instead
-    const newId = store.newSessionId()
-    expect(newId).not.toBe(snapshot.sessionId)
+    const found = store.findLatest()
+    expect(found).not.toBeNull()
+    expect(found!.sessionId).toBe(s2.sessionId)
   })
 
-  // --- listAll ---
-
-  it('lists all sessions sorted by updatedAt descending', () => {
+  it('findLatest returns null when no sessions exist', () => {
     const store = createStore()
-    const s1 = makeSnapshot({ updatedAt: 1000 })
-    const s2 = makeSnapshot({ updatedAt: 3000 })
-    const s3 = makeSnapshot({ updatedAt: 2000 })
+    expect(store.findLatest()).toBeNull()
+  })
+
+  it('findLatest skips empty sessions', () => {
+    const store = createStore()
+    const empty = makeSnapshot({ messages: [] })
+    store.save(empty)
+
+    expect(store.findLatest()).toBeNull()
+  })
+
+  // --- Default new session (no auto-resume) ---
+
+  it('default startup creates new session — store has sessions but caller does not auto-resume', () => {
+    const store = createStore()
+    const existing = makeSnapshot({ cwd: '/tmp/project' })
+    store.save(existing)
+
+    // Default behavior: always create new session ID
+    const newId = store.newSessionId()
+    expect(newId).not.toBe(existing.sessionId)
+  })
+
+  // --- --resume <id> ---
+
+  it('--resume <id>: loadMeta returns the session for a known id', () => {
+    const store = createStore()
+    const snapshot = makeSnapshot()
+    store.save(snapshot)
+
+    const meta = store.loadMeta(snapshot.sessionId)
+    expect(meta).not.toBeNull()
+    expect(meta!.sessionId).toBe(snapshot.sessionId)
+  })
+
+  it('--resume <id>: loadMeta returns null for unknown id', () => {
+    const store = createStore()
+    expect(store.loadMeta('nonexistent-id')).toBeNull()
+  })
+
+  // --- sessions command ---
+
+  it('listAll returns sessions for display', () => {
+    const store = createStore()
+    const s1 = makeSnapshot({ updatedAt: 1000, cwd: '/a' })
+    const s2 = makeSnapshot({ updatedAt: 3000, cwd: '/b', wasInFlight: true, runtimeState: 'STREAMING' })
+    const s3 = makeSnapshot({ updatedAt: 2000, cwd: '/c' })
 
     store.save(s1)
     store.save(s2)
@@ -162,9 +206,13 @@ describe('SessionStore', () => {
 
     const all = store.listAll()
     expect(all).toHaveLength(3)
+    // Sorted by updatedAt descending
     expect(all[0].sessionId).toBe(s2.sessionId)
     expect(all[1].sessionId).toBe(s3.sessionId)
     expect(all[2].sessionId).toBe(s1.sessionId)
+    // Meta includes wasInFlight info
+    expect(all[0].wasInFlight).toBe(true)
+    expect(all[0].runtimeState).toBe('STREAMING')
   })
 
   // --- delete ---

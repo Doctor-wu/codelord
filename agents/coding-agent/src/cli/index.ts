@@ -6,12 +6,13 @@ import { runInit } from './init.js'
 import { resolveModel } from './run.js'
 import { startRepl } from './repl.js'
 import { resolveApiKey } from '../auth/index.js'
+import { SessionStore } from '../session-store.js'
 
 interface CliFlags {
   model?: string
   provider?: string
   maxSteps?: number
-  new?: boolean
+  resume?: string
 }
 
 function readVersion(): string {
@@ -35,8 +36,39 @@ function readFlags(options: Record<string, unknown>): CliFlags {
     model: typeof options.model === 'string' ? options.model : undefined,
     provider: typeof options.provider === 'string' ? options.provider : undefined,
     maxSteps: typeof options.maxSteps === 'number' ? options.maxSteps : undefined,
-    new: options.new === true,
+    resume: typeof options.resume === 'string' ? options.resume : options.resume === true ? 'latest' : undefined,
   }
+}
+
+// ---------------------------------------------------------------------------
+// Session list formatting
+// ---------------------------------------------------------------------------
+
+function formatSessionList(store: SessionStore): string {
+  const metas = store.listAll()
+  if (metas.length === 0) return 'No sessions found.'
+
+  const lines: string[] = ['Sessions (most recent first):', '']
+  for (const meta of metas.slice(0, 20)) {
+    const created = new Date(meta.createdAt).toLocaleString()
+    const updated = new Date(meta.updatedAt).toLocaleString()
+    const state = meta.wasInFlight ? `${meta.runtimeState} (interrupted)` : meta.runtimeState
+    const question = meta.hasPendingQuestion ? ' [waiting_user]' : ''
+    const queue = meta.pendingInboundCount > 0 ? ` [queue: ${meta.pendingInboundCount}]` : ''
+    lines.push(`  ${meta.sessionId}`)
+    lines.push(`    cwd:     ${meta.cwd}`)
+    lines.push(`    state:   ${state}${question}${queue}`)
+    lines.push(`    msgs:    ${meta.messageCount}`)
+    lines.push(`    created: ${created}`)
+    lines.push(`    updated: ${updated}`)
+    lines.push('')
+  }
+  if (metas.length > 20) {
+    lines.push(`  ... and ${metas.length - 20} more`)
+  }
+  lines.push('To resume: codelord --resume <id>')
+  lines.push('           codelord --resume latest')
+  return lines.join('\n')
 }
 
 function createCli() {
@@ -49,7 +81,7 @@ function createCli() {
     .option('--model <name>', 'Override model')
     .option('--provider <name>', 'Override provider')
     .option('--max-steps <n>', 'Override max steps', { type: [Number] })
-    .option('--new', 'Start a new session (skip resume)')
+    .option('--resume [id]', 'Resume a session (use "latest" or a session id)')
 
   cli
     .command('init', 'Initialize configuration')
@@ -62,6 +94,13 @@ function createCli() {
     .action(async (options) => {
       const config = loadConfig(toConfigOverrides(readFlags(options)))
       console.log(JSON.stringify(config, null, 2))
+    })
+
+  cli
+    .command('sessions', 'List saved sessions')
+    .action(() => {
+      const store = new SessionStore()
+      console.log(formatSessionList(store))
     })
 
   cli
@@ -101,7 +140,32 @@ export async function runCli(argv = process.argv): Promise<void> {
   const config = loadConfig(toConfigOverrides(flags))
   const model = resolveModel(config)
   const apiKey = await resolveApiKey(config)
-  await startRepl({ model, apiKey, config, forceNew: flags.new ?? false })
+
+  // Resolve resume target (if any)
+  let resumeSessionId: string | undefined
+  if (flags.resume) {
+    const store = new SessionStore()
+    if (flags.resume === 'latest') {
+      const latest = store.findLatest()
+      if (!latest) {
+        console.error('No sessions found to resume.')
+        process.exitCode = 1
+        return
+      }
+      resumeSessionId = latest.sessionId
+    } else {
+      // Treat as session ID
+      const meta = store.loadMeta(flags.resume)
+      if (!meta) {
+        console.error(`Session not found: ${flags.resume}`)
+        process.exitCode = 1
+        return
+      }
+      resumeSessionId = flags.resume
+    }
+  }
+
+  await startRepl({ model, apiKey, config, resumeSessionId })
 }
 
 void runCli().catch((error: unknown) => {

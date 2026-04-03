@@ -128,6 +128,33 @@ export class SessionStore {
     return best
   }
 
+  /**
+   * Find the most recent session with messages, regardless of cwd.
+   * Used by `--resume latest`.
+   */
+  findLatest(): SessionMeta | null {
+    if (!existsSync(this.baseDir)) return null
+
+    let best: SessionMeta | null = null
+
+    try {
+      const entries = readdirSync(this.baseDir, { withFileTypes: true })
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue
+        const meta = this.loadMeta(entry.name)
+        if (!meta) continue
+        if (meta.messageCount === 0) continue
+        if (!best || meta.updatedAt > best.updatedAt) {
+          best = meta
+        }
+      }
+    } catch {
+      return null
+    }
+
+    return best
+  }
+
   /** List all session metas, sorted by updatedAt descending */
   listAll(): SessionMeta[] {
     if (!existsSync(this.baseDir)) return []
