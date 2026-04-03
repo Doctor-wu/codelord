@@ -12,7 +12,7 @@ import { createToolCallLifecycle } from '@agent/core'
 // ---------------------------------------------------------------------------
 
 describe('App rendering', () => {
-  it('shows a working indicator before the first step starts', () => {
+  it('renders empty timeline without crashing', () => {
     const state = createInitialTimelineState()
     const output = renderToString(
       <App
@@ -24,7 +24,7 @@ describe('App rendering', () => {
       />,
     )
 
-    expect(output).toContain('thinking')
+    expect(output).toContain('codelord')
   })
 
   it('renders the tool card instead of thinking once a tool call exists', () => {
@@ -138,7 +138,7 @@ describe('Built-in tool classification', () => {
 // ---------------------------------------------------------------------------
 
 describe('Idle state (REPL)', () => {
-  it('does not show thinking spinner when isIdle is true', () => {
+  it('does not show working indicator when isIdle is true', () => {
     const state = createInitialTimelineState(true)
     const output = renderToString(
       <App
@@ -150,10 +150,11 @@ describe('Idle state (REPL)', () => {
       />,
     )
 
-    expect(output).not.toContain('thinking')
+    // Idle state should not show any working/thinking indicator
+    expect(output).not.toContain('working')
   })
 
-  it('shows thinking spinner when isIdle is false (single-shot default)', () => {
+  it('renders header in both idle and non-idle states', () => {
     const state = createInitialTimelineState()
     const output = renderToString(
       <App
@@ -165,6 +166,7 @@ describe('Idle state (REPL)', () => {
       />,
     )
 
-    expect(output).toContain('thinking')
+    expect(output).toContain('codelord')
+    expect(output).toContain('gpt-5.4')
   })
 })

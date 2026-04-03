@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// ToolCallCard — production-grade tool call display for the conversation timeline
+// ToolCallCard — progressive execution object in the conversation timeline
 // ---------------------------------------------------------------------------
 
 import React, { useEffect, useState } from 'react'
@@ -19,9 +19,9 @@ interface ToolCallCardProps {
 
 export function ToolCallCard({ item, isLast }: ToolCallCardProps) {
   const tc = item.toolCall
-  const isRunning = tc.phase === 'executing' || tc.phase === 'generating' || tc.phase === 'routed' || tc.phase === 'checked'
-  const isBlocked = tc.phase === 'blocked'
+  const isActive = tc.phase === 'executing' || tc.phase === 'generating' || tc.phase === 'routed' || tc.phase === 'checked'
   const isDone = tc.phase === 'completed'
+  const isBlocked = tc.phase === 'blocked'
   const category = classifyToolCallCategory(tc)
   const color = STEP_COLORS[category]
   const toolName = formatToolDisplayName(tc.toolName)
@@ -29,8 +29,8 @@ export function ToolCallCard({ item, isLast }: ToolCallCardProps) {
   const { stdout } = useStdout()
   const availableWidth = Math.max(18, (stdout?.columns ?? 80) - 8)
 
-  // Breathing animation for running state
-  const breathingPhase = useBreathingPhase(isRunning && isLast)
+  // Breathing animation for active state
+  const breathingPhase = useBreathingPhase(isActive && isLast)
   const isPulseDimmed = breathingPhase >= 2
 
   // Phase indicator
@@ -49,75 +49,88 @@ export function ToolCallCard({ item, isLast }: ToolCallCardProps) {
   const displayResult = buildDisplayResult(tc)
   const { headLines, tailLines, hiddenLineCount } = formatToolResultLines(displayResult)
 
+  // Visual weight: active cards are full color, completed cards are dimmed
+  const borderChar = isActive ? '┃' : '│'
+  const borderDim = isDone && !tc.isError
+
   return (
     <Box flexDirection="column" marginTop={1}>
-      {/* ── Header: phase icon + tool name + command ── */}
+      {/* ── Header: border + phase icon + tool name + command ── */}
       <Box>
-        <Text color={color}>{phaseIcon} </Text>
-        <Text color={color} bold>{displayTitle}</Text>
+        <Text color={color} dimColor={borderDim}>{borderChar} </Text>
+        <Text color={color} dimColor={borderDim}>{phaseIcon} </Text>
+        <Text color={color} bold={isActive} dimColor={borderDim}>{displayTitle}</Text>
         {phaseLabel && <Text dimColor> {phaseLabel}</Text>}
       </Box>
 
       {/* ── Reasoning: why this tool was called ── */}
       {tc.displayReason && (
-        <Box paddingLeft={3}>
-          <Text dimColor italic>↳ {tc.displayReason}</Text>
+        <Box>
+          <Text color={color} dimColor={borderDim}>{borderChar} </Text>
+          <Text dimColor italic>  ↳ {tc.displayReason}</Text>
         </Box>
       )}
 
       {/* ── Route badge: original → actual ── */}
       {tc.route?.wasRouted && (
-        <Box paddingLeft={3}>
-          <Text color="blue">⤷ </Text>
+        <Box>
+          <Text color={color} dimColor={borderDim}>{borderChar} </Text>
+          <Text color="blue">  ⤷ </Text>
           <Text dimColor>{formatToolDisplayName(tc.route.originalToolName)}</Text>
           <Text dimColor> → </Text>
-          <Text>{toolName}</Text>
+          <Text dimColor={borderDim}>{toolName}</Text>
           {tc.route.reason && <Text dimColor> ({tc.route.reason})</Text>}
         </Box>
       )}
 
       {/* ── Safety badge ── */}
       {tc.safety && !tc.safety.allowed && (
-        <Box paddingLeft={3}>
-          <Text color="red" bold>⛔ BLOCKED </Text>
+        <Box>
+          <Text color={color} dimColor={borderDim}>{borderChar} </Text>
+          <Text color="red" bold>  ⛔ BLOCKED </Text>
           <Text color="red">risk:{tc.safety.riskLevel}</Text>
           {tc.safety.reason && <Text color="red" dimColor> — {tc.safety.reason}</Text>}
         </Box>
       )}
       {tc.safety && tc.safety.allowed && tc.safety.riskLevel !== 'safe' && (
-        <Box paddingLeft={3}>
-          <Text color="yellow">⚠ risk:{tc.safety.riskLevel}</Text>
+        <Box>
+          <Text color={color} dimColor={borderDim}>{borderChar} </Text>
+          <Text color="yellow">  ⚠ risk:{tc.safety.riskLevel}</Text>
         </Box>
       )}
 
       {/* ── Streaming output ── */}
       {headLines.length > 0 && (
-        <Box flexDirection="column" paddingLeft={3}>
+        <>
           {headLines.map((line, i) => (
             <Box key={`h-${i}`}>
-              <Text dimColor>{i === 0 ? '⎿ ' : '  '}</Text>
+              <Text color={color} dimColor={borderDim}>{borderChar} </Text>
+              <Text dimColor={!isActive}>{i === 0 ? '⎿ ' : '  '}</Text>
               <Text color={tc.isError ? 'red' : undefined} dimColor={isDone && !tc.isError}>{line || ' '}</Text>
             </Box>
           ))}
           {hiddenLineCount > 0 && (
             <Box>
+              <Text color={color} dimColor={borderDim}>{borderChar} </Text>
               <Text dimColor>  </Text>
               <Text color={META_COLOR}>+{hiddenLineCount} lines</Text>
             </Box>
           )}
           {tailLines.map((line, i) => (
             <Box key={`t-${i}`}>
-              <Text dimColor>  </Text>
+              <Text color={color} dimColor={borderDim}>{borderChar} </Text>
+              <Text dimColor={!isActive}>  </Text>
               <Text color={tc.isError ? 'red' : undefined} dimColor={isDone && !tc.isError}>{line || ' '}</Text>
             </Box>
           ))}
-        </Box>
+        </>
       )}
 
       {/* ── Completion footer ── */}
       {tc.completedAt && (
-        <Box paddingLeft={3}>
-          <Text color={tc.isError ? 'red' : 'green'}>
+        <Box>
+          <Text color={color} dimColor={borderDim}>{borderChar} </Text>
+          <Text color={tc.isError ? 'red' : 'green'} dimColor={!tc.isError}>
             {tc.isError ? '✗ failed' : '✓ done'}
           </Text>
           {tc.executionStartedAt && (

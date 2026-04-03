@@ -1,8 +1,7 @@
 import type { Api, Model } from '@mariozechner/pi-ai'
 import { AgentRuntime } from '@agent/core'
-import type { AgentEvent, RunOutcome } from '@agent/core'
+import type { AgentEvent } from '@agent/core'
 import type { CodelordConfig } from '@agent/config'
-import type { InteractiveRenderer } from '../renderer/types.js'
 import { createToolKernel } from './tool-kernel.js'
 import { buildSystemPrompt } from './system-prompt.js'
 import { createRenderer } from './run.js'
@@ -24,7 +23,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   const { tools, toolHandlers, contracts, router, safetyPolicy } = createToolKernel({ cwd, config })
   const systemPrompt = buildSystemPrompt({ cwd, contracts })
 
-  const renderer = createRenderer(config, { idle: true, interactive: true }) as InteractiveRenderer
+  const renderer = createRenderer(config)
 
   const runtime = new AgentRuntime({
     model,

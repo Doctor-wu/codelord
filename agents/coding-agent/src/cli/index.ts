@@ -3,12 +3,11 @@ import type { CodelordConfig } from '@agent/config'
 import { readFileSync } from 'node:fs'
 import { cac } from 'cac'
 import { runInit } from './init.js'
-import { runAgentCommand, resolveModel } from './run.js'
+import { resolveModel } from './run.js'
 import { startRepl } from './repl.js'
 import { resolveApiKey } from '../auth/index.js'
 
 interface CliFlags {
-  plain?: boolean
   model?: string
   provider?: string
   maxSteps?: number
@@ -32,7 +31,6 @@ function toConfigOverrides(flags: CliFlags): Partial<CodelordConfig> {
 
 function readFlags(options: Record<string, unknown>): CliFlags {
   return {
-    plain: options.plain === true,
     model: typeof options.model === 'string' ? options.model : undefined,
     provider: typeof options.provider === 'string' ? options.provider : undefined,
     maxSteps: typeof options.maxSteps === 'number' ? options.maxSteps : undefined,
@@ -45,8 +43,7 @@ function createCli() {
   cli
     .version(readVersion())
     .help()
-    .usage('"message"')
-    .option('--plain', 'Plain text output (no TUI)')
+    .usage('[options]')
     .option('--model <name>', 'Override model')
     .option('--provider <name>', 'Override provider')
     .option('--max-steps <n>', 'Override max steps', { type: [Number] })
@@ -86,19 +83,22 @@ export async function runCli(argv = process.argv): Promise<void> {
     return
   }
 
-  if (cli.args.length === 0) {
-    // No message argument — enter interactive REPL
-    const flags = readFlags(cli.options)
-    const config = loadConfig(toConfigOverrides(flags))
-    const model = resolveModel(config)
-    const apiKey = await resolveApiKey(config)
-    await startRepl({ model, apiKey, config })
+  // Positional args are no longer supported — always enter REPL
+  if (cli.args.length > 0) {
+    console.error(
+      `Single-shot mode has been removed. Use the interactive shell instead:\n` +
+      `  $ codelord\n` +
+      `Then type your message at the prompt.`,
+    )
+    process.exitCode = 1
     return
   }
 
   const flags = readFlags(cli.options)
   const config = loadConfig(toConfigOverrides(flags))
-  await runAgentCommand(cli.args.join(' '), config, { plain: flags.plain })
+  const model = resolveModel(config)
+  const apiKey = await resolveApiKey(config)
+  await startRepl({ model, apiKey, config })
 }
 
 void runCli().catch((error: unknown) => {

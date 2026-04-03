@@ -38,8 +38,7 @@ export interface ToolKernelOptions {
 
 /**
  * Assemble the built-in tool kernel.
- * Both runAgentCommand() and startRepl() must call this to get the same
- * tool set, handler wiring, contracts, and router.
+ * startRepl() calls this to get the tool set, handler wiring, contracts, and router.
  */
 export function createToolKernel(options: ToolKernelOptions): ToolKernel {
   const { cwd, config } = options

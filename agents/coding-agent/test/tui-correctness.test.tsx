@@ -234,14 +234,19 @@ describe('Tool streaming correctness', () => {
     expect(item.isStreaming).toBe(true)
   })
 
-  it('assistant thinking streaming works via deltas', () => {
+  it('assistant thinking is shown as compact summary, not raw dump', () => {
     let state = createInitialTimelineState()
     state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
-    state = applyThinkingDelta(state, 'let me ')
-    state = applyThinkingDelta(state, 'think')
+    state = applyThinkingDelta(state, 'I need to check the project structure first. Then I will look at the config files.')
 
     const item = state.items[0] as AssistantItem
-    expect(item.thinking).toBe('let me think')
+    // Raw thinking is still stored in the item
+    expect(item.thinking).toContain('project structure')
+
+    // But rendered output should NOT contain the full raw thinking dump
+    const output = renderApp(state)
+    // Should show a compact summary, not the full multi-sentence thinking
+    expect(output).not.toContain('Then I will look at the config files')
   })
 })
 
@@ -496,5 +501,125 @@ describe('Session mode in composer', () => {
     )
     expect(output).toContain('working')
     expect(output).toContain('Ctrl+C')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 11. Operator console polish v2
+// ---------------------------------------------------------------------------
+
+describe('Thinking vs working convergence', () => {
+  beforeEach(() => _resetProvisionalIdCounter())
+
+  it('does not render raw thinking as large text block', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+    state = applyThinkingDelta(state, 'First I need to understand the codebase. Let me check the directory structure and find relevant files.')
+
+    const output = renderApp(state)
+    // Should NOT contain the full raw thinking text
+    expect(output).not.toContain('Let me check the directory structure')
+  })
+
+  it('working status is the sole running indicator in composer', () => {
+    const state: TimelineState = {
+      ...createInitialTimelineState(),
+      isRunning: true,
+    }
+
+    const output = renderToString(
+      <App state={state} version="0.0.1" provider="test" model="test" maxSteps={10}
+        inputActive={false} onInputSubmit={() => {}} />,
+    )
+    // Composer shows working — this is the authoritative running indicator
+    expect(output).toContain('working')
+  })
+})
+
+describe('Composer always visible', () => {
+  beforeEach(() => _resetProvisionalIdCounter())
+
+  it('composer is visible when running (not active but present)', () => {
+    const state: TimelineState = {
+      ...createInitialTimelineState(),
+      isRunning: true,
+    }
+
+    const output = renderToString(
+      <App state={state} version="0.0.1" provider="test" model="test" maxSteps={10}
+        inputActive={false} onInputSubmit={() => {}} />,
+    )
+    // Prompt character should be visible even when disabled
+    expect(output).toContain('>')
+    expect(output).toContain('working')
+  })
+
+  it('composer shows prompt in idle mode', () => {
+    const state = createInitialTimelineState(true)
+
+    const output = renderToString(
+      <App state={state} version="0.0.1" provider="test" model="test" maxSteps={10}
+        inputActive={true} onInputSubmit={() => {}} />,
+    )
+    expect(output).toContain('>')
+    expect(output).toContain('Enter to send')
+  })
+})
+
+describe('User lane identity', () => {
+  beforeEach(() => _resetProvisionalIdCounter())
+
+  it('user items show YOU label', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'hello world', timestamp: 1 })
+
+    const output = renderApp(state)
+    expect(output).toContain('YOU')
+    expect(output).toContain('hello world')
+  })
+
+  it('user and assistant items are visually distinct', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'my message', timestamp: 1 })
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+    state = applyTextDelta(state, 'assistant reply')
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 3 })
+
+    const output = renderApp(state)
+    // User has YOU label, assistant does not
+    expect(output).toContain('YOU')
+    expect(output).toContain('my message')
+    expect(output).toContain('assistant reply')
+  })
+})
+
+describe('ToolCallCard progressive execution', () => {
+  beforeEach(() => _resetProvisionalIdCounter())
+
+  it('active tool card has left border', () => {
+    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'ls' }, command: 'ls' })
+    tc.phase = 'executing'
+    tc.executionStartedAt = Date.now()
+
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc })
+
+    const output = renderApp(state)
+    // Active card uses thick border
+    expect(output).toContain('┃')
+  })
+
+  it('completed tool card has dimmed border', () => {
+    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'echo hi' }, command: 'echo hi' })
+    tc.phase = 'completed'
+    tc.result = 'hi'
+    tc.completedAt = Date.now()
+
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'tool_call_completed', toolCall: tc })
+
+    const output = renderApp(state)
+    // Completed card uses thin border
+    expect(output).toContain('│')
   })
 })

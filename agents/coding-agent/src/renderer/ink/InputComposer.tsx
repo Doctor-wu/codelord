@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------------
-// InputComposer — Ink-managed text input with session state indicator
+// InputComposer — always-visible input control with session state
 // ---------------------------------------------------------------------------
 
 import React, { useState } from 'react'
-import { Box, Text, useInput } from 'ink'
+import { Box, Text, useInput, useStdout } from 'ink'
 import Spinner from 'ink-spinner'
 import { APP_COLOR } from './theme.js'
 
@@ -21,6 +21,8 @@ interface InputComposerProps {
 export function InputComposer({ isActive, onSubmit, mode = 'idle' }: InputComposerProps) {
   const [value, setValue] = useState('')
   const [cursor, setCursor] = useState(0)
+  const { stdout } = useStdout()
+  const width = Math.max(20, (stdout?.columns ?? 80) - 1)
 
   useInput((input, key) => {
     if (!isActive) return
@@ -51,53 +53,58 @@ export function InputComposer({ isActive, onSubmit, mode = 'idle' }: InputCompos
       return
     }
 
-    // Regular character input
     if (input && !key.ctrl && !key.meta) {
       setValue(prev => prev.slice(0, cursor) + input + prev.slice(cursor))
       setCursor(prev => prev + input.length)
     }
   }, { isActive })
 
-  // Status line (always visible)
-  const statusLine = <StatusLine mode={mode} isActive={isActive} />
-
-  if (!isActive) {
-    return (
-      <Box flexDirection="column" marginTop={1}>
-        {statusLine}
-      </Box>
-    )
-  }
-
-  // Render the input line with a cursor indicator
-  const before = value.slice(0, cursor)
-  const cursorChar = value[cursor] ?? ' '
-  const after = value.slice(cursor + 1)
   const prompt = mode === 'waiting_answer' ? '» ' : '> '
   const promptColor = mode === 'waiting_answer' ? 'yellow' : 'cyan'
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      {statusLine}
+      {/* Separator */}
+      <Text dimColor>{'─'.repeat(width)}</Text>
+
+      {/* Status line — always visible */}
+      <StatusLine mode={mode} />
+
+      {/* Input field — always visible, disabled when not active */}
       <Box>
-        <Text color={promptColor} bold>{prompt}</Text>
-        <Text>{before}</Text>
-        <Text inverse>{cursorChar}</Text>
-        <Text>{after}</Text>
+        <Text color={isActive ? promptColor : 'gray'} bold={isActive}>{prompt}</Text>
+        {isActive ? (
+          <InputField value={value} cursor={cursor} />
+        ) : (
+          <Text dimColor> </Text>
+        )}
       </Box>
     </Box>
   )
 }
 
-function StatusLine({ mode, isActive }: { mode: SessionMode; isActive: boolean }) {
+function InputField({ value, cursor }: { value: string; cursor: number }) {
+  const before = value.slice(0, cursor)
+  const cursorChar = value[cursor] ?? ' '
+  const after = value.slice(cursor + 1)
+
+  return (
+    <>
+      <Text>{before}</Text>
+      <Text inverse>{cursorChar}</Text>
+      <Text>{after}</Text>
+    </>
+  )
+}
+
+function StatusLine({ mode }: { mode: SessionMode }) {
   switch (mode) {
     case 'running':
       return (
         <Box>
           <Text color={APP_COLOR}><Spinner type="dots" /></Text>
           <Text dimColor> working</Text>
-          <Text dimColor>  </Text>
-          <Text dimColor italic>Ctrl+C to interrupt</Text>
+          <Text dimColor>    Ctrl+C to interrupt</Text>
         </Box>
       )
     case 'waiting_answer':
@@ -105,7 +112,7 @@ function StatusLine({ mode, isActive }: { mode: SessionMode; isActive: boolean }
         <Box>
           <Text color="yellow">? </Text>
           <Text color="yellow">answer the question above</Text>
-          <Text dimColor>  Enter to send</Text>
+          <Text dimColor>    Enter to send</Text>
         </Box>
       )
     case 'interrupted':
@@ -113,7 +120,7 @@ function StatusLine({ mode, isActive }: { mode: SessionMode; isActive: boolean }
         <Box>
           <Text color="yellow">⏸ </Text>
           <Text color="yellow">interrupted</Text>
-          <Text dimColor>  continue with your next input</Text>
+          <Text dimColor>    continue with your next input</Text>
         </Box>
       )
     case 'error':
@@ -121,11 +128,11 @@ function StatusLine({ mode, isActive }: { mode: SessionMode; isActive: boolean }
         <Box>
           <Text color="red">✗ </Text>
           <Text color="red">error occurred</Text>
+          <Text dimColor>    type to continue</Text>
         </Box>
       )
     case 'idle':
     default:
-      if (!isActive) return null
       return (
         <Box>
           <Text dimColor>Enter to send · /exit to quit · Ctrl+C to interrupt</Text>

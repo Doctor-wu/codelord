@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Shared tool display utilities — used by both InkRenderer and PlainTextRenderer
+// Shared tool display utilities
 // ---------------------------------------------------------------------------
 
 const TOOL_DISPLAY_NAMES: Record<string, string> = {

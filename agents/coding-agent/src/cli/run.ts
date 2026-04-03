@@ -1,13 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { getModels } from '@mariozechner/pi-ai'
 import type { Api, Model } from '@mariozechner/pi-ai'
-import { runAgent } from '@agent/core'
 import type { CodelordConfig } from '@agent/config'
-import { resolveApiKey } from '../auth/index.js'
-import { InkRenderer, PlainTextRenderer } from '../renderer/index.js'
-import type { Renderer } from '../renderer/index.js'
-import { createToolKernel } from './tool-kernel.js'
-import { buildSystemPrompt } from './system-prompt.js'
+import { InkRenderer } from '../renderer/index.js'
+import type { InteractiveRenderer } from '../renderer/index.js'
 
 export function readVersion(): string {
   const packageJson = JSON.parse(
@@ -31,50 +27,13 @@ export function resolveModel(config: CodelordConfig): Model<Api> {
   return model
 }
 
-export function createRenderer(config: CodelordConfig, options?: { plain?: boolean; idle?: boolean; interactive?: boolean }): Renderer {
-  if (options?.plain || !process.stdout.isTTY || !process.stdin.isTTY) {
-    return new PlainTextRenderer()
-  }
-
+export function createRenderer(config: CodelordConfig): InteractiveRenderer {
   return new InkRenderer({
     provider: config.provider,
     model: config.model,
     version: readVersion(),
     maxSteps: config.maxSteps,
-    idle: options?.idle,
-    interactive: options?.interactive,
+    idle: true,
+    interactive: true,
   })
-}
-
-export async function runAgentCommand(
-  message: string,
-  config: CodelordConfig,
-  options: { plain?: boolean } = {},
-): Promise<void> {
-  const renderer = createRenderer(config, { plain: options.plain })
-
-  try {
-    const model = resolveModel(config)
-    const apiKey = await resolveApiKey(config)
-
-    const cwd = process.cwd()
-    const { tools, toolHandlers, contracts, router, safetyPolicy } = createToolKernel({ cwd, config })
-    const systemPrompt = buildSystemPrompt({ cwd, contracts })
-
-    await runAgent({
-      model,
-      systemPrompt,
-      tools,
-      toolHandlers,
-      userMessage: message,
-      apiKey,
-      maxSteps: config.maxSteps,
-      onEvent: (event) => renderer.onEvent(event),
-      onLifecycleEvent: (event) => renderer.onLifecycleEvent?.(event),
-      router,
-      safetyPolicy,
-    })
-  } finally {
-    renderer.cleanup()
-  }
 }
