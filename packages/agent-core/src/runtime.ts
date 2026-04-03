@@ -13,6 +13,8 @@ import type {
 import type { AgentEvent, ToolHandler } from './react-loop.js'
 import { ASK_USER_QUESTION_TOOL_NAME, askUserQuestionTool } from './tools/ask-user.js'
 import type { PendingQuestion, ResolvedQuestion } from './tools/ask-user.js'
+import type { ToolRouteDecision } from './tool-router.js'
+import { ToolRouter } from './tool-router.js'
 
 // ---------------------------------------------------------------------------
 // Runtime state — current control phase of the runtime
@@ -92,6 +94,7 @@ export interface RuntimeOptions<TApi extends Api = Api> {
   maxSteps?: number
   streamOptions?: Omit<SimpleStreamOptions, 'apiKey'>
   onEvent?: (event: AgentEvent) => void
+  router?: ToolRouter
 }
 
 // ---------------------------------------------------------------------------
@@ -124,6 +127,10 @@ export class AgentRuntime<TApi extends Api = Api> {
   private readonly maxSteps: number
   private readonly streamOptions?: Omit<SimpleStreamOptions, 'apiKey'>
   private readonly emit: (event: AgentEvent) => void
+  private readonly router: ToolRouter
+
+  // --- Route records (observability side-channel) ---
+  private readonly _routeRecords: ToolRouteDecision[] = []
 
   constructor(options: RuntimeOptions<TApi>) {
     this.model = options.model
@@ -134,6 +141,7 @@ export class AgentRuntime<TApi extends Api = Api> {
     this.maxSteps = options.maxSteps ?? 10
     this.streamOptions = options.streamOptions
     this.emit = options.onEvent ?? (() => {})
+    this.router = options.router ?? new ToolRouter()
   }
 
   // --- Public accessors ---
@@ -150,6 +158,8 @@ export class AgentRuntime<TApi extends Api = Api> {
   get pendingQuestion(): PendingQuestion | null { return this._pendingQuestion }
   get resolvedQuestions(): readonly ResolvedQuestion[] { return this._resolvedQuestions }
   get lastOutcome(): RunOutcome | null { return this._lastOutcome }
+  /** Route decisions made during this session (observability side-channel) */
+  get routeRecords(): readonly ToolRouteDecision[] { return this._routeRecords }
 
   // --- Inbound message injection ---
 
@@ -465,41 +475,66 @@ export class AgentRuntime<TApi extends Api = Api> {
             return this.finishBurst({ type: 'blocked', reason: 'waiting_user' })
           }
 
-          this.emit({ type: 'tool_exec_start', toolName: tc.name, args: tc.arguments })
+          // --- Route the tool call through the router ---
+          const decision = this.router.route(tc.name, tc.arguments)
 
-          const handler = this.toolHandlers.get(tc.name)
+          if (decision.wasRouted) {
+            this._routeRecords.push(decision)
+            this.emit({
+              type: 'tool_routed',
+              ruleId: decision.ruleId!,
+              originalToolName: decision.originalToolName,
+              originalArgs: decision.originalArgs,
+              resolvedToolName: decision.resolvedToolName,
+              resolvedArgs: decision.resolvedArgs,
+              reason: decision.reason!,
+            })
+          }
+
+          const execToolName = decision.resolvedToolName
+          const execArgs = decision.resolvedArgs
+
+          this.emit({ type: 'tool_exec_start', toolName: execToolName, args: execArgs })
+
+          const handler = this.toolHandlers.get(execToolName)
           let resultText: string
           let isError: boolean
 
           if (!handler) {
-            resultText = `Error: no handler registered for tool "${tc.name}"`
+            resultText = `Error: no handler registered for tool "${execToolName}"`
             isError = true
           } else {
             try {
-              const result = await handler(tc.arguments, {
+              const result = await handler(execArgs, {
                 emitOutput: (stream, chunk) => {
-                  this.emit({ type: 'tool_output_delta', toolName: tc.name, stream, chunk })
+                  this.emit({ type: 'tool_output_delta', toolName: execToolName, stream, chunk })
                 },
               })
               resultText = result.output
               isError = result.isError
             } catch (e) {
-              resultText = `Error executing tool "${tc.name}": ${e instanceof Error ? e.message : String(e)}`
+              resultText = `Error executing tool "${execToolName}": ${e instanceof Error ? e.message : String(e)}`
               isError = true
             }
           }
 
-          this.emit({ type: 'tool_result', toolName: tc.name, result: resultText, isError })
+          this.emit({ type: 'tool_result', toolName: execToolName, result: resultText, isError })
 
+          // History reflects the actually-executed tool, not the original bash call
           const toolResultMsg: ToolResultMessage = {
             role: 'toolResult',
             toolCallId: tc.id,
-            toolName: tc.name,
+            toolName: execToolName,
             content: [{ type: 'text', text: resultText }],
             isError,
             timestamp: Date.now(),
           }
           this.messages.push(toolResultMsg)
+
+          // Also rewrite the assistant message's tool call to match
+          if (decision.wasRouted) {
+            this.rewriteToolCallInHistory(tc.id, execToolName, execArgs)
+          }
 
           // --- SAFE BOUNDARY: between tool executions ---
           // Check interrupt after each tool completes (not mid-tool)
@@ -545,6 +580,27 @@ export class AgentRuntime<TApi extends Api = Api> {
   }
 
   // --- Helpers ---
+
+  /**
+   * Rewrite a tool call in the most recent assistant message so that
+   * the conversation history reflects the actually-executed tool.
+   */
+  private rewriteToolCallInHistory(toolCallId: string, newName: string, newArgs: Record<string, unknown>): void {
+    // Walk backwards to find the assistant message containing this tool call
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      const msg = this.messages[i]
+      if (msg.role !== 'assistant') continue
+      const assistantMsg = msg as AssistantMessage
+      for (const block of assistantMsg.content) {
+        if (block.type === 'toolCall' && block.id === toolCallId) {
+          // Mutate in place — this is intentional for history consistency
+          ;(block as { name: string }).name = newName
+          ;(block as { arguments: Record<string, unknown> }).arguments = newArgs
+          return
+        }
+      }
+    }
+  }
 
   private extractFinalText(): string {
     const lastMsg = this.messages.findLast(

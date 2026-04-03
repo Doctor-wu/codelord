@@ -13,6 +13,7 @@ import {
   lsTool,
   createLsHandler,
   builtinContracts,
+  ToolRouter,
 } from '@agent/core'
 import type { ToolHandler, ToolContract } from '@agent/core'
 import type { CodelordConfig } from '@agent/config'
@@ -25,6 +26,7 @@ export interface ToolKernel {
   tools: Tool[]
   toolHandlers: Map<string, ToolHandler>
   contracts: readonly ToolContract[]
+  router: ToolRouter
 }
 
 export interface ToolKernelOptions {
@@ -35,7 +37,7 @@ export interface ToolKernelOptions {
 /**
  * Assemble the built-in tool kernel.
  * Both runAgentCommand() and startRepl() must call this to get the same
- * tool set, handler wiring, and contracts.
+ * tool set, handler wiring, contracts, and router.
  */
 export function createToolKernel(options: ToolKernelOptions): ToolKernel {
   const { cwd, config } = options
@@ -62,5 +64,7 @@ export function createToolKernel(options: ToolKernelOptions): ToolKernel {
     ['ls', createLsHandler({ cwd })],
   ])
 
-  return { tools, toolHandlers, contracts: builtinContracts }
+  const router = new ToolRouter()
+
+  return { tools, toolHandlers, contracts: builtinContracts, router }
 }

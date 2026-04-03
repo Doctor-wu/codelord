@@ -8,6 +8,7 @@ import type {
 } from '@mariozechner/pi-ai'
 import { AgentRuntime } from './runtime.js'
 import type { PendingQuestion } from './tools/ask-user.js'
+import type { ToolRouter } from './tool-router.js'
 
 // ---------------------------------------------------------------------------
 // Tool handler registry (kept here for backward compat exports)
@@ -43,6 +44,7 @@ export type AgentEvent =
   | { type: 'toolcall_start'; contentIndex: number; toolName: string; args: Record<string, unknown> }
   | { type: 'toolcall_delta'; contentIndex: number; toolName: string; args: Record<string, unknown> }
   | { type: 'toolcall_end'; toolCall: ToolCall }
+  | { type: 'tool_routed'; ruleId: string; originalToolName: string; originalArgs: Record<string, unknown>; resolvedToolName: string; resolvedArgs: Record<string, unknown>; reason: string }
   | { type: 'tool_exec_start'; toolName: string; args: Record<string, unknown> }
   | { type: 'tool_output_delta'; toolName: string; stream: 'stdout' | 'stderr'; chunk: string }
   | { type: 'tool_result'; toolName: string; result: string; isError: boolean }
@@ -84,6 +86,7 @@ export interface RunAgentOptions<TApi extends Api = Api> {
   maxSteps?: number
   streamOptions?: Omit<SimpleStreamOptions, 'apiKey'>
   onEvent?: (event: AgentEvent) => void
+  router?: ToolRouter
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +106,7 @@ export async function runAgent<TApi extends Api = Api>(
     maxSteps,
     streamOptions,
     onEvent,
+    router,
   } = options
 
   const runtime = new AgentRuntime({
@@ -114,6 +118,7 @@ export async function runAgent<TApi extends Api = Api>(
     maxSteps,
     streamOptions,
     onEvent,
+    router,
   })
 
   // Inject the initial user message

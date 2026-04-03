@@ -25,8 +25,8 @@ export interface CodelordConfig {
 }
 
 export const DEFAULT_CONFIG: CodelordConfig = {
-  provider: 'anthropic',
-  model: 'claude-sonnet-4-20250514',
+  provider: 'openai-codex',
+  model: 'gpt-5.4',
   apiKey: '',
   maxSteps: 10,
   bash: {

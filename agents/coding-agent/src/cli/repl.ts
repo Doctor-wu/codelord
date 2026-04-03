@@ -21,7 +21,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   const { model, apiKey, config } = options
 
   const cwd = process.cwd()
-  const { tools, toolHandlers, contracts } = createToolKernel({ cwd, config })
+  const { tools, toolHandlers, contracts, router } = createToolKernel({ cwd, config })
   const systemPrompt = buildSystemPrompt({ cwd, contracts })
 
   const renderer = createRenderer(config, { idle: true })
@@ -34,6 +34,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     apiKey,
     maxSteps: config.maxSteps,
     onEvent: (event: AgentEvent) => renderer.onEvent(event),
+    router,
   })
   const rl = readline.createInterface({
     input: process.stdin,
