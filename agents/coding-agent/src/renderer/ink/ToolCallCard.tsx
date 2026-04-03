@@ -18,7 +18,11 @@ interface ToolCallCardProps {
 }
 
 export function ToolCallCard({ item, isLast }: ToolCallCardProps) {
-  const tc = item.toolCall
+  return <ToolCallView tc={item.toolCall} isLast={isLast} />
+}
+
+/** Reusable inner view — renders a single ToolCallLifecycle without needing a ToolCallItem wrapper */
+export function ToolCallView({ tc, isLast, dimCompleted = false }: { tc: ToolCallLifecycle; isLast: boolean; dimCompleted?: boolean }) {
   const isActive = tc.phase === 'executing' || tc.phase === 'generating' || tc.phase === 'routed' || tc.phase === 'checked'
   const isDone = tc.phase === 'completed'
   const isBlocked = tc.phase === 'blocked'
@@ -51,7 +55,7 @@ export function ToolCallCard({ item, isLast }: ToolCallCardProps) {
 
   // Visual weight: active cards are full color, completed cards are dimmed
   const borderChar = isActive ? '┃' : '│'
-  const borderDim = isDone && !tc.isError
+  const borderDim = (isDone && !tc.isError) || (dimCompleted && isDone)
 
   return (
     <Box flexDirection="column" marginTop={1}>

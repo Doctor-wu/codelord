@@ -3,7 +3,8 @@
 // ---------------------------------------------------------------------------
 
 import { Box, Text } from 'ink'
-import type { TimelineState, ToolCallItem } from './timeline-projection.js'
+import type { TimelineState, ToolCallItem, ToolBatchItem } from './timeline-projection.js'
+import type { ToolCallLifecycle } from '@agent/core'
 import type { StepCategory } from './theme.js'
 import { STEP_COLORS } from './theme.js'
 import { classifyCommand, classifyToolName } from './classify.js'
@@ -21,18 +22,24 @@ function formatElapsed(ms: number): string {
   return `${minutes}m${remaining}s`
 }
 
+function classifyTc(tc: ToolCallLifecycle): StepCategory {
+  if (tc.isError) return 'error'
+  return tc.toolName === 'bash' ? classifyCommand(tc.command) : classifyToolName(tc.toolName)
+}
+
 export function TimelineStatusBar({ state, maxSteps }: TimelineStatusBarProps) {
   const elapsed = Date.now() - state.startTime
-  const toolItems = state.items.filter((i): i is ToolCallItem => i.type === 'tool_call')
-  const categoryCounts: Partial<Record<StepCategory, number>> = {}
 
-  for (const item of toolItems) {
-    const tc = item.toolCall
-    const cat: StepCategory = tc.isError
-      ? 'error'
-      : tc.toolName === 'bash'
-        ? classifyCommand(tc.command)
-        : classifyToolName(tc.toolName)
+  // Collect all tool calls — standalone + inside batches
+  const allToolCalls: ToolCallLifecycle[] = []
+  for (const item of state.items) {
+    if (item.type === 'tool_call') allToolCalls.push((item as ToolCallItem).toolCall)
+    if (item.type === 'tool_batch') allToolCalls.push(...(item as ToolBatchItem).toolCalls)
+  }
+
+  const categoryCounts: Partial<Record<StepCategory, number>> = {}
+  for (const tc of allToolCalls) {
+    const cat = classifyTc(tc)
     categoryCounts[cat] = (categoryCounts[cat] ?? 0) + 1
   }
 
@@ -46,7 +53,7 @@ export function TimelineStatusBar({ state, maxSteps }: TimelineStatusBarProps) {
       </Box>
       <Box justifyContent="space-between">
         <Text dimColor>
-          Tools {toolItems.length}
+          Tools {allToolCalls.length}
         </Text>
 
         <Box gap={2}>

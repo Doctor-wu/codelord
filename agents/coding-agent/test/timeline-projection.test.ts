@@ -5,7 +5,7 @@ import {
   applyThinkingDelta,
   applyTextDelta,
 } from '../src/renderer/ink/timeline-projection.js'
-import type { TimelineState, AssistantItem, ToolCallItem, UserItem, QuestionItem, StatusItem } from '../src/renderer/ink/timeline-projection.js'
+import type { TimelineState, AssistantItem, ToolCallItem, ToolBatchItem, UserItem, QuestionItem, StatusItem } from '../src/renderer/ink/timeline-projection.js'
 import { createToolCallLifecycle, _resetProvisionalIdCounter, createReasoningState } from '@agent/core'
 import type { LifecycleEvent, ToolCallLifecycle, AssistantReasoningState } from '@agent/core'
 
@@ -279,6 +279,288 @@ describe('Timeline Projection', () => {
 
       const item = state.items[0] as QuestionItem
       expect(item.reasoning).toBeNull()
+    })
+  })
+
+  // =========================================================================
+  // Visible Reasoning Lane tests
+  // =========================================================================
+
+  describe('visible reasoning lane', () => {
+    it('reasoning snapshot is captured from thinking delta (not fleeting)', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+      })
+      // Accumulate enough thinking text to trigger snapshot
+      state = applyThinkingDelta(state, 'I need to check the configuration files to understand the project structure.')
+
+      const item = state.items[0] as AssistantItem
+      expect(item.reasoningSnapshot).toBeTruthy()
+      expect(item.reasoningSnapshot!.length).toBeLessThanOrEqual(120)
+    })
+
+    it('reasoning snapshot persists after text arrives', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+      })
+      state = applyThinkingDelta(state, 'I need to check the configuration files to understand the project structure.')
+      // Now text arrives — reasoning snapshot should NOT be cleared
+      state = applyTextDelta(state, 'Here is the answer.')
+
+      const item = state.items[0] as AssistantItem
+      expect(item.reasoningSnapshot).toBeTruthy()
+      expect(item.text).toBe('Here is the answer.')
+    })
+
+    it('reasoning snapshot does not dump raw thought text', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+      })
+      // Long thinking text
+      const longThought = 'A'.repeat(200)
+      state = applyThinkingDelta(state, longThought)
+
+      const item = state.items[0] as AssistantItem
+      expect(item.reasoningSnapshot).toBeTruthy()
+      // Must not be the full raw dump
+      expect(item.reasoningSnapshot!.length).toBeLessThanOrEqual(120)
+    })
+
+    it('reasoning snapshot is null when thinking is too short', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+      })
+      state = applyThinkingDelta(state, 'hmm')
+
+      const item = state.items[0] as AssistantItem
+      expect(item.reasoningSnapshot).toBeNull()
+    })
+
+    it('reasoning snapshot preserved through assistant_turn_end', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+      })
+      state = applyThinkingDelta(state, 'I will read the package.json to check dependencies.')
+      state = applyTextDelta(state, 'Done.')
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_end', id: 'a1', reasoning: { ...createReasoningState(), status: 'completed' }, timestamp: 2,
+      })
+
+      const item = state.items[0] as AssistantItem
+      expect(item.isStreaming).toBe(false)
+      expect(item.reasoningSnapshot).toBeTruthy()
+    })
+
+    it('waiting_user question still carries reasoning context', () => {
+      const reasoning = createReasoningState()
+      reasoning.why = 'Need user input on deployment target'
+      reasoning.status = 'blocked'
+
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, {
+        type: 'blocked_enter',
+        reason: 'waiting_user',
+        question: 'Which environment?',
+        reasoning,
+        timestamp: 1000,
+      })
+
+      const item = state.items[0] as QuestionItem
+      expect(item.reasoning).toBeDefined()
+      expect(item.reasoning!.why).toBe('Need user input on deployment target')
+    })
+  })
+
+  // =========================================================================
+  // Tool Batch / Work Group tests
+  // =========================================================================
+
+  describe('tool batch / work group', () => {
+    it('consecutive tool calls in same assistant turn merge into a batch', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'hi', timestamp: 1 })
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+
+      const tc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'file_read', args: { file_path: 'a.ts' }, command: 'a.ts' })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc1 })
+
+      const tc2 = createToolCallLifecycle({ id: 'tc-2', toolName: 'file_read', args: { file_path: 'b.ts' }, command: 'b.ts' })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc2 })
+
+      // Should have: user, assistant, tool_batch (not two separate tool_calls)
+      const types = state.items.map(i => i.type)
+      expect(types).toEqual(['user', 'assistant', 'tool_batch'])
+
+      const batch = state.items[2] as ToolBatchItem
+      expect(batch.toolCalls).toHaveLength(2)
+      expect(batch.toolCalls[0]!.id).toBe('tc-1')
+      expect(batch.toolCalls[1]!.id).toBe('tc-2')
+    })
+
+    it('single tool call stays standalone (no batch wrapper)', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+
+      const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'ls' }, command: 'ls' })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc })
+
+      expect(state.items.map(i => i.type)).toEqual(['assistant', 'tool_call'])
+    })
+
+    it('each tool call in batch retains independent identity', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+
+      const tc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'ls' }, command: 'ls' })
+      tc1.route = { wasRouted: false, ruleId: null, originalToolName: 'bash', originalArgs: {}, reason: null }
+      tc1.safety = { riskLevel: 'safe', allowed: true, ruleId: 'static', reason: 'safe' }
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc1 })
+
+      const tc2 = createToolCallLifecycle({ id: 'tc-2', toolName: 'file_read', args: { file_path: 'x' }, command: 'x' })
+      tc2.safety = { riskLevel: 'moderate', allowed: true, ruleId: 'dynamic', reason: 'needs review' }
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc2 })
+
+      const batch = state.items[1] as ToolBatchItem
+      expect(batch.toolCalls[0]!.id).toBe('tc-1')
+      expect(batch.toolCalls[0]!.route).toBeDefined()
+      expect(batch.toolCalls[0]!.safety?.riskLevel).toBe('safe')
+      expect(batch.toolCalls[1]!.id).toBe('tc-2')
+      expect(batch.toolCalls[1]!.safety?.riskLevel).toBe('moderate')
+    })
+
+    it('stdout/stderr streaming updates work within a batch', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+
+      const tc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'echo hi' }, command: 'echo hi' })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc1 })
+
+      const tc2 = createToolCallLifecycle({ id: 'tc-2', toolName: 'bash', args: { command: 'echo bye' }, command: 'echo bye' })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc2 })
+
+      // Update tc1 with stdout
+      const tc1Updated = { ...tc1, phase: 'executing' as const, stdout: 'hi\n' }
+      state = reduceLifecycleEvent(state, { type: 'tool_call_updated', toolCall: tc1Updated })
+
+      const batch = state.items[1] as ToolBatchItem
+      expect(batch.toolCalls[0]!.stdout).toBe('hi\n')
+      expect(batch.toolCalls[0]!.phase).toBe('executing')
+      expect(batch.toolCalls[1]!.id).toBe('tc-2')
+    })
+
+    it('route/safety/blocked info not lost in batch merge', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+
+      const tc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'rm -rf /' }, command: 'rm -rf /' })
+      tc1.phase = 'blocked'
+      tc1.safety = { riskLevel: 'critical', allowed: false, ruleId: 'destructive', reason: 'dangerous command' }
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc1 })
+
+      const tc2 = createToolCallLifecycle({ id: 'tc-2', toolName: 'file_read', args: { file_path: 'safe.ts' }, command: 'safe.ts' })
+      tc2.safety = { riskLevel: 'safe', allowed: true, ruleId: 'static', reason: 'safe' }
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc2 })
+
+      const batch = state.items[1] as ToolBatchItem
+      expect(batch.toolCalls[0]!.phase).toBe('blocked')
+      expect(batch.toolCalls[0]!.safety?.allowed).toBe(false)
+      expect(batch.toolCalls[0]!.safety?.riskLevel).toBe('critical')
+      expect(batch.toolCalls[1]!.safety?.allowed).toBe(true)
+    })
+
+    it('user_turn breaks the current batch', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+
+      const tc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'ls' }, command: 'ls' })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc1 })
+
+      // User turn interrupts
+      state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'stop', timestamp: 2 })
+
+      expect(state._currentBatchId).toBeNull()
+    })
+
+    it('blocked_enter breaks the current batch', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+
+      const tc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'ls' }, command: 'ls' })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc1 })
+
+      state = reduceLifecycleEvent(state, {
+        type: 'blocked_enter', reason: 'waiting_user', question: 'Continue?', timestamp: 2,
+      })
+
+      expect(state._currentBatchId).toBeNull()
+    })
+
+    it('session_done breaks the current batch', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+
+      const tc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'ls' }, command: 'ls' })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc1 })
+
+      state = reduceLifecycleEvent(state, { type: 'session_done', success: true, timestamp: 3 })
+
+      expect(state._currentBatchId).toBeNull()
+      expect(state._currentAssistantTurnId).toBeNull()
+    })
+
+    it('three consecutive tool calls all end up in one batch', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+
+      for (let i = 1; i <= 3; i++) {
+        const tc = createToolCallLifecycle({ id: `tc-${i}`, toolName: 'file_read', args: { file_path: `f${i}.ts` }, command: `f${i}.ts` })
+        state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc })
+      }
+
+      expect(state.items.map(i => i.type)).toEqual(['assistant', 'tool_batch'])
+      const batch = state.items[1] as ToolBatchItem
+      expect(batch.toolCalls).toHaveLength(3)
+    })
+
+    it('batch carries reasoning from the assistant turn', () => {
+      const reasoning = createReasoningState()
+      reasoning.why = 'Need to read multiple config files'
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning, timestamp: 1 })
+
+      const tc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'file_read', args: { file_path: 'a.ts' }, command: 'a.ts' })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc1 })
+      const tc2 = createToolCallLifecycle({ id: 'tc-2', toolName: 'file_read', args: { file_path: 'b.ts' }, command: 'b.ts' })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc2 })
+
+      const batch = state.items[1] as ToolBatchItem
+      expect(batch.reasoning).toBeDefined()
+      expect(batch.reasoning!.why).toBe('Need to read multiple config files')
+    })
+
+    it('timeline ordering and key stability preserved with batches', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'hi', timestamp: 1 })
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+
+      const tc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'ls', args: {}, command: 'ls' })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc1 })
+      const tc2 = createToolCallLifecycle({ id: 'tc-2', toolName: 'bash', args: { command: 'pwd' }, command: 'pwd' })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc2 })
+
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 3 })
+
+      const types = state.items.map(i => i.type)
+      expect(types).toEqual(['user', 'assistant', 'tool_batch'])
+
+      // All items have unique ids
+      const ids = state.items.map(i => i.id)
+      expect(new Set(ids).size).toBe(ids.length)
     })
   })
 })

@@ -3,9 +3,10 @@
 // ---------------------------------------------------------------------------
 
 import { Box, Text } from 'ink'
-import type { TimelineState, TimelineItem, AssistantItem, ToolCallItem, UserItem, QuestionItem, StatusItem } from './timeline-projection.js'
+import type { TimelineState, TimelineItem, AssistantItem, ToolCallItem, ToolBatchItem, UserItem, QuestionItem, StatusItem } from './timeline-projection.js'
 import { Header } from './Header.js'
 import { ToolCallCard } from './ToolCallCard.js'
+import { ToolBatchCard } from './ToolBatchCard.js'
 import { QuestionCard } from './QuestionCard.js'
 import { TimelineStatusBar } from './TimelineStatusBar.js'
 import { InputComposer } from './InputComposer.js'
@@ -70,6 +71,8 @@ function TimelineItemView({ item, isLast }: { item: TimelineItem; isLast: boolea
       return <AssistantItemView item={item} />
     case 'tool_call':
       return <ToolCallCard item={item} isLast={isLast} />
+    case 'tool_batch':
+      return <ToolBatchCard item={item} isLast={isLast} />
     case 'question':
       return <QuestionCard item={item} />
     case 'status':
@@ -95,26 +98,32 @@ function UserItemView({ item }: { item: UserItem }) {
 }
 
 function AssistantItemView({ item }: { item: AssistantItem }) {
-  if (!item.thinking && !item.text) return null
+  if (!item.thinking && !item.text && !item.reasoningSnapshot) return null
 
-  // Compact reasoning: one-line summary instead of raw thinking dump
-  const thinkingSummary = item.thinking ? summarizeThought(item.thinking) : null
+  // Reasoning lane content — stable, not fleeting
+  // Priority: projectDisplayReason > reasoningSnapshot > summarizeThought
   const reasoningLine = item.reasoning ? projectDisplayReason(item.reasoning) : null
-  // Show reasoning summary only while streaming and no text yet
-  const showThinkingLine = item.isStreaming && !item.text && (thinkingSummary || reasoningLine)
+  const stableReasoning = reasoningLine || item.reasoningSnapshot || (item.thinking ? summarizeThought(item.thinking) : null)
+
+  // Show reasoning lane when:
+  // 1. Streaming and no text yet (thinking phase) — always show
+  // 2. Streaming with text (acting phase) — show as stable context strip
+  // 3. Not streaming but has reasoning — show as completed context
+  const hasReasoning = !!stableReasoning
+  const isThinkingPhase = item.isStreaming && !item.text
+  const showReasoningLane = hasReasoning
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      {/* Compact thinking line — replaces raw thinking dump */}
-      {showThinkingLine && (
+      {/* ── Reasoning lane — stable cognitive context strip ── */}
+      {showReasoningLane && (
         <Box>
-          <Text dimColor italic>
-            {reasoningLine || thinkingSummary}
-          </Text>
+          <Text color="gray">{isThinkingPhase ? '◐ ' : '◑ '}</Text>
+          <Text dimColor italic>{stableReasoning}</Text>
         </Box>
       )}
 
-      {/* Assistant text — the primary content */}
+      {/* ── Assistant text — the primary content ── */}
       {item.text && (
         <Box>
           <Text>{item.text}</Text>
