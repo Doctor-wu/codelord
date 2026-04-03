@@ -57,6 +57,7 @@ export function InputComposer({ isActive, onSubmit, mode = 'idle' }: InputCompos
   }, { isActive })
 
   const borderColor = getBorderColor(mode)
+  const promptColor = getPromptColor(mode, isActive)
   const promptChar = mode === 'waiting_answer' ? '»' : '>'
 
   return (
@@ -67,9 +68,9 @@ export function InputComposer({ isActive, onSubmit, mode = 'idle' }: InputCompos
       {/* ── Status strip ── */}
       <StatusStrip mode={mode} />
 
-      {/* ── Input row ── */}
+      {/* ── Input row — always user lane hue for prompt ── */}
       <Box>
-        <Text color={isActive ? borderColor : '#555555'} bold={isActive}>{promptChar} </Text>
+        <Text color={promptColor} bold={isActive}>{promptChar} </Text>
         {isActive ? (
           <InputField value={value} cursor={cursor} />
         ) : (
@@ -128,7 +129,7 @@ function StatusStrip({ mode }: { mode: SessionMode }) {
     case 'error':
       return (
         <Box>
-          <Text color="red" bold>{GLYPH.phaseFail} ERROR</Text>
+          <Text color={LANE.error} bold>{GLYPH.phaseFail} ERROR</Text>
           <Text dimColor>  {GLYPH.thinRule}  type to continue</Text>
         </Box>
       )
@@ -136,7 +137,7 @@ function StatusStrip({ mode }: { mode: SessionMode }) {
     default:
       return (
         <Box>
-          <Text dimColor>{GLYPH.phaseDim} ready</Text>
+          <Text color={LANE.muted}>{GLYPH.phaseDim} ready</Text>
         </Box>
       )
   }
@@ -153,12 +154,22 @@ function HintBar({ mode }: { mode: SessionMode }) {
   )
 }
 
+/** Deck border color — follows the dominant semantic lane for the current mode */
 function getBorderColor(mode: SessionMode): string {
   switch (mode) {
     case 'running': return APP_COLOR
     case 'waiting_answer': return LANE.control
     case 'interrupted': return LANE.control
-    case 'error': return 'red'
-    default: return '#555555'
+    case 'error': return LANE.error
+    default: return LANE.muted
   }
+}
+
+/** Prompt character color — always user lane family, dimmed when inactive */
+function getPromptColor(mode: SessionMode, isActive: boolean): string {
+  if (!isActive) return LANE.userMuted
+  // Active prompt is always user lane primary, regardless of mode
+  // Exception: waiting_answer uses control color to signal "answer required"
+  if (mode === 'waiting_answer') return LANE.control
+  return LANE.user
 }

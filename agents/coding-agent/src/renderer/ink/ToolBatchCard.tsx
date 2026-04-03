@@ -31,7 +31,7 @@ export function ToolBatchCard({ item, isLast }: ToolBatchCardProps) {
     return '·'
   }).join('')
 
-  const headerColor = allDone ? '#555555' : LANE.assistant
+  const headerColor = allDone ? LANE.muted : LANE.assistant
 
   return (
     <Box flexDirection="column" marginTop={1}>
@@ -41,7 +41,7 @@ export function ToolBatchCard({ item, isLast }: ToolBatchCardProps) {
         <Text color={headerColor} bold>WORK GROUP</Text>
         <Text color={headerColor}> [{progressBar}] </Text>
         <Text dimColor>{completedCount}/{total}</Text>
-        {hasBlocked && <Text color="red"> blocked</Text>}
+        {hasBlocked && <Text color={LANE.error}> blocked</Text>}
       </Box>
 
       {/* ── Batch reasoning context ── */}

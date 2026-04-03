@@ -41,17 +41,31 @@ export const APP_COLOR = '#1e50a0' // TARDIS blue
 export const META_COLOR = 'gray'
 
 // ---------------------------------------------------------------------------
-// Operator console palette — industrial mission console
+// Operator console palette — semantic lane color tokens
+// ---------------------------------------------------------------------------
+// Rule: one semantic lane = one hue family.
+// Variants within a family differ only in weight (bold/dim), not hue.
 // ---------------------------------------------------------------------------
 
-/** Muted lane colors for conversation tracks */
+/** Semantic lane color families */
 export const LANE = {
-  user: 'cyan',
-  userDim: '#4a8a8a',
-  assistant: '#8888aa',
-  reasoning: '#666688',
-  control: 'yellow',
-  controlDim: '#8a8a4a',
+  // User lane — cyan family throughout
+  user: '#5ccfe6',        // primary: label, rail, active prompt
+  userMuted: '#3a8a99',   // secondary: content rail, inactive prompt
+  // Assistant lane — cool gray-blue family
+  assistant: '#8888aa',   // primary: rail, label
+  assistantMuted: '#666680', // secondary: settled content rail
+  // Reasoning lane — dim indigo family (subset of assistant hue)
+  reasoning: '#7777aa',   // primary: icon, text
+  reasoningMuted: '#555577', // secondary: settled
+  // Control lane — amber family (questions, paused, waiting)
+  control: '#e6b450',     // primary: labels, borders, icons
+  controlMuted: '#997a35', // secondary: descriptions
+  // Error — red family
+  error: '#e05555',       // primary
+  errorMuted: '#993a3a',  // secondary
+  // Muted / settled — neutral
+  muted: '#555555',       // inactive, disabled, settled
 } as const
 
 /** Box-drawing characters for structured layout */

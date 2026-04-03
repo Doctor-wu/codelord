@@ -88,7 +88,7 @@ function UserItemView({ item }: { item: UserItem }) {
         <Text color={LANE.user} bold>YOU</Text>
       </Box>
       <Box>
-        <Text color={LANE.userDim}>{GLYPH.userMark} </Text>
+        <Text color={LANE.userMuted}>{GLYPH.userMark} </Text>
         <Text>{item.content}</Text>
       </Box>
     </Box>
@@ -112,7 +112,7 @@ function AssistantItemView({ item }: { item: AssistantItem }) {
       {/* ── Reasoning lane — stable cognitive strip ── */}
       {hasReasoning && (
         <Box>
-          <Text color={LANE.reasoning}>{GLYPH.reasoningMark} </Text>
+          <Text color={LANE.reasoningMuted}>{GLYPH.reasoningMark} </Text>
           <Text color={LANE.reasoning}>{getReasoningIcon(reasoningStatus, item.isStreaming)} </Text>
           <Text color={LANE.reasoning} italic>{stableReasoning}</Text>
         </Box>
@@ -121,7 +121,7 @@ function AssistantItemView({ item }: { item: AssistantItem }) {
       {/* ── Assistant text ── */}
       {item.text && (
         <Box>
-          <Text color={LANE.assistant}>{GLYPH.assistantMark} </Text>
+          <Text color={LANE.assistantMuted}>{GLYPH.assistantMark} </Text>
           <Text>{item.text}</Text>
         </Box>
       )}
@@ -149,8 +149,8 @@ function StatusItemView({ item }: { item: StatusItem }) {
   if (item.status === 'error') {
     return (
       <Box marginTop={1}>
-        <Text color="red" bold>{GLYPH.phaseFail} ERROR </Text>
-        <Text color="red">{item.message}</Text>
+        <Text color={LANE.error} bold>{GLYPH.phaseFail} ERROR </Text>
+        <Text color={LANE.error}>{item.message}</Text>
       </Box>
     )
   }
@@ -158,7 +158,7 @@ function StatusItemView({ item }: { item: StatusItem }) {
     return (
       <Box marginTop={1}>
         <Text color={LANE.control} bold>{GLYPH.phaseBlocked} PAUSED </Text>
-        <Text color={LANE.controlDim}>Agent execution suspended</Text>
+        <Text color={LANE.controlMuted}>Agent execution suspended</Text>
       </Box>
     )
   }

@@ -7,7 +7,7 @@ import { Box, Text, useStdout } from 'ink'
 import type { ToolCallItem } from './timeline-projection.js'
 import type { ToolCallLifecycle } from '@agent/core'
 import { classifyCommand, classifyToolName } from './classify.js'
-import { STEP_COLORS, META_COLOR, GLYPH } from './theme.js'
+import { STEP_COLORS, META_COLOR, GLYPH, LANE } from './theme.js'
 import type { StepCategory } from './theme.js'
 import { formatToolDisplayName, extractToolCommand } from '../tool-display.js'
 import { normalizeInline, getDisplayWidth, formatToolResultLines } from './summarize.js'
@@ -97,15 +97,15 @@ export function ToolCallView({ tc, isLast, dimCompleted = false }: {
       {tc.safety && !tc.safety.allowed && (
         <Box>
           <Text color={color} dimColor={borderDim}>{borderChar} </Text>
-          <Text color="red" bold>  {GLYPH.phaseBlocked} BLOCKED </Text>
-          <Text color="red">risk:{tc.safety.riskLevel}</Text>
-          {tc.safety.reason && <Text color="red" dimColor> {GLYPH.thinRule} {tc.safety.reason}</Text>}
+          <Text color={LANE.error} bold>  {GLYPH.phaseBlocked} BLOCKED </Text>
+          <Text color={LANE.error}>risk:{tc.safety.riskLevel}</Text>
+          {tc.safety.reason && <Text color={LANE.errorMuted}> {GLYPH.thinRule} {tc.safety.reason}</Text>}
         </Box>
       )}
       {tc.safety && tc.safety.allowed && tc.safety.riskLevel !== 'safe' && (
         <Box>
           <Text color={color} dimColor={borderDim}>{borderChar} </Text>
-          <Text color="yellow">  risk:{tc.safety.riskLevel}</Text>
+          <Text color={LANE.control}>  risk:{tc.safety.riskLevel}</Text>
         </Box>
       )}
 
@@ -116,7 +116,7 @@ export function ToolCallView({ tc, isLast, dimCompleted = false }: {
             <Box key={`h-${i}`}>
               <Text color={color} dimColor={borderDim}>{borderChar} </Text>
               <Text dimColor={contentDim}>{i === 0 && isActive ? GLYPH.live : ' '} </Text>
-              <Text color={tc.isError ? 'red' : undefined} dimColor={contentDim}>{line || ' '}</Text>
+              <Text color={tc.isError ? LANE.error : undefined} dimColor={contentDim}>{line || ' '}</Text>
             </Box>
           ))}
           {hiddenLineCount > 0 && (
@@ -130,7 +130,7 @@ export function ToolCallView({ tc, isLast, dimCompleted = false }: {
             <Box key={`t-${i}`}>
               <Text color={color} dimColor={borderDim}>{borderChar} </Text>
               <Text dimColor={contentDim}>  </Text>
-              <Text color={tc.isError ? 'red' : undefined} dimColor={contentDim}>{line || ' '}</Text>
+              <Text color={tc.isError ? LANE.error : undefined} dimColor={contentDim}>{line || ' '}</Text>
             </Box>
           ))}
         </>
@@ -140,8 +140,8 @@ export function ToolCallView({ tc, isLast, dimCompleted = false }: {
       {hasStderr && !tc.stdout?.includes(tc.stderr) && (
         <Box>
           <Text color={color} dimColor={borderDim}>{borderChar} </Text>
-          <Text color="red" dimColor>{GLYPH.live} stderr: </Text>
-          <Text color="red" dimColor>{tc.stderr.split('\n')[0]}</Text>
+          <Text color={LANE.errorMuted}>{GLYPH.live} stderr: </Text>
+          <Text color={LANE.errorMuted}>{tc.stderr.split('\n')[0]}</Text>
         </Box>
       )}
 
@@ -149,7 +149,7 @@ export function ToolCallView({ tc, isLast, dimCompleted = false }: {
       {tc.completedAt && (
         <Box>
           <Text color={color} dimColor={borderDim}>{borderChar} </Text>
-          <Text color={tc.isError ? 'red' : 'green'} dimColor={!tc.isError}>
+          <Text color={tc.isError ? LANE.error : 'green'} dimColor={!tc.isError}>
             {tc.isError ? `${GLYPH.phaseFail} failed` : `${GLYPH.phaseDone} done`}
           </Text>
           {tc.executionStartedAt && (

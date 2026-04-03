@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { Box, Text, useStdout } from 'ink'
-import { APP_NAME, APP_COLOR, getProviderBrand, GLYPH } from './theme.js'
+import { APP_NAME, APP_COLOR, getProviderBrand, GLYPH, LANE } from './theme.js'
 
 interface HeaderProps {
   version: string
@@ -18,7 +18,7 @@ export function Header({ version, provider, model, isRunning }: HeaderProps) {
   const cols = Math.max(40, (stdout?.columns ?? 80) - 1)
 
   // Status chip
-  const statusColor = isRunning ? 'green' : '#555555'
+  const statusColor = isRunning ? 'green' : LANE.muted
   const statusIcon = isRunning ? GLYPH.phaseActive : GLYPH.phaseDim
   const statusLabel = isRunning ? 'LIVE' : 'IDLE'
 
