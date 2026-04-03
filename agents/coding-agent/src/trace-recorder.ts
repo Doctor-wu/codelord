@@ -1,21 +1,22 @@
 // ---------------------------------------------------------------------------
-// TraceRecorder — consumes lifecycle events and builds a structured TraceRun
+// TraceRecorderV2 — 3-layer event ledger recorder
 // ---------------------------------------------------------------------------
 
-import { createHash } from 'node:crypto'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type {
   LifecycleEvent, AgentEvent, RunOutcome, UsageAggregate,
+  ProviderStreamTraceEvent, AgentTraceEvent, LifecycleTraceEvent,
+  TraceRunV2, TraceStepV2, TraceStepLedgers,
 } from '@agent/core'
 import { safePreview } from '@agent/core'
 import type { RedactionHit } from '@agent/core'
-import type {
-  TraceRun, TraceStep, TraceEvent,
-} from '@agent/core'
 
 export interface TraceRecorderOptions {
   sessionId: string
   cwd: string
+  workspaceRoot: string
+  workspaceSlug: string
+  workspaceId: string
   provider: string
   model: string
   systemPrompt: string
@@ -26,11 +27,18 @@ export class TraceRecorder {
   private readonly opts: TraceRecorderOptions
   private readonly systemPromptHash: string
   private readonly startedAt: number
-  private steps: TraceStep[] = []
-  private currentStep: TraceStep | null = null
+  private steps: TraceStepV2[] = []
+  private currentStep: TraceStepV2 | null = null
+  private runLifecycleEvents: import('@agent/core').LifecycleTraceEvent[] = []
   private allRedactionHits: RedactionHit[] = []
   private usageSummary = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, llmCalls: 0 }
   private interruptRequestedAt: number | null = null
+  private interruptSource: 'sigint' | 'api' = 'sigint'
+  private _nextEventId = 0
+  private _globalSeq = 0
+  private totalProviderStream = 0
+  private totalAgentEvents = 0
+  private totalLifecycleEvents = 0
 
   constructor(opts: TraceRecorderOptions) {
     this.runId = randomUUID()
@@ -39,95 +47,244 @@ export class TraceRecorder {
     this.startedAt = Date.now()
   }
 
-  /** Record a SIGINT request timestamp (called from REPL layer) */
-  recordInterruptRequest(): void {
+  get traceRunId(): string { return this.runId }
+
+  recordInterruptRequest(source: 'sigint' | 'api' = 'sigint'): void {
     this.interruptRequestedAt = Date.now()
+    this.interruptSource = source
+
+    // Emit interrupt_requested as a first-class lifecycle trace event
+    const le: LifecycleTraceEvent = {
+      eventId: ++this._nextEventId,
+      seq: ++this._globalSeq,
+      type: 'interrupt_requested',
+      timestamp: this.interruptRequestedAt,
+      step: this.currentStep?.step ?? 0,
+      turnId: this.currentStep?.turnId ?? null,
+      source: 'lifecycle_event',
+      toolCallId: null,
+      toolName: null,
+      phase: null,
+      reason: null,
+      question: null,
+      usageSnapshot: null,
+      count: null,
+      messageCount: null,
+      interruptSource: source,
+      requestedAt: null,
+      observedAt: null,
+      latencyMs: null,
+    }
+
+    if (this.currentStep) {
+      this.currentStep.ledgers.lifecycleEvents.push(le)
+    } else {
+      this.runLifecycleEvents.push(le)
+    }
   }
 
-  /** Consume a lifecycle event */
+  // --- Provider stream layer ---
+
+  onProviderStreamEvent(event: ProviderStreamTraceEvent): void {
+    this.totalProviderStream++
+    event = { ...event, seq: ++this._globalSeq }
+    // Redact previews
+    if (event.deltaPreview) {
+      const { text, hits } = safePreview(event.deltaPreview, 300)
+      event = { ...event, deltaPreview: text }
+      this.mergeHits(hits)
+    }
+    if (event.contentPreview) {
+      const { text, hits } = safePreview(event.contentPreview, 300)
+      event = { ...event, contentPreview: text }
+      this.mergeHits(hits)
+    }
+    this.ensureStep(event.step, event.turnId)
+    this.currentStep!.ledgers.providerStream.push(event)
+  }
+
+  // --- Agent event layer ---
+
+  onAgentEvent(event: AgentEvent): void {
+    this.totalAgentEvents++
+    const now = Date.now()
+    const base: AgentTraceEvent = {
+      eventId: ++this._nextEventId,
+      seq: ++this._globalSeq,
+      type: event.type,
+      timestamp: now,
+      step: 0,
+      turnId: null,
+      source: 'agent_event',
+      contentIndex: null,
+      toolCallId: null,
+      toolName: null,
+      deltaPreview: null,
+      riskLevel: null,
+      allowed: null,
+      isError: null,
+      resultPreview: null,
+    }
+
+    switch (event.type) {
+      case 'step_start':
+        base.step = event.step; break
+      case 'thinking_start': case 'text_start':
+        base.contentIndex = event.contentIndex; break
+      case 'thinking_delta': case 'text_delta':
+        base.contentIndex = event.contentIndex
+        base.deltaPreview = safePreview(event.delta, 300).text; break
+      case 'thinking_end': case 'text_end':
+        base.contentIndex = event.contentIndex; break
+      case 'toolcall_start': case 'toolcall_delta':
+        base.contentIndex = event.contentIndex
+        base.toolName = event.toolName; break
+      case 'toolcall_end':
+        base.toolCallId = event.toolCall.id
+        base.toolName = event.toolCall.name; break
+      case 'tool_routed':
+        base.toolName = event.resolvedToolName; break
+      case 'tool_safety_checked':
+        base.toolName = event.toolName
+        base.riskLevel = event.riskLevel
+        base.allowed = event.allowed; break
+      case 'tool_exec_start':
+        base.toolName = event.toolName; break
+      case 'tool_output_delta':
+        base.toolName = event.toolName
+        base.deltaPreview = safePreview(event.chunk, 300).text; break
+      case 'tool_result':
+        base.toolName = event.toolName
+        base.isError = event.isError
+        base.resultPreview = safePreview(event.result, 300).text; break
+      case 'error':
+        base.resultPreview = event.error; break
+    }
+
+    if (this.currentStep) {
+      base.step = this.currentStep.step
+      base.turnId = this.currentStep.turnId
+      this.currentStep.ledgers.agentEvents.push(base)
+    }
+  }
+
+  // --- Lifecycle event layer ---
+
   onLifecycleEvent(event: LifecycleEvent): void {
+    this.totalLifecycleEvents++
+    const now = Date.now()
+
+    // Step management
     switch (event.type) {
       case 'assistant_turn_start':
         this.currentStep = {
           step: this.steps.length + 1,
+          turnId: event.id,
           startedAt: event.timestamp,
           endedAt: null,
-          events: [],
+          ledgers: { providerStream: [], agentEvents: [], lifecycleEvents: [] },
         }
         break
-
       case 'assistant_turn_end':
-        if (this.currentStep) {
-          this.currentStep.endedAt = event.timestamp
-        }
+        if (this.currentStep) this.currentStep.endedAt = event.timestamp
         break
+    }
 
+    // Pre-emit: interrupt_observed must come before blocked_enter in seq order
+    if (event.type === 'blocked_enter' && (event as any).reason === 'interrupted') {
+      this.emitInterruptObserved()
+    }
+
+    // Build lifecycle trace event
+    const le: LifecycleTraceEvent = {
+      eventId: ++this._nextEventId,
+      seq: ++this._globalSeq,
+      type: event.type,
+      timestamp: 'timestamp' in event ? (event as { timestamp: number }).timestamp : now,
+      step: this.currentStep?.step ?? 0,
+      turnId: this.currentStep?.turnId ?? null,
+      source: 'lifecycle_event',
+      toolCallId: null,
+      toolName: null,
+      phase: null,
+      reason: null,
+      question: null,
+      usageSnapshot: null,
+      count: null,
+      messageCount: null,
+      interruptSource: null,
+      requestedAt: null,
+      observedAt: null,
+      latencyMs: null,
+    }
+
+    switch (event.type) {
+      case 'user_turn':
+        le.question = event.content.slice(0, 200)
+        break
+      case 'tool_call_created': case 'tool_call_updated': case 'tool_call_completed':
+        le.toolCallId = event.toolCall.id
+        le.toolName = event.toolCall.toolName
+        le.phase = event.toolCall.phase
+        break
       case 'usage_updated':
-        this.recordLLMCall(event.usage, event.timestamp)
-        break
-
-      case 'tool_call_completed':
-        this.recordToolExecution(event)
-        break
-
-      case 'queue_drained':
-        for (const msg of event.messages) {
-          const { text, hits } = safePreview(msg.content)
-          this.mergeHits(hits)
-          this.pushEvent({
-            type: 'queue_message',
-            contentPreview: text,
-            enqueuedAt: msg.enqueuedAt,
-            injectedAt: event.injectedAt,
-            waitMs: event.injectedAt - msg.enqueuedAt,
-          })
+        this.recordUsage(event.usage)
+        if (event.usage.lastCall) {
+          le.usageSnapshot = {
+            input: event.usage.lastCall.input,
+            output: event.usage.lastCall.output,
+            cacheRead: event.usage.lastCall.cacheRead,
+            cacheWrite: event.usage.lastCall.cacheWrite,
+            totalTokens: event.usage.lastCall.totalTokens,
+            cost: { ...event.usage.lastCall.cost },
+          }
         }
         break
-
-      case 'question_answered': {
-        const { text: answerPreview, hits } = safePreview(event.answer)
-        this.mergeHits(hits)
-        this.pushEvent({
-          type: 'ask_user',
-          question: event.question,
-          whyAsk: event.whyAsk,
-          askedAt: event.askedAt,
-          answeredAt: event.answeredAt,
-          waitMs: event.answeredAt - event.askedAt,
-          answerPreview,
-        })
-        break
-      }
-
       case 'blocked_enter':
-        if (event.reason === 'waiting_user' && event.question) {
-          // Record ask_user without answer yet (may be answered later)
-          this.pushEvent({
-            type: 'ask_user',
-            question: event.question,
-            whyAsk: event.questionDetail?.whyAsk ?? '',
-            askedAt: event.timestamp,
-            answeredAt: null,
-            waitMs: null,
-            answerPreview: null,
-          })
-        }
-        if (event.reason === 'interrupted') {
-          this.pushEvent({
-            type: 'user_interrupt',
-            source: 'sigint',
-            requestedAt: this.interruptRequestedAt ?? event.timestamp,
-            observedAt: event.timestamp,
-          })
-          this.interruptRequestedAt = null
+        le.reason = event.reason
+        if (event.question) le.question = event.question
+        break
+      case 'queue_drained':
+        le.count = event.count
+        le.messageCount = event.messages.length
+        for (const msg of event.messages) {
+          const { hits } = safePreview(msg.content)
+          this.mergeHits(hits)
         }
         break
+      case 'question_answered':
+        le.question = event.question
+        const { hits } = safePreview(event.answer)
+        this.mergeHits(hits)
+        break
+      case 'interrupt_requested':
+        le.interruptSource = event.source
+        break
+      case 'interrupt_observed':
+        le.interruptSource = event.source
+        le.requestedAt = event.requestedAt
+        le.observedAt = event.observedAt
+        le.latencyMs = event.latencyMs
+        break
+    }
+
+    if (this.currentStep) {
+      this.currentStep.ledgers.lifecycleEvents.push(le)
+    } else {
+      // No active step — this is a run-level event (session_done, queue_drained, etc.)
+      this.runLifecycleEvents.push(le)
+    }
+
+    // Flush step on turn end
+    if (event.type === 'assistant_turn_end' && this.currentStep) {
+      this.steps.push(this.currentStep)
+      this.currentStep = null
     }
   }
 
-  /** Finalize the trace with the run outcome */
-  finalize(outcome: RunOutcome): TraceRun {
-    // Flush current step if still open
+  // --- Finalize ---
+
+  finalize(outcome: RunOutcome): TraceRunV2 {
     if (this.currentStep) {
       this.currentStep.endedAt = Date.now()
       this.steps.push(this.currentStep)
@@ -135,11 +292,16 @@ export class TraceRecorder {
     }
 
     return {
+      version: 2,
       runId: this.runId,
       sessionId: this.opts.sessionId,
+      workspaceRoot: this.opts.workspaceRoot,
+      workspaceSlug: this.opts.workspaceSlug,
+      workspaceId: this.opts.workspaceId,
       cwd: this.opts.cwd,
       provider: this.opts.provider,
       model: this.opts.model,
+      systemPromptHash: this.systemPromptHash,
       startedAt: this.startedAt,
       endedAt: Date.now(),
       outcome: {
@@ -148,50 +310,39 @@ export class TraceRecorder {
         ...(outcome.type === 'error' ? { error: outcome.error } : {}),
         ...(outcome.type === 'blocked' ? { reason: outcome.reason } : {}),
       },
-      systemPromptHash: this.systemPromptHash,
       usageSummary: this.usageSummary,
       redactionSummary: this.allRedactionHits,
+      eventCounts: {
+        providerStream: this.totalProviderStream,
+        agentEvents: this.totalAgentEvents,
+        lifecycleEvents: this.totalLifecycleEvents,
+      },
       steps: this.steps,
+      runLifecycleEvents: this.runLifecycleEvents,
     }
   }
 
   // --- Internal ---
 
-  private pushEvent(event: TraceEvent): void {
-    if (this.currentStep) {
-      this.currentStep.events.push(event)
-    } else {
-      // Event outside a step — create an implicit step
-      const step: TraceStep = {
-        step: this.steps.length + 1,
-        startedAt: Date.now(),
-        endedAt: Date.now(),
-        events: [event],
+  private ensureStep(step: number, turnId: string | null): void {
+    if (!this.currentStep || this.currentStep.step !== step) {
+      if (this.currentStep) {
+        this.currentStep.endedAt = Date.now()
+        this.steps.push(this.currentStep)
       }
-      this.steps.push(step)
+      this.currentStep = {
+        step,
+        turnId,
+        startedAt: Date.now(),
+        endedAt: null,
+        ledgers: { providerStream: [], agentEvents: [], lifecycleEvents: [] },
+      }
     }
   }
 
-  private recordLLMCall(usage: UsageAggregate, timestamp: number): void {
+  private recordUsage(usage: UsageAggregate): void {
     if (!usage.lastCall) return
     const lc = usage.lastCall
-    this.pushEvent({
-      type: 'llm_call',
-      model: lc.model,
-      provider: lc.provider,
-      stopReason: lc.stopReason,
-      latencyMs: lc.latencyMs,
-      usage: {
-        input: lc.input,
-        output: lc.output,
-        cacheRead: lc.cacheRead,
-        cacheWrite: lc.cacheWrite,
-        totalTokens: lc.totalTokens,
-        cost: { ...lc.cost },
-      },
-      timestamp,
-    })
-    // Update run-level summary
     this.usageSummary.input += lc.input
     this.usageSummary.output += lc.output
     this.usageSummary.cacheRead += lc.cacheRead
@@ -205,40 +356,42 @@ export class TraceRecorder {
     this.usageSummary.llmCalls++
   }
 
-  private recordToolExecution(event: Extract<LifecycleEvent, { type: 'tool_call_completed' }>): void {
-    const tc = event.toolCall
-    const { text: argsPreview, hits: argsHits } = safePreview(JSON.stringify(tc.args))
-    const { text: resultPreview, hits: resultHits } = safePreview(tc.result ?? '')
-    const { text: stdoutPreview, hits: stdoutHits } = safePreview(tc.stdout)
-    const { text: stderrPreview, hits: stderrHits } = safePreview(tc.stderr)
-    this.mergeHits([...argsHits, ...resultHits, ...stdoutHits, ...stderrHits])
+  private emitInterruptObserved(): void {
+    const now = Date.now()
+    const le: LifecycleTraceEvent = {
+      eventId: ++this._nextEventId,
+      seq: ++this._globalSeq,
+      type: 'interrupt_observed',
+      timestamp: now,
+      step: this.currentStep?.step ?? 0,
+      turnId: this.currentStep?.turnId ?? null,
+      source: 'lifecycle_event',
+      toolCallId: null,
+      toolName: null,
+      phase: null,
+      reason: null,
+      question: null,
+      usageSnapshot: null,
+      count: null,
+      messageCount: null,
+      interruptSource: this.interruptSource,
+      requestedAt: this.interruptRequestedAt,
+      observedAt: now,
+      latencyMs: this.interruptRequestedAt ? now - this.interruptRequestedAt : null,
+    }
 
-    const durationMs = (tc.completedAt ?? Date.now()) - (tc.executionStartedAt ?? tc.createdAt)
-
-    this.pushEvent({
-      type: 'tool_execution',
-      toolName: tc.toolName,
-      phase: tc.phase,
-      isError: tc.isError,
-      durationMs,
-      route: tc.route ? { wasRouted: tc.route.wasRouted, ruleId: tc.route.ruleId, originalToolName: tc.route.originalToolName } : null,
-      safety: tc.safety ? { riskLevel: tc.safety.riskLevel, allowed: tc.safety.allowed, ruleId: tc.safety.ruleId } : null,
-      argsPreview,
-      resultPreview,
-      stdoutPreview,
-      stderrPreview,
-      timestamp: tc.completedAt ?? Date.now(),
-    })
+    if (this.currentStep) {
+      this.currentStep.ledgers.lifecycleEvents.push(le)
+    } else {
+      this.runLifecycleEvents.push(le)
+    }
   }
 
   private mergeHits(hits: RedactionHit[]): void {
     for (const hit of hits) {
       const existing = this.allRedactionHits.find(h => h.type === hit.type)
-      if (existing) {
-        existing.count += hit.count
-      } else {
-        this.allRedactionHits.push({ ...hit })
-      }
+      if (existing) existing.count += hit.count
+      else this.allRedactionHits.push({ ...hit })
     }
   }
 }

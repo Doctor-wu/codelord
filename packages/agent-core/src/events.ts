@@ -207,6 +207,9 @@ export type LifecycleEvent =
   | { type: 'blocked_enter'; reason: 'waiting_user' | 'interrupted' | 'pending_input'; question?: string; questionDetail?: QuestionDetail; reasoning?: AssistantReasoningState; timestamp: number }
   | { type: 'blocked_exit'; timestamp: number }
   | { type: 'session_done'; success: boolean; text?: string; error?: string; timestamp: number }
+  // --- Interrupt chain ---
+  | { type: 'interrupt_requested'; source: 'sigint' | 'api'; timestamp: number }
+  | { type: 'interrupt_observed'; requestedAt: number; observedAt: number; source: 'sigint' | 'api'; latencyMs: number; timestamp: number }
 
 // ---------------------------------------------------------------------------
 // QuestionDetail — full question metadata for UI rendering

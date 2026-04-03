@@ -2,7 +2,7 @@
 // Timeline Projection — reduces LifecycleEvents into a stable view model
 // ---------------------------------------------------------------------------
 
-import type { LifecycleEvent, ToolCallLifecycle, AssistantReasoningState, QuestionDetail, UsageAggregate } from '@agent/core'
+import type { LifecycleEvent, ToolCallLifecycle, AssistantReasoningState, QuestionDetail, UsageAggregate, SessionSnapshot, PendingQuestion } from '@agent/core'
 
 // ---------------------------------------------------------------------------
 // Timeline item types
@@ -223,6 +223,8 @@ export function reduceLifecycleEvent(state: TimelineState, event: LifecycleEvent
     // Events consumed by trace recorder, not by timeline projection
     case 'queue_drained':
     case 'question_answered':
+    case 'interrupt_requested':
+    case 'interrupt_observed':
       return state
   }
 }
@@ -400,6 +402,112 @@ export function hydrateTimelineState(snapshot: TimelineSnapshot): TimelineState 
     _currentBatchId: null,
     usage: snapshot.usage ?? null,
     stepCount: snapshot.stepCount ?? 0,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Resume reconciliation — align timeline with runtime snapshot truth
+// ---------------------------------------------------------------------------
+
+export interface ResumeContext {
+  snapshot: SessionSnapshot
+  wasDowngraded: boolean
+  interruptedDuring: string | null
+}
+
+/**
+ * Reconcile a timeline state with the runtime snapshot truth.
+ * The timeline snapshot is a UI cache; the SessionSnapshot is the source of truth.
+ *
+ * This function:
+ * - Starts from the timeline snapshot if available, otherwise creates a minimal one
+ * - Removes stale control items (question/interrupted) that don't match runtime state
+ * - Injects missing control items (question/interrupted) that runtime state requires
+ * - Preserves usage/stepCount telemetry from the timeline or snapshot
+ */
+export function reconcileTimelineForResume(
+  timelineSnapshot: TimelineSnapshot | null,
+  ctx: ResumeContext,
+): TimelineState {
+  const { snapshot, wasDowngraded, interruptedDuring } = ctx
+  const now = Date.now()
+
+  // Start from timeline cache or empty
+  let state: TimelineState
+  if (timelineSnapshot) {
+    state = hydrateTimelineState(timelineSnapshot)
+  } else {
+    state = createInitialTimelineState(true)
+    // Use snapshot's createdAt as startTime for a more meaningful elapsed
+    state.startTime = snapshot.createdAt
+  }
+
+  // Preserve usage from snapshot if timeline doesn't have it
+  if (!state.usage && snapshot.usageAggregate && snapshot.usageAggregate.totalTokens > 0) {
+    state.usage = snapshot.usageAggregate
+  }
+
+  // Preserve stepCount from snapshot if timeline doesn't have it
+  if (state.stepCount === 0 && snapshot.sessionStepCount > 0) {
+    state.stepCount = snapshot.sessionStepCount
+  }
+
+  // --- Remove stale control items ---
+  const items = state.items.filter(item => {
+    // Remove question items if runtime has no pending question
+    if (item.type === 'question' && !snapshot.pendingQuestion) return false
+    // Remove interrupted status if this isn't a downgraded resume
+    if (item.type === 'status' && (item as StatusItem).status === 'interrupted' && !wasDowngraded) return false
+    return true
+  })
+
+  // --- Check what control items are already present ---
+  const lastItem = items[items.length - 1]
+  const hasQuestion = lastItem?.type === 'question'
+  const hasInterrupted = lastItem?.type === 'status' && (lastItem as StatusItem).status === 'interrupted'
+
+  let nextId = state._nextId
+
+  // --- Inject missing control items from runtime truth ---
+  if (snapshot.pendingQuestion && !hasQuestion) {
+    nextId++
+    items.push(buildQuestionItem(snapshot.pendingQuestion, nextId, now))
+  }
+
+  if (wasDowngraded && interruptedDuring && !hasInterrupted && !snapshot.pendingQuestion) {
+    nextId++
+    items.push({
+      type: 'status',
+      id: `status-${nextId}`,
+      status: 'interrupted',
+      message: `Session interrupted during ${interruptedDuring}`,
+      timestamp: now,
+    })
+  }
+
+  return {
+    ...state,
+    items,
+    _nextId: nextId,
+    isRunning: false,
+    isIdle: true,
+  }
+}
+
+function buildQuestionItem(pq: PendingQuestion, nextId: number, timestamp: number): QuestionItem {
+  return {
+    type: 'question',
+    id: `question-${nextId}`,
+    question: pq.question,
+    detail: {
+      question: pq.question,
+      whyAsk: pq.whyAsk,
+      options: pq.options,
+      expectedAnswerFormat: pq.expectedAnswerFormat,
+      defaultPlanIfNoAnswer: pq.defaultPlanIfNoAnswer,
+    },
+    reasoning: null,
+    timestamp,
   }
 }
 

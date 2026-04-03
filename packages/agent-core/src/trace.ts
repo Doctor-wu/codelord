@@ -1,12 +1,141 @@
 // ---------------------------------------------------------------------------
-// Trace Schema — structured run trace for observability
+// Trace v2 Schema — layered event ledger for cross-layer observability
 // ---------------------------------------------------------------------------
 
 import type { UsageCostBreakdown } from './events.js'
 import type { RedactionHit } from './redact.js'
 
 // ---------------------------------------------------------------------------
-// TraceEvent — individual events within a step
+// Ledger event base — shared fields for cross-layer correlation
+// ---------------------------------------------------------------------------
+
+interface LedgerEventBase {
+  eventId: number
+  /** Global monotonic sequence within a single run (cross-layer) */
+  seq: number
+  type: string
+  timestamp: number
+  step: number
+  turnId: string | null
+  source: 'provider_stream' | 'agent_event' | 'lifecycle_event'
+}
+
+// ---------------------------------------------------------------------------
+// Provider stream ledger events
+// ---------------------------------------------------------------------------
+
+export interface ProviderStreamTraceEvent extends LedgerEventBase {
+  source: 'provider_stream'
+  contentIndex: number | null
+  toolCallId: string | null
+  toolName: string | null
+  deltaPreview: string | null
+  contentPreview: string | null
+  argsPreview: string | null
+  stopReason: string | null
+}
+
+// ---------------------------------------------------------------------------
+// Agent event ledger events
+// ---------------------------------------------------------------------------
+
+export interface AgentTraceEvent extends LedgerEventBase {
+  source: 'agent_event'
+  contentIndex: number | null
+  toolCallId: string | null
+  toolName: string | null
+  deltaPreview: string | null
+  riskLevel: string | null
+  allowed: boolean | null
+  isError: boolean | null
+  resultPreview: string | null
+}
+
+// ---------------------------------------------------------------------------
+// Lifecycle event ledger events
+// ---------------------------------------------------------------------------
+
+export interface LifecycleTraceEvent extends LedgerEventBase {
+  source: 'lifecycle_event'
+  turnId: string | null
+  toolCallId: string | null
+  toolName: string | null
+  phase: string | null
+  reason: string | null
+  question: string | null
+  usageSnapshot: { input: number; output: number; cacheRead: number; cacheWrite: number; totalTokens: number; cost: UsageCostBreakdown } | null
+  /** For queue_drained: declared count of drained messages */
+  count: number | null
+  /** For queue_drained: actual number of message entries recorded */
+  messageCount: number | null
+  /** For interrupt_requested / interrupt_observed: interrupt source */
+  interruptSource: 'sigint' | 'api' | null
+  /** For interrupt_observed: when the request was originally made */
+  requestedAt: number | null
+  /** For interrupt_observed: when the runtime observed it */
+  observedAt: number | null
+  /** For interrupt_observed: latency between request and observation */
+  latencyMs: number | null
+}
+
+// ---------------------------------------------------------------------------
+// Step ledgers
+// ---------------------------------------------------------------------------
+
+export interface TraceStepLedgers {
+  providerStream: ProviderStreamTraceEvent[]
+  agentEvents: AgentTraceEvent[]
+  lifecycleEvents: LifecycleTraceEvent[]
+}
+
+// ---------------------------------------------------------------------------
+// TraceStepV2
+// ---------------------------------------------------------------------------
+
+export interface TraceStepV2 {
+  step: number
+  turnId: string | null
+  startedAt: number
+  endedAt: number | null
+  ledgers: TraceStepLedgers
+}
+
+// ---------------------------------------------------------------------------
+// TraceRunV2 — top-level trace
+// ---------------------------------------------------------------------------
+
+export interface TraceRunV2 {
+  version: 2
+  runId: string
+  sessionId: string
+  workspaceRoot: string
+  workspaceSlug: string
+  workspaceId: string
+  cwd: string
+  provider: string
+  model: string
+  systemPromptHash: string
+  startedAt: number
+  endedAt: number
+  outcome: { type: string; text?: string; error?: string; reason?: string }
+  usageSummary: {
+    input: number
+    output: number
+    cacheRead: number
+    cacheWrite: number
+    totalTokens: number
+    cost: UsageCostBreakdown
+    llmCalls: number
+  }
+  redactionSummary: RedactionHit[]
+  eventCounts: { providerStream: number; agentEvents: number; lifecycleEvents: number }
+  steps: TraceStepV2[]
+  /** Lifecycle events that occurred outside any assistant turn / step */
+  runLifecycleEvents: LifecycleTraceEvent[]
+}
+
+// ---------------------------------------------------------------------------
+// V1 compat — keep old types as aliases so existing tests compile
 // ---------------------------------------------------------------------------
 
 export interface TraceLLMCall {
@@ -15,14 +144,7 @@ export interface TraceLLMCall {
   provider: string
   stopReason: string
   latencyMs: number
-  usage: {
-    input: number
-    output: number
-    cacheRead: number
-    cacheWrite: number
-    totalTokens: number
-    cost: UsageCostBreakdown
-  }
+  usage: { input: number; output: number; cacheRead: number; cacheWrite: number; totalTokens: number; cost: UsageCostBreakdown }
   timestamp: number
 }
 
@@ -66,16 +188,7 @@ export interface TraceUserInterrupt {
   observedAt: number
 }
 
-export type TraceEvent =
-  | TraceLLMCall
-  | TraceToolExecution
-  | TraceQueueMessage
-  | TraceAskUser
-  | TraceUserInterrupt
-
-// ---------------------------------------------------------------------------
-// TraceStep — one LLM call + its tool executions
-// ---------------------------------------------------------------------------
+export type TraceEvent = TraceLLMCall | TraceToolExecution | TraceQueueMessage | TraceAskUser | TraceUserInterrupt
 
 export interface TraceStep {
   step: number
@@ -83,10 +196,6 @@ export interface TraceStep {
   endedAt: number | null
   events: TraceEvent[]
 }
-
-// ---------------------------------------------------------------------------
-// TraceRun — top-level trace for one runtime.run() burst
-// ---------------------------------------------------------------------------
 
 export interface TraceRun {
   runId: string
@@ -98,15 +207,7 @@ export interface TraceRun {
   endedAt: number
   outcome: { type: string; text?: string; error?: string; reason?: string }
   systemPromptHash: string
-  usageSummary: {
-    input: number
-    output: number
-    cacheRead: number
-    cacheWrite: number
-    totalTokens: number
-    cost: UsageCostBreakdown
-    llmCalls: number
-  }
+  usageSummary: { input: number; output: number; cacheRead: number; cacheWrite: number; totalTokens: number; cost: UsageCostBreakdown; llmCalls: number }
   redactionSummary: RedactionHit[]
   steps: TraceStep[]
 }
