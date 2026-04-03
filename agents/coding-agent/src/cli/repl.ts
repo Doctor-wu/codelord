@@ -178,6 +178,13 @@ export async function startRepl(options: ReplOptions): Promise<void> {
       content: undoMessage,
       timestamp: Date.now(),
     })
+    // Signal timeline that the undo action is complete — back to idle
+    renderer.onLifecycleEvent?.({
+      type: 'session_done',
+      success: true,
+      text: undoMessage,
+      timestamp: Date.now(),
+    })
 
     saveSession()
     return true
