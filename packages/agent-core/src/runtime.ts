@@ -197,7 +197,7 @@ export class AgentRuntime<TApi extends Api = Api> {
    * Safe to call at any time — in-flight states are recorded honestly.
    * Does NOT include API keys or auth secrets.
    */
-  exportSnapshot(meta: { sessionId: string; cwd: string; provider: string; model: string; createdAt?: number }): SessionSnapshot {
+  exportSnapshot(meta: { sessionId: string; cwd: string; provider: string; model: string; createdAt?: number; checkpoints?: import('./checkpoint.js').CheckpointRecord[] }): SessionSnapshot {
     const now = Date.now()
     const isInFlight = this._state === 'STREAMING' || this._state === 'TOOL_EXEC'
     return {
@@ -218,6 +218,7 @@ export class AgentRuntime<TApi extends Api = Api> {
       routeRecords: [...this._routeRecords],
       safetyRecords: [...this._safetyRecords],
       sessionStepCount: this._sessionStepCount,
+      checkpoints: meta.checkpoints ?? [],
     }
   }
 

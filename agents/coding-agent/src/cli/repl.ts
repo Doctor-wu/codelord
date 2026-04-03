@@ -6,6 +6,7 @@ import { createToolKernel } from './tool-kernel.js'
 import { buildSystemPrompt } from './system-prompt.js'
 import { createRenderer } from './run.js'
 import { SessionStore } from '../session-store.js'
+import { CheckpointManager } from '../checkpoint-manager.js'
 
 // ---------------------------------------------------------------------------
 // REPL — interactive shell with Ink as sole stdout owner
@@ -29,11 +30,41 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   const renderer = createRenderer(config)
   const store = new SessionStore()
 
+  // --- Session identity ---
+  let sessionId: string
+  let sessionCreatedAt: number
+  let checkpointManager: CheckpointManager
+
+  // --- Resume or new ---
+  if (resumeSessionId) {
+    const snapshot = store.loadSnapshot(resumeSessionId)
+    if (snapshot) {
+      sessionId = snapshot.sessionId
+      sessionCreatedAt = snapshot.createdAt
+      checkpointManager = new CheckpointManager({
+        cwd,
+        sessionId,
+        stack: snapshot.checkpoints,
+      })
+    } else {
+      sessionId = store.newSessionId()
+      sessionCreatedAt = Date.now()
+      checkpointManager = new CheckpointManager({ cwd, sessionId })
+    }
+  } else {
+    sessionId = store.newSessionId()
+    sessionCreatedAt = Date.now()
+    checkpointManager = new CheckpointManager({ cwd, sessionId })
+  }
+
+  // Wrap mutating handlers with checkpoint protection
+  const wrappedHandlers = checkpointManager.wrapHandlers(toolHandlers)
+
   const runtime = new AgentRuntime({
     model,
     systemPrompt,
     tools,
-    toolHandlers,
+    toolHandlers: wrappedHandlers,
     apiKey,
     maxSteps: config.maxSteps,
     onEvent: (event: AgentEvent) => renderer.onEvent(event),
@@ -42,25 +73,17 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     safetyPolicy,
   })
 
-  // --- Session identity ---
-  let sessionId: string
-  let sessionCreatedAt: number
-
-  // --- Resume or new ---
+  // If resuming, hydrate runtime state
   if (resumeSessionId) {
     const snapshot = store.loadSnapshot(resumeSessionId)
     if (snapshot) {
       const { wasDowngraded, interruptedDuring } = runtime.hydrateFromSnapshot(snapshot)
-      sessionId = snapshot.sessionId
-      sessionCreatedAt = snapshot.createdAt
 
-      // Hydrate timeline for UI continuity
       const timeline = store.loadTimeline(resumeSessionId)
       if (timeline) {
         renderer.hydrateTimeline(timeline)
       }
 
-      // If state was downgraded from in-flight, emit a status event
       if (wasDowngraded && interruptedDuring) {
         renderer.onLifecycleEvent?.({
           type: 'blocked_enter',
@@ -68,15 +91,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
           timestamp: Date.now(),
         })
       }
-    } else {
-      // Snapshot missing — fall through to new session
-      sessionId = store.newSessionId()
-      sessionCreatedAt = Date.now()
     }
-  } else {
-    // Default: always new session
-    sessionId = store.newSessionId()
-    sessionCreatedAt = Date.now()
   }
 
   // --- Persistence helper ---
@@ -87,6 +102,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
       provider: config.provider,
       model: config.model,
       createdAt: sessionCreatedAt,
+      checkpoints: [...checkpointManager.stack],
     })
     const timeline = renderer.captureTimelineSnapshot()
     store.save(snapshot, timeline)
@@ -95,7 +111,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   // Wire up queue: running-time submits go directly to runtime
   renderer.setQueueTarget((text: string) => {
     runtime.enqueueUserMessage(text)
-    saveSession() // queue changed
+    saveSession()
   })
 
   // Helper: create queue info snapshot from runtime
@@ -124,6 +140,49 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     }
   })
 
+  // --- /undo handler ---
+  const handleUndo = (): boolean => {
+    if (checkpointManager.undoCount === 0) {
+      renderer.onLifecycleEvent?.({
+        type: 'session_done',
+        success: false,
+        error: 'Nothing to undo — no checkpoints available.',
+        timestamp: Date.now(),
+      })
+      return true
+    }
+
+    const last = checkpointManager.stack[checkpointManager.stack.length - 1]
+    if (!last.canUndo) {
+      renderer.onLifecycleEvent?.({
+        type: 'session_done',
+        success: false,
+        error: `Cannot undo: ${last.limitations.join('; ') || 'checkpoint marked as non-reversible'}.`,
+        timestamp: Date.now(),
+      })
+      return true
+    }
+
+    const result = checkpointManager.undo()
+    if (!result) return true
+
+    const fileList = result.restoredFiles.map(f => `  - ${f}`).join('\n')
+    const undoMessage = `[UNDO] Reverted ${result.restoredFiles.length} file(s) from checkpoint ${result.record.checkpointId.slice(0, 8)}:\n${fileList}\n\nThe file changes from the previous agent turn have been undone. The files listed above have been restored to their state before that turn.`
+
+    // Push directly into message history (not queue) so the agent sees it
+    // on the next turn, but we don't trigger a run or leave orphaned queue items.
+    runtime.messages.push({ role: 'user', content: undoMessage, timestamp: Date.now() })
+    renderer.onLifecycleEvent?.({
+      type: 'user_turn',
+      id: `undo-${Date.now()}`,
+      content: undoMessage,
+      timestamp: Date.now(),
+    })
+
+    saveSession()
+    return true
+  }
+
   // --- Main REPL loop ---
   while (true) {
     renderer.setRunning(false, queueInfo())
@@ -135,6 +194,21 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     if (!trimmed) continue
     if (trimmed === '/exit') break
 
+    // --- Control commands (not queued, not sent to runtime) ---
+    if (trimmed === '/undo') {
+      if (running) {
+        renderer.onLifecycleEvent?.({
+          type: 'session_done',
+          success: false,
+          error: 'Cannot /undo while agent is running. Press Ctrl+C to interrupt first.',
+          timestamp: Date.now(),
+        })
+        continue
+      }
+      handleUndo()
+      continue
+    }
+
     // --- Inject input into runtime ---
     renderer.setRunning(true, queueInfo())
 
@@ -144,9 +218,10 @@ export async function startRepl(options: ReplOptions): Promise<void> {
       runtime.enqueueUserMessage(line)
     }
 
-    saveSession() // input entered
+    saveSession()
 
     // --- Drive runtime ---
+    checkpointManager.beginBurst()
     running = true
     try {
       await runtime.run()
@@ -154,12 +229,14 @@ export async function startRepl(options: ReplOptions): Promise<void> {
       // Errors are already emitted as lifecycle events
     }
     running = false
+    checkpointManager.endBurst()
 
-    saveSession() // burst completed
+    saveSession()
 
     // If runtime has pending inbound (queued during this run), re-run
     while (runtime.pendingInboundCount > 0) {
       renderer.setRunning(true, queueInfo())
+      checkpointManager.beginBurst()
       running = true
       try {
         await runtime.run()
@@ -167,11 +244,12 @@ export async function startRepl(options: ReplOptions): Promise<void> {
         // handled by lifecycle events
       }
       running = false
-      saveSession() // burst completed
+      checkpointManager.endBurst()
+      saveSession()
     }
   }
 
-  saveSession() // save on clean exit
+  saveSession()
   renderer.cleanup()
   printResumeHint()
 }

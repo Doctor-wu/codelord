@@ -32,6 +32,7 @@ function makeSnapshot(overrides: Partial<SessionSnapshot> = {}): SessionSnapshot
     routeRecords: [],
     safetyRecords: [],
     sessionStepCount: 1,
+    checkpoints: [],
     ...overrides,
   }
 }

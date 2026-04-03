@@ -264,6 +264,7 @@ describe('Session snapshot: in-flight state handling', () => {
       routeRecords: [],
       safetyRecords: [],
       sessionStepCount: 1,
+      checkpoints: [],
     }
 
     const { state, wasDowngraded, interruptedDuring } = resolveResumeState(snapshot)
@@ -303,6 +304,7 @@ describe('Session snapshot: in-flight state handling', () => {
       routeRecords: [],
       safetyRecords: [],
       sessionStepCount: 3,
+      checkpoints: [],
     }
 
     const rt = createRuntime()
@@ -362,6 +364,7 @@ describe('toSessionMeta', () => {
       routeRecords: [],
       safetyRecords: [],
       sessionStepCount: 5,
+      checkpoints: [],
     }
 
     const meta = toSessionMeta(snapshot)
@@ -397,6 +400,7 @@ describe('resolveResumeState', () => {
     routeRecords: [],
     safetyRecords: [],
     sessionStepCount: 0,
+    checkpoints: [],
   }
 
   it.each([

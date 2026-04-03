@@ -7,6 +7,7 @@ import type { RuntimeState, RunOutcome } from './runtime.js'
 import type { PendingQuestion, ResolvedQuestion } from './tools/ask-user.js'
 import type { ToolRouteDecision } from './tool-router.js'
 import type { ToolSafetyDecision } from './tool-safety.js'
+import type { CheckpointRecord } from './checkpoint.js'
 
 // ---------------------------------------------------------------------------
 // Core snapshot — everything needed to resume a session
@@ -58,6 +59,9 @@ export interface SessionSnapshot {
 
   // --- Counters ---
   sessionStepCount: number
+
+  // --- Checkpoint stack ---
+  checkpoints: CheckpointRecord[]
 }
 
 // ---------------------------------------------------------------------------
