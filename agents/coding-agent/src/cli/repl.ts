@@ -8,7 +8,8 @@ import { createRenderer } from './run.js'
 import { SessionStore } from '../session-store.js'
 import { CheckpointManager } from '../checkpoint-manager.js'
 import { TraceRecorder } from '../trace-recorder.js'
-import { TraceStore } from '../trace-store.js'
+import { TraceStore, workspaceSlug, workspaceId } from '../trace-store.js'
+import { reconcileTimelineForResume } from '../renderer/ink/timeline-projection.js'
 
 // ---------------------------------------------------------------------------
 // REPL — interactive shell with Ink as sole stdout owner
@@ -64,12 +65,23 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 
   // --- Trace infrastructure ---
   const traceStore = new TraceStore()
+  const wsSlug = workspaceSlug(cwd)
+  const wsId = workspaceId(cwd)
   let activeRecorder: TraceRecorder | null = null
+
+  const newRecorder = () => new TraceRecorder({
+    sessionId, cwd, workspaceRoot: cwd, workspaceSlug: wsSlug, workspaceId: wsId,
+    provider: config.provider, model: config.model, systemPrompt,
+  })
 
   // Fan-out lifecycle events to renderer + active trace recorder
   const fanOutLifecycle = (event: LifecycleEvent) => {
     renderer.onLifecycleEvent?.(event)
     activeRecorder?.onLifecycleEvent(event)
+    // When queue is drained inside runtime, push fresh queue info to UI immediately
+    if (event.type === 'queue_drained') {
+      renderer.setRunning(true, queueInfo())
+    }
   }
 
   const runtime = new AgentRuntime({
@@ -79,31 +91,37 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     toolHandlers: wrappedHandlers,
     apiKey,
     maxSteps: config.maxSteps,
-    onEvent: (event: AgentEvent) => renderer.onEvent(event),
+    onEvent: (event: AgentEvent) => {
+      renderer.onEvent(event)
+      activeRecorder?.onAgentEvent(event)
+    },
     onLifecycleEvent: fanOutLifecycle,
+    onProviderStreamEvent: (event) => activeRecorder?.onProviderStreamEvent(event),
     router,
     safetyPolicy,
     sessionId,
   })
 
-  // If resuming, hydrate runtime state
+  // If resuming, hydrate runtime state and reconcile timeline
   if (resumeSessionId) {
     const snapshot = store.loadSnapshot(resumeSessionId)
     if (snapshot) {
       const { wasDowngraded, interruptedDuring } = runtime.hydrateFromSnapshot(snapshot)
 
-      const timeline = store.loadTimeline(resumeSessionId)
-      if (timeline) {
-        renderer.hydrateTimeline(timeline)
-      }
-
-      if (wasDowngraded && interruptedDuring) {
-        renderer.onLifecycleEvent?.({
-          type: 'blocked_enter',
-          reason: 'interrupted',
-          timestamp: Date.now(),
-        })
-      }
+      // Reconcile timeline: runtime snapshot is truth, timeline is UI cache
+      const timelineCache = store.loadTimeline(resumeSessionId)
+      const reconciledTimeline = reconcileTimelineForResume(timelineCache, {
+        snapshot,
+        wasDowngraded,
+        interruptedDuring,
+      })
+      renderer.hydrateTimeline({
+        items: reconciledTimeline.items,
+        startTime: reconciledTimeline.startTime,
+        _nextId: reconciledTimeline._nextId,
+        usage: reconciledTimeline.usage,
+        stepCount: reconciledTimeline.stepCount,
+      })
     }
   }
 
@@ -124,6 +142,8 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   // Wire up queue: running-time submits go directly to runtime
   renderer.setQueueTarget((text: string) => {
     runtime.enqueueUserMessage(text)
+    // Push updated queue info back to renderer so UI reflects the new queue state
+    renderer.setRunning(true, queueInfo())
     saveSession()
   })
 
@@ -242,9 +262,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     saveSession()
 
     // --- Drive runtime ---
-    activeRecorder = new TraceRecorder({
-      sessionId, cwd, provider: config.provider, model: config.model, systemPrompt,
-    })
+    activeRecorder = newRecorder()
     checkpointManager.beginBurst()
     running = true
     let outcome: import('@agent/core').RunOutcome
@@ -265,9 +283,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     // If runtime has pending inbound (queued during this run), re-run
     while (runtime.pendingInboundCount > 0) {
       renderer.setRunning(true, queueInfo())
-      activeRecorder = new TraceRecorder({
-        sessionId, cwd, provider: config.provider, model: config.model, systemPrompt,
-      })
+      activeRecorder = newRecorder()
       checkpointManager.beginBurst()
       running = true
       let rerunOutcome: import('@agent/core').RunOutcome

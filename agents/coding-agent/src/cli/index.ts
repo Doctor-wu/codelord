@@ -7,6 +7,8 @@ import { resolveModel } from './run.js'
 import { startRepl } from './repl.js'
 import { resolveApiKey } from '../auth/index.js'
 import { SessionStore } from '../session-store.js'
+import { TraceStore, workspaceId, formatTraceList, formatTraceShow } from '../trace-store.js'
+import { checkTrace, formatCheckResult } from '@agent/core'
 
 interface CliFlags {
   model?: string
@@ -112,7 +114,98 @@ function createCli() {
   return cli
 }
 
+// ---------------------------------------------------------------------------
+// Trace subcommand handler (bypasses cac — it can't do multi-word commands)
+// ---------------------------------------------------------------------------
+
+function handleTraceCommand(args: string[]): void {
+  const positional = args.filter(a => !a.startsWith('-'))
+  const flags = new Set(args.filter(a => a.startsWith('-')))
+  const sub = positional[0] ?? 'list'
+
+  if (sub === 'list') {
+    const store = new TraceStore()
+    const all = flags.has('--all')
+    const limitIdx = args.indexOf('--limit')
+    const limit = limitIdx >= 0 && args[limitIdx + 1] ? Number(args[limitIdx + 1]) : 20
+    const wsId = all ? undefined : workspaceId(process.cwd())
+    console.log(formatTraceList(store.list({ workspaceId: wsId, limit })))
+  } else if (sub === 'show') {
+    const runId = positional[1]
+    if (!runId) {
+      console.error('Usage: codelord trace show <runId>')
+      process.exitCode = 1
+      return
+    }
+    const store = new TraceStore()
+    const result = store.findByPrefix(runId)
+    switch (result.type) {
+      case 'exact':
+      case 'unique':
+        console.log(formatTraceShow(result.trace))
+        break
+      case 'ambiguous': {
+        console.error(`Trace id prefix is ambiguous: ${runId}`)
+        console.error('Candidates:')
+        for (const c of result.candidates) {
+          console.error(`  ${c.runId}  ${new Date(c.startedAt).toLocaleString()}  ${c.outcome}  ${c.workspaceSlug}`)
+        }
+        process.exitCode = 1
+        break
+      }
+      case 'not_found':
+        console.error(`Trace not found: ${runId}`)
+        process.exitCode = 1
+        break
+    }
+  } else if (sub === 'check') {
+    const runId = positional[1]
+    if (!runId) {
+      console.error('Usage: codelord trace check <runId>')
+      process.exitCode = 1
+      return
+    }
+    const store = new TraceStore()
+    const result = store.findByPrefix(runId)
+    switch (result.type) {
+      case 'exact':
+      case 'unique': {
+        const checkResult = checkTrace(result.trace)
+        console.log(formatCheckResult(checkResult, result.trace.runId))
+        if (!checkResult.passed) process.exitCode = 1
+        break
+      }
+      case 'ambiguous':
+        console.error(`Trace id prefix is ambiguous: ${runId}`)
+        console.error('Candidates:')
+        for (const c of result.candidates) {
+          console.error(`  ${c.runId}  ${new Date(c.startedAt).toLocaleString()}  ${c.outcome}  ${c.workspaceSlug}`)
+        }
+        process.exitCode = 1
+        break
+      case 'not_found':
+        console.error(`Trace not found: ${runId}`)
+        process.exitCode = 1
+        break
+    }
+  } else {
+    console.error(`Unknown trace subcommand: ${sub}\nUsage: codelord trace list [--all] [--limit N]\n       codelord trace show <runId>\n       codelord trace check <runId>`)
+    process.exitCode = 1
+  }
+}
+
+// Exported for testing
+export { handleTraceCommand }
+
 export async function runCli(argv = process.argv): Promise<void> {
+  // --- Handle trace subcommands before cac parsing ---
+  // cac doesn't support multi-word commands well, so we intercept here.
+  const rawArgs = argv.slice(2) // strip 'node' and script path
+  if (rawArgs[0] === 'trace') {
+    handleTraceCommand(rawArgs.slice(1))
+    return
+  }
+
   const cli = createCli()
   cli.parse(argv, { run: false })
 

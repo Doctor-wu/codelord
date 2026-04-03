@@ -23,6 +23,7 @@ import { createToolCallLifecycle, createReasoningState, projectDisplayReason, cr
 import type { AssistantReasoningState, UsageAggregate } from './events.js'
 import type { SessionSnapshot } from './session-snapshot.js'
 import { resolveResumeState } from './session-snapshot.js'
+import type { ProviderStreamTraceEvent } from './trace.js'
 
 // ---------------------------------------------------------------------------
 // Runtime state — current control phase of the runtime
@@ -109,6 +110,8 @@ export interface RuntimeOptions<TApi extends Api = Api> {
   sessionId?: string
   /** Cache retention preference. Defaults to 'short' if sessionId is set. */
   cacheRetention?: CacheRetention
+  /** Hook for provider stream events — used by trace recorder, does not affect runtime behavior */
+  onProviderStreamEvent?: (event: ProviderStreamTraceEvent) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -149,6 +152,7 @@ export class AgentRuntime<TApi extends Api = Api> {
   private readonly safetyPolicy: ToolSafetyPolicy
   private readonly _sessionId: string | undefined
   private readonly _cacheRetention: CacheRetention | undefined
+  private readonly emitProviderStream: ((event: ProviderStreamTraceEvent) => void) | undefined
 
   // --- Usage telemetry (observability side-channel) ---
   private _usageAggregate: UsageAggregate = createUsageAggregate()
@@ -173,6 +177,7 @@ export class AgentRuntime<TApi extends Api = Api> {
     this.safetyPolicy = options.safetyPolicy ?? new ToolSafetyPolicy()
     this._sessionId = options.sessionId
     this._cacheRetention = options.cacheRetention
+    this.emitProviderStream = options.onProviderStreamEvent
   }
 
   // --- Public accessors ---
@@ -294,7 +299,6 @@ export class AgentRuntime<TApi extends Api = Api> {
    */
   enqueueUserMessage(content: string): void {
     this.enqueue({ role: 'user', content, timestamp: Date.now() })
-    this.emitLifecycle({ type: 'user_turn', id: `user-${Date.now()}`, content, timestamp: Date.now() })
   }
 
   // --- Interrupt control ---
@@ -374,6 +378,14 @@ export class AgentRuntime<TApi extends Api = Api> {
     const injectedAt = Date.now()
     this.messages.push(...drained)
     this._pendingInbound = []
+    // Merge all user messages into a single user_turn
+    const userParts = drained
+      .filter(m => m.role === 'user' && typeof m.content === 'string')
+      .map(m => m.content as string)
+    if (userParts.length > 0) {
+      const merged = userParts.join('\n')
+      this.emitLifecycle({ type: 'user_turn', id: `user-${injectedAt}`, content: merged, timestamp: injectedAt })
+    }
     this.emitLifecycle({
       type: 'queue_drained',
       count: drained.length,
@@ -508,9 +520,63 @@ export class AgentRuntime<TApi extends Api = Api> {
       const toolCalls: ToolCall[] = []
       this._partial = { textChunks: [], toolCalls: [] }
       let streamAborted = false
+      let providerEventSeq = 0
 
       try {
         for await (const event of eventStream) {
+          // --- Provider stream trace hook (read-only tap) ---
+          if (this.emitProviderStream) {
+            providerEventSeq++
+            const base = {
+              eventId: providerEventSeq,
+              seq: 0, // assigned by recorder
+              type: event.type,
+              timestamp: Date.now(),
+              step: this._burstStepCount,
+              turnId: this._assistantTurnId,
+              source: 'provider_stream' as const,
+              contentIndex: null as number | null,
+              toolCallId: null as string | null,
+              toolName: null as string | null,
+              deltaPreview: null as string | null,
+              contentPreview: null as string | null,
+              argsPreview: null as string | null,
+              stopReason: null as string | null,
+            }
+            switch (event.type) {
+              case 'thinking_start': case 'text_start':
+                base.contentIndex = event.contentIndex; break
+              case 'thinking_delta':
+                base.contentIndex = event.contentIndex
+                base.deltaPreview = event.delta.slice(0, 300); break
+              case 'thinking_end':
+                base.contentIndex = event.contentIndex
+                base.contentPreview = event.content.slice(0, 300); break
+              case 'text_delta':
+                base.contentIndex = event.contentIndex
+                base.deltaPreview = event.delta.slice(0, 300); break
+              case 'text_end':
+                base.contentIndex = event.contentIndex
+                base.contentPreview = event.content.slice(0, 300); break
+              case 'toolcall_start': case 'toolcall_delta': {
+                base.contentIndex = event.contentIndex
+                const pc = event.partial.content[event.contentIndex]
+                if (pc?.type === 'toolCall') { base.toolName = pc.name; base.argsPreview = JSON.stringify(pc.arguments ?? {}).slice(0, 300) }
+                break
+              }
+              case 'toolcall_end':
+                base.contentIndex = event.contentIndex
+                base.toolCallId = event.toolCall.id
+                base.toolName = event.toolCall.name
+                base.argsPreview = JSON.stringify(event.toolCall.arguments).slice(0, 300); break
+              case 'done':
+                base.stopReason = event.reason; break
+              case 'error':
+                base.stopReason = event.reason; break
+            }
+            this.emitProviderStream(base)
+          }
+
           switch (event.type) {
             case 'thinking_start':
               this.emit({ type: 'thinking_start', contentIndex: event.contentIndex })

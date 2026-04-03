@@ -46,7 +46,7 @@ describe('Event Spine — lifecycle events from runtime', () => {
     streamSimpleMock.mockReset()
   })
 
-  it('emits user_turn when enqueueUserMessage is called', () => {
+  it('emits user_turn when pending messages are drained during run()', async () => {
     const lifecycleEvents: LifecycleEvent[] = []
     const rt = new AgentRuntime({
       model: { id: 'test' } as never,
@@ -59,10 +59,17 @@ describe('Event Spine — lifecycle events from runtime', () => {
 
     rt.enqueueUserMessage('hello')
 
-    expect(lifecycleEvents).toHaveLength(1)
-    expect(lifecycleEvents[0]!.type).toBe('user_turn')
-    if (lifecycleEvents[0]!.type === 'user_turn') {
-      expect(lifecycleEvents[0]!.content).toBe('hello')
+    // user_turn is NOT emitted on enqueue — only when drained during run()
+    expect(lifecycleEvents.filter(e => e.type === 'user_turn')).toHaveLength(0)
+
+    const msg = makeAssistantMessage({ content: [{ type: 'text', text: 'hi' }] })
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg }], msg))
+    await rt.run()
+
+    const userTurns = lifecycleEvents.filter(e => e.type === 'user_turn')
+    expect(userTurns).toHaveLength(1)
+    if (userTurns[0]!.type === 'user_turn') {
+      expect(userTurns[0]!.content).toBe('hello')
     }
   })
 
