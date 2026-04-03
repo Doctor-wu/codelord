@@ -134,6 +134,73 @@ M8   安全加固            ──→ 生产级安全体系
 M9   多体协作            ──→ Multi-Agent
 ```
 
+## 能力成熟度衔接（V1 → V2）
+
+> 下面这些条目不是新的大 milestone，而是已经落地的 V1 能力在后续必须完成的收口路径。
+> 这样后面换 session 时，不会出现“这个先做一点、那个先做一点”最后没人记得怎么收尾的情况。
+
+### Session Persistence：V1 → V2
+
+- [x] **V1 已完成：** session snapshot / timeline snapshot / 显式 `--resume <id>` / `--resume latest`
+- [ ] **V2 要补：** queue / waiting_user / in-flight interrupted 的恢复 UX 收口
+- [ ] **V2 要补：** session metadata（git branch / 标题 / 摘要 / 最后活跃状态）
+- [ ] **V2 要补：** `sessions show/prune` 等最小管理闭环
+- [ ] **V2 要补：** 恢复后第一屏的“你现在恢复到了什么状态”提示，不让用户自己猜
+
+### Undo / Rollback：V1 → V2
+
+- [x] **V1 已完成：** `file_write` / `file_edit` 的 lazy checkpoint + `/undo`
+- [ ] **V2 要补：** undo 语义从 `[UNDO] user message` 升级为显式 control / lifecycle event
+- [ ] **V2 要补：** git-aware checkpoint（在 git repo 内用更强但不污染工作区的保护策略）
+- [ ] **V2 要补：** 更强的 bash mutation 回滚边界与限制说明
+- [ ] **V2 要补：** checkpoint 自动清理 / 过期策略 / trace 对齐
+
+### Reasoning：V1 → V2
+
+- [x] **V1 已完成：** `AssistantReasoningState` / `rawThoughtText` / visible reasoning lane
+- [ ] **V2 要补：** 从 raw thought 稳定提取 `intent / why / expectedObservation / uncertainty / risk`
+- [ ] **V2 要补：** tool reason / blocked reason 与 reasoning state 的高质量投影
+- [ ] **V2 要补：** reasoning quality eval 与 trace 可观测性
+- [ ] **V2 要补：** 判断哪些 reasoning 该给用户看，哪些只留给系统
+
+### Tool Router：V1 → V2
+
+- [x] **V1 已完成：** obvious bash misuse → built-in 的保守路由
+- [ ] **V2 要补：** 基于任务语义的确定性主路径路由（已知路径读 / 未知位置搜 / 精确编辑 / 新建文件）
+- [ ] **V2 要补：** route quality 指标、trace 对齐、可解释 fallback
+- [ ] **V2 要补：** contracts 与 router 的更紧密联动，而不是继续分离演进
+
+### Safety Policy：V1 → V2
+
+- [x] **V1 已完成：** `safe / write / dangerous / control` + 敏感路径保护 + 高危 bash 拦截
+- [ ] **V2 要补：** approval UX / 人类确认流
+- [ ] **V2 要补：** loop/stuck detection 与 human intervention 升级策略
+- [ ] **V2 要补：** prompt injection / external content 防御
+- [ ] **V2 要补：** safety 与 trace / eval 的系统化联动
+
+### Operator Console：V1 → V2
+
+- [x] **V1 已完成：** timeline shell / visible reasoning lane / tool batch / queue input / operator console 初版
+- [ ] **V2 要补：** semantic color discipline 全面收口与更成熟的设计 token 体系
+- [ ] **V2 要补：** tool batch 的 progressive disclosure、展开/折叠、live tail 体验
+- [ ] **V2 要补：** queue 可见性、编辑/撤回、输入历史与自动补全
+- [ ] **V2 要补：** 最终 art direction 与更稳定的 operator-console 语言
+
+### Observability：V1 → V2
+
+- [ ] **V1 下一步：** token accounting + prompt caching + cost breakdown
+- [ ] **V1 下一步：** 结构化 trace 与 secret redaction 基线
+- [ ] **V2 要补：** trace-native replay / viewer / run comparison
+- [ ] **V2 要补：** eval 与 observability 的统一实验面板
+
+### 推荐顺序（从当前继续）
+
+- [ ] 1. `prompt caching + token accounting`
+- [ ] 2. `trace + secret redaction` 基线
+- [ ] 3. session / queue / waiting_user 的恢复 UX 收口
+- [ ] 4. undo v2（control event / git-aware checkpoint）
+- [ ] 5. operator console v2（更高级的交互与视觉收口）
+
 ## ~~M0 — 骨架~~ ✅ 已完成
 
 > 把原型代码重构为可分发的生产级架构。
@@ -236,17 +303,24 @@ M9   多体协作            ──→ Multi-Agent
 
 ### 会话持久化
 
-- [ ] 会话历史序列化到磁盘（`~/.codelord/sessions/`），退出 REPL 后可恢复
-- [ ] `codelord` 启动时检测上次未完成的会话，提示是否恢复
-- [ ] `codelord --new` 强制开启新会话
-- [ ] 会话元数据：cwd、git branch、开始时间、最后活跃时间
+- [x] 会话快照已落盘到本地（runtime snapshot + timeline snapshot）
+- [x] `messages / pendingInbound / pendingQuestion / resolvedQuestions / lastOutcome / routeRecords / safetyRecords` 已可持久化与恢复
+- [x] 默认启动已改为新会话；`--new` 已移除，不再承担主语义
+- [x] 非安全状态（`STREAMING / TOOL_EXEC`）恢复时会诚实降级为 `READY`，并显式提示上次执行被中断
+- [x] **session product semantics 收口**：默认 `new`，恢复改为显式 `--resume <id>` / `--resume latest`
+- [x] 最小 session 管理入口：`sessions` / `--resume latest` / `--resume <id>`
+- [ ] 恢复后的 queue / waiting_user / in-flight 中断 UX 继续打磨
+- [ ] 会话元数据继续补齐：git branch、标题、摘要、最后活跃状态
 
 ### Undo / Rollback
 
-- [ ] 每次 agent run 开始前自动创建 git checkpoint（如果在 git repo 内）
-- [ ] `/undo` REPL 命令：回滚到上一个 checkpoint
-- [ ] 非 git 目录的 fallback：备份被修改的文件到 `~/.codelord/checkpoints/`
-- [ ] Checkpoint 信息记入 trace
+- [x] mutating burst 的 lazy checkpoint 已建立（首次 `file_write` / `file_edit` 前建 checkpoint）
+- [x] `/undo` REPL 命令：回滚最近一个可 undo 的 checkpoint
+- [x] 当前 v1 的可靠回滚范围：`file_write` / `file_edit`
+- [x] checkpoint stack 已进入 session snapshot，resume 后 `/undo` 仍可用
+- [x] undo 后会向 session 注入明确的语义修正事实（避免 agent 继续基于旧文件状态推理）
+- [ ] git-aware checkpoint / 更强的 bash mutation 回滚留到下一步
+- [ ] Checkpoint 信息与 undo 事件进一步接入 trace
 
 ### 基础安全网
 
@@ -280,7 +354,7 @@ M9   多体协作            ──→ Multi-Agent
 > - **会话持久化和 undo 是心理安全网。** 没有它们，你会不自觉地只给 agent 小任务，不敢真的 dogfood。
 > - **system prompt token 占比是隐藏约束。** 现在先记基线，后面 skill / memory / context assembler 一上来就会膨胀。
 >
-> **✅ 当前状态：** M1 的 runtime / tools / contracts / router / safety 骨架已立，REPL 已跑通；剩余核心缺口是会话持久化、undo、trace，以及产品级 UX shell。
+> **✅ 当前状态：** M1 的 runtime / tools / contracts / router / safety 骨架已立，REPL 已跑通，会话快照也已经落地；剩余核心缺口转向 **session product semantics**（默认 new vs 显式 resume）、`undo/checkpoint`、`trace/cost/prompt caching`，以及 operator-console 级 UX 收口。
 
 ---
 
@@ -400,7 +474,7 @@ M9   多体协作            ──→ Multi-Agent
 ### M3a — Eval 基础设施
 
 - [ ] 定义 eval case 格式：`{ id, description, setup, input, expected, tools, maxSteps, judge }`
-- [ ] 实现 eval runner：headless 运行 agent，复用 PlainTextRenderer 和 trace 管线
+- [ ] 实现 eval runner：headless 运行 agent，复用 trace-native / event-native 输出管线（不再依赖 `PlainTextRenderer`）
 - [ ] 每次 eval run 产出：结果、trace、prompt version、model version、active config
 - [ ] 支持 fixture 项目初始化 / 清理 / 隔离运行
 - [ ] `codelord eval run` 基础可用
