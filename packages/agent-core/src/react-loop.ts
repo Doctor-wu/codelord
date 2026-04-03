@@ -9,6 +9,8 @@ import type {
 import { AgentRuntime } from './runtime.js'
 import type { PendingQuestion } from './tools/ask-user.js'
 import type { ToolRouter } from './tool-router.js'
+import type { RiskLevel } from './tool-safety.js'
+import type { ToolSafetyPolicy } from './tool-safety.js'
 
 // ---------------------------------------------------------------------------
 // Tool handler registry (kept here for backward compat exports)
@@ -45,6 +47,7 @@ export type AgentEvent =
   | { type: 'toolcall_delta'; contentIndex: number; toolName: string; args: Record<string, unknown> }
   | { type: 'toolcall_end'; toolCall: ToolCall }
   | { type: 'tool_routed'; ruleId: string; originalToolName: string; originalArgs: Record<string, unknown>; resolvedToolName: string; resolvedArgs: Record<string, unknown>; reason: string }
+  | { type: 'tool_safety_checked'; toolName: string; riskLevel: RiskLevel; allowed: boolean; ruleId: string; reason: string }
   | { type: 'tool_exec_start'; toolName: string; args: Record<string, unknown> }
   | { type: 'tool_output_delta'; toolName: string; stream: 'stdout' | 'stderr'; chunk: string }
   | { type: 'tool_result'; toolName: string; result: string; isError: boolean }
@@ -87,6 +90,7 @@ export interface RunAgentOptions<TApi extends Api = Api> {
   streamOptions?: Omit<SimpleStreamOptions, 'apiKey'>
   onEvent?: (event: AgentEvent) => void
   router?: ToolRouter
+  safetyPolicy?: ToolSafetyPolicy
 }
 
 // ---------------------------------------------------------------------------
@@ -107,6 +111,7 @@ export async function runAgent<TApi extends Api = Api>(
     streamOptions,
     onEvent,
     router,
+    safetyPolicy,
   } = options
 
   const runtime = new AgentRuntime({
@@ -119,6 +124,7 @@ export async function runAgent<TApi extends Api = Api>(
     streamOptions,
     onEvent,
     router,
+    safetyPolicy,
   })
 
   // Inject the initial user message

@@ -24,6 +24,9 @@ export type {
 export { ToolRouter } from './tool-router.js'
 export type { ToolRouteDecision } from './tool-router.js'
 
+export { ToolSafetyPolicy } from './tool-safety.js'
+export type { RiskLevel, ToolSafetyDecision } from './tool-safety.js'
+
 export { bashTool, createBashToolHandler, bashContract } from './tools/bash.js'
 export type { BashToolOptions } from './tools/bash.js'
 

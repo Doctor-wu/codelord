@@ -14,6 +14,7 @@ import {
   createLsHandler,
   builtinContracts,
   ToolRouter,
+  ToolSafetyPolicy,
 } from '@agent/core'
 import type { ToolHandler, ToolContract } from '@agent/core'
 import type { CodelordConfig } from '@agent/config'
@@ -27,6 +28,7 @@ export interface ToolKernel {
   toolHandlers: Map<string, ToolHandler>
   contracts: readonly ToolContract[]
   router: ToolRouter
+  safetyPolicy: ToolSafetyPolicy
 }
 
 export interface ToolKernelOptions {
@@ -65,6 +67,7 @@ export function createToolKernel(options: ToolKernelOptions): ToolKernel {
   ])
 
   const router = new ToolRouter()
+  const safetyPolicy = new ToolSafetyPolicy({ cwd })
 
-  return { tools, toolHandlers, contracts: builtinContracts, router }
+  return { tools, toolHandlers, contracts: builtinContracts, router, safetyPolicy }
 }

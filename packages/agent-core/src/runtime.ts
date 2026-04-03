@@ -15,6 +15,8 @@ import { ASK_USER_QUESTION_TOOL_NAME, askUserQuestionTool } from './tools/ask-us
 import type { PendingQuestion, ResolvedQuestion } from './tools/ask-user.js'
 import type { ToolRouteDecision } from './tool-router.js'
 import { ToolRouter } from './tool-router.js'
+import type { ToolSafetyDecision } from './tool-safety.js'
+import { ToolSafetyPolicy } from './tool-safety.js'
 
 // ---------------------------------------------------------------------------
 // Runtime state — current control phase of the runtime
@@ -95,6 +97,7 @@ export interface RuntimeOptions<TApi extends Api = Api> {
   streamOptions?: Omit<SimpleStreamOptions, 'apiKey'>
   onEvent?: (event: AgentEvent) => void
   router?: ToolRouter
+  safetyPolicy?: ToolSafetyPolicy
 }
 
 // ---------------------------------------------------------------------------
@@ -128,9 +131,13 @@ export class AgentRuntime<TApi extends Api = Api> {
   private readonly streamOptions?: Omit<SimpleStreamOptions, 'apiKey'>
   private readonly emit: (event: AgentEvent) => void
   private readonly router: ToolRouter
+  private readonly safetyPolicy: ToolSafetyPolicy
 
   // --- Route records (observability side-channel) ---
   private readonly _routeRecords: ToolRouteDecision[] = []
+
+  // --- Safety records (observability side-channel) ---
+  private readonly _safetyRecords: ToolSafetyDecision[] = []
 
   constructor(options: RuntimeOptions<TApi>) {
     this.model = options.model
@@ -142,6 +149,7 @@ export class AgentRuntime<TApi extends Api = Api> {
     this.streamOptions = options.streamOptions
     this.emit = options.onEvent ?? (() => {})
     this.router = options.router ?? new ToolRouter()
+    this.safetyPolicy = options.safetyPolicy ?? new ToolSafetyPolicy()
   }
 
   // --- Public accessors ---
@@ -160,6 +168,8 @@ export class AgentRuntime<TApi extends Api = Api> {
   get lastOutcome(): RunOutcome | null { return this._lastOutcome }
   /** Route decisions made during this session (observability side-channel) */
   get routeRecords(): readonly ToolRouteDecision[] { return this._routeRecords }
+  /** Safety decisions made during this session (observability side-channel) */
+  get safetyRecords(): readonly ToolSafetyDecision[] { return this._safetyRecords }
 
   // --- Inbound message injection ---
 
@@ -494,27 +504,46 @@ export class AgentRuntime<TApi extends Api = Api> {
           const execToolName = decision.resolvedToolName
           const execArgs = decision.resolvedArgs
 
-          this.emit({ type: 'tool_exec_start', toolName: execToolName, args: execArgs })
+          // --- Safety gate: assess after routing, before execution ---
+          const safetyDecision = this.safetyPolicy.assess(execToolName, execArgs)
+          this._safetyRecords.push(safetyDecision)
+          this.emit({
+            type: 'tool_safety_checked',
+            toolName: execToolName,
+            riskLevel: safetyDecision.riskLevel,
+            allowed: safetyDecision.allowed,
+            ruleId: safetyDecision.ruleId,
+            reason: safetyDecision.reason,
+          })
 
-          const handler = this.toolHandlers.get(execToolName)
           let resultText: string
           let isError: boolean
 
-          if (!handler) {
-            resultText = `Error: no handler registered for tool "${execToolName}"`
+          if (safetyDecision.wasBlocked) {
+            // Dangerous — do NOT call handler, return structured failure
+            resultText = `ERROR [RISK_BLOCKED]: Operation blocked by safety policy. Risk level: ${safetyDecision.riskLevel}. Rule: ${safetyDecision.ruleId}. Reason: ${safetyDecision.reason}. Please use a safer approach.`
             isError = true
           } else {
-            try {
-              const result = await handler(execArgs, {
-                emitOutput: (stream, chunk) => {
-                  this.emit({ type: 'tool_output_delta', toolName: execToolName, stream, chunk })
-                },
-              })
-              resultText = result.output
-              isError = result.isError
-            } catch (e) {
-              resultText = `Error executing tool "${execToolName}": ${e instanceof Error ? e.message : String(e)}`
+            this.emit({ type: 'tool_exec_start', toolName: execToolName, args: execArgs })
+
+            const handler = this.toolHandlers.get(execToolName)
+
+            if (!handler) {
+              resultText = `Error: no handler registered for tool "${execToolName}"`
               isError = true
+            } else {
+              try {
+                const result = await handler(execArgs, {
+                  emitOutput: (stream, chunk) => {
+                    this.emit({ type: 'tool_output_delta', toolName: execToolName, stream, chunk })
+                  },
+                })
+                resultText = result.output
+                isError = result.isError
+              } catch (e) {
+                resultText = `Error executing tool "${execToolName}": ${e instanceof Error ? e.message : String(e)}`
+                isError = true
+              }
             }
           }
 

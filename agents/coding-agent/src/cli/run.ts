@@ -57,7 +57,7 @@ export async function runAgentCommand(
     const apiKey = await resolveApiKey(config)
 
     const cwd = process.cwd()
-    const { tools, toolHandlers, contracts, router } = createToolKernel({ cwd, config })
+    const { tools, toolHandlers, contracts, router, safetyPolicy } = createToolKernel({ cwd, config })
     const systemPrompt = buildSystemPrompt({ cwd, contracts })
 
     await runAgent({
@@ -70,6 +70,7 @@ export async function runAgentCommand(
       maxSteps: config.maxSteps,
       onEvent: (event) => renderer.onEvent(event),
       router,
+      safetyPolicy,
     })
   } finally {
     renderer.cleanup()
