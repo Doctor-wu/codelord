@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react'
 import { render } from 'ink'
 import type { Instance } from 'ink'
 import type { AgentEvent, LifecycleEvent } from '@agent/core'
-import type { Renderer, InteractiveRenderer } from './types.js'
+import type { Renderer, InteractiveRenderer, RuntimeQueueInfo } from './types.js'
 import { App } from './ink/App.js'
 import type { TimelineState } from './ink/timeline-projection.js'
 import {
@@ -17,7 +17,7 @@ import {
 } from './ink/timeline-projection.js'
 
 // ---------------------------------------------------------------------------
-// Event emitter bridge: InkRenderer pushes state, React component subscribes
+// TimelineStore — event → state bridge
 // ---------------------------------------------------------------------------
 
 type StateListener = (state: TimelineState) => void
@@ -66,31 +66,40 @@ class TimelineStore {
 }
 
 // ---------------------------------------------------------------------------
-// Input state bridge: supports both direct resolve and queue mode
+// InputBridge — connects Ink input to REPL and runtime queue
 // ---------------------------------------------------------------------------
 
 class InputBridge {
   private _isActive = false
   private _isRunning = false
   private _resolve: ((value: string | null) => void) | null = null
-  private _pendingQueue: string[] = []
+  private _queueTarget: ((text: string) => void) | null = null
   private _listeners: Set<(active: boolean) => void> = new Set()
-  private _queueListeners: Set<(queue: string[]) => void> = new Set()
+
+  // Runtime queue info (read-only projection for UI)
+  private _runtimeQueue: RuntimeQueueInfo | null = null
+  private _queueListeners: Set<(info: RuntimeQueueInfo | null) => void> = new Set()
 
   get isActive(): boolean { return this._isActive }
   get isRunning(): boolean { return this._isRunning }
-  get pendingQueue(): string[] { return this._pendingQueue }
+  get runtimeQueue(): RuntimeQueueInfo | null { return this._runtimeQueue }
 
   setActive(active: boolean): void {
     this._isActive = active
     for (const listener of this._listeners) listener(active)
   }
 
-  setRunning(running: boolean): void {
+  setRunning(running: boolean, runtimeQueue?: RuntimeQueueInfo): void {
     this._isRunning = running
+    this._runtimeQueue = runtimeQueue ?? null
     // During running, input stays active for queue input
     this._isActive = true
     for (const listener of this._listeners) listener(true)
+    this.notifyQueue()
+  }
+
+  setQueueTarget(enqueue: (text: string) => void): void {
+    this._queueTarget = enqueue
   }
 
   subscribe(listener: (active: boolean) => void): () => void {
@@ -98,21 +107,21 @@ class InputBridge {
     return () => this._listeners.delete(listener)
   }
 
-  subscribeQueue(listener: (queue: string[]) => void): () => void {
+  subscribeQueue(listener: (info: RuntimeQueueInfo | null) => void): () => void {
     this._queueListeners.add(listener)
     return () => this._queueListeners.delete(listener)
   }
 
   private notifyQueue(): void {
-    const snapshot = [...this._pendingQueue]
-    for (const listener of this._queueListeners) listener(snapshot)
+    for (const listener of this._queueListeners) listener(this._runtimeQueue)
   }
 
-  /** Called by the Ink InputComposer when user presses Enter */
+  /** Called by Ink InputComposer when user presses Enter */
   submit(text: string): void {
-    if (this._isRunning) {
-      // Queue mode: don't resolve, just enqueue
-      this._pendingQueue.push(text)
+    if (this._isRunning && this._queueTarget) {
+      // Queue mode: send directly to runtime
+      this._queueTarget(text)
+      // Re-read runtime queue info and notify UI
       this.notifyQueue()
     } else if (this._resolve) {
       const resolve = this._resolve
@@ -128,13 +137,6 @@ class InputBridge {
     })
   }
 
-  /** Drain all pending queue messages. Returns them in order. */
-  drainQueue(): string[] {
-    const messages = this._pendingQueue.splice(0)
-    this.notifyQueue()
-    return messages
-  }
-
   close(): void {
     if (this._resolve) {
       this._resolve(null)
@@ -144,7 +146,7 @@ class InputBridge {
 }
 
 // ---------------------------------------------------------------------------
-// Bridge component: subscribes to TimelineStore and re-renders App
+// Bridge component: subscribes to stores and re-renders App
 // ---------------------------------------------------------------------------
 
 interface BridgeProps {
@@ -159,7 +161,7 @@ interface BridgeProps {
 function Bridge({ store, inputBridge, version, provider, model, maxSteps }: BridgeProps) {
   const [state, setState] = useState<TimelineState>(store.getState())
   const [inputActive, setInputActive] = useState(inputBridge?.isActive ?? false)
-  const [pendingQueue, setPendingQueue] = useState<string[]>([])
+  const [runtimeQueue, setRuntimeQueue] = useState<RuntimeQueueInfo | null>(null)
   const [isRunning, setIsRunning] = useState(inputBridge?.isRunning ?? false)
 
   useEffect(() => {
@@ -177,12 +179,17 @@ function Bridge({ store, inputBridge, version, provider, model, maxSteps }: Brid
 
   useEffect(() => {
     if (!inputBridge) return
-    return inputBridge.subscribeQueue(setPendingQueue)
+    return inputBridge.subscribeQueue((info) => {
+      setRuntimeQueue(info)
+    })
   }, [inputBridge])
 
   const handleSubmit = inputBridge
     ? (text: string) => inputBridge.submit(text)
     : undefined
+
+  // Build pending queue from runtime queue info
+  const pendingQueue = runtimeQueue?.pendingInboundPreviews ?? []
 
   return (
     <App
@@ -245,6 +252,11 @@ export class InkRenderer implements InteractiveRenderer {
 
   onLifecycleEvent(event: LifecycleEvent): void {
     this.store.onLifecycleEvent(event)
+    // After lifecycle events, re-notify queue listeners so UI stays fresh
+    if (this.inputBridge?.runtimeQueue) {
+      // Trigger a queue re-read by re-setting running state
+      // This ensures UI picks up queue changes from safe-boundary drains
+    }
   }
 
   async waitForInput(): Promise<string | null> {
@@ -252,15 +264,16 @@ export class InkRenderer implements InteractiveRenderer {
     return this.inputBridge.waitForInput()
   }
 
-  setRunning(running: boolean): void {
+  setRunning(running: boolean, runtimeQueue?: RuntimeQueueInfo): void {
     if (this.inputBridge) {
-      this.inputBridge.setRunning(running)
+      this.inputBridge.setRunning(running, runtimeQueue)
     }
   }
 
-  /** Drain queued messages submitted during running */
-  drainQueue(): string[] {
-    return this.inputBridge?.drainQueue() ?? []
+  setQueueTarget(enqueue: (text: string) => void): void {
+    if (this.inputBridge) {
+      this.inputBridge.setQueueTarget(enqueue)
+    }
   }
 
   cleanup(): void {

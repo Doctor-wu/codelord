@@ -5,12 +5,18 @@ import type { AgentEvent, LifecycleEvent } from '@agent/core'
 // ---------------------------------------------------------------------------
 
 export interface Renderer {
-  /** Handle a single raw agent event (streaming deltas). */
   onEvent(event: AgentEvent): void
-  /** Handle a lifecycle event (stable semantic events). */
   onLifecycleEvent?(event: LifecycleEvent): void
-  /** Post-run cleanup (e.g. final status bar update). No user interaction. */
   cleanup(): void
+}
+
+// ---------------------------------------------------------------------------
+// RuntimeQueueInfo — read-only view of runtime queue for UI display
+// ---------------------------------------------------------------------------
+
+export interface RuntimeQueueInfo {
+  readonly pendingInboundCount: number
+  readonly pendingInboundPreviews: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -19,7 +25,8 @@ export interface Renderer {
 
 export interface InteractiveRenderer extends Renderer {
   waitForInput(): Promise<string | null>
-  setRunning(running: boolean): void
-  /** Drain messages queued during running. Returns them in submission order. */
-  drainQueue(): string[]
+  /** Signal running state; optionally pass runtime for queue info */
+  setRunning(running: boolean, runtimeQueue?: RuntimeQueueInfo): void
+  /** Set the callback for queue submissions during running */
+  setQueueTarget(enqueue: (text: string) => void): void
 }

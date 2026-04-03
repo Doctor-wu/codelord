@@ -38,6 +38,17 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     safetyPolicy,
   })
 
+  // Wire up queue: running-time submits go directly to runtime
+  renderer.setQueueTarget((text: string) => {
+    runtime.enqueueUserMessage(text)
+  })
+
+  // Helper: create queue info snapshot from runtime
+  const queueInfo = () => ({
+    pendingInboundCount: runtime.pendingInboundCount,
+    pendingInboundPreviews: runtime.pendingInboundPreviews,
+  })
+
   // --- Interrupt handling ---
   let running = false
 
@@ -52,18 +63,17 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 
   // --- Main REPL loop ---
   while (true) {
-    renderer.setRunning(false)
+    renderer.setRunning(false, queueInfo())
     const line = await renderer.waitForInput()
 
     if (line === null) break
 
     const trimmed = line.trim()
     if (!trimmed) continue
-
     if (trimmed === '/exit') break
 
     // --- Inject input into runtime ---
-    renderer.setRunning(true)
+    renderer.setRunning(true, queueInfo())
 
     if (runtime.pendingQuestion) {
       runtime.answerPendingQuestion(trimmed)
@@ -71,7 +81,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
       runtime.enqueueUserMessage(line)
     }
 
-    // --- Drive runtime, then drain any queued messages ---
+    // --- Drive runtime ---
     running = true
     try {
       await runtime.run()
@@ -80,19 +90,9 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     }
     running = false
 
-    // --- Drain queue: enqueue all pending messages at once, then run once ---
-    let queued = renderer.drainQueue()
-    while (queued.length > 0) {
-      let shouldExit = false
-      for (const msg of queued) {
-        const qTrimmed = msg.trim()
-        if (!qTrimmed) continue
-        if (qTrimmed === '/exit') { shouldExit = true; break }
-        runtime.enqueueUserMessage(msg)
-      }
-      if (shouldExit) { renderer.cleanup(); return }
-
-      renderer.setRunning(true)
+    // If runtime has pending inbound (queued during this run), re-run
+    while (runtime.pendingInboundCount > 0) {
+      renderer.setRunning(true, queueInfo())
       running = true
       try {
         await runtime.run()
@@ -100,9 +100,6 @@ export async function startRepl(options: ReplOptions): Promise<void> {
         // handled by lifecycle events
       }
       running = false
-
-      // Check if more messages arrived during this run
-      queued = renderer.drainQueue()
     }
   }
 

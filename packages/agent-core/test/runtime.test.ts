@@ -1083,3 +1083,100 @@ describe('AgentRuntime ToolExecutionResult semantics', () => {
     expect(toolResultMsg.isError).toBe(true)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Queue source of truth tests
+// ---------------------------------------------------------------------------
+
+describe('AgentRuntime queue (pendingInbound)', () => {
+  afterEach(() => {
+    streamSimpleMock.mockReset()
+  })
+
+  it('pendingInboundCount reflects enqueued messages', () => {
+    const rt = createRuntime()
+    expect(rt.pendingInboundCount).toBe(0)
+
+    rt.enqueueUserMessage('first')
+    expect(rt.pendingInboundCount).toBe(1)
+
+    rt.enqueueUserMessage('second')
+    expect(rt.pendingInboundCount).toBe(2)
+  })
+
+  it('pendingInboundPreviews returns user message content strings', () => {
+    const rt = createRuntime()
+    rt.enqueueUserMessage('hello')
+    rt.enqueueUserMessage('world')
+
+    const previews = rt.pendingInboundPreviews
+    expect(previews).toEqual(['hello', 'world'])
+  })
+
+  it('pendingInboundCount drops to 0 after run() drains them', async () => {
+    const assistantMessage = makeAssistantMessage({
+      content: [{ type: 'text', text: 'ok' }],
+    })
+    streamSimpleMock.mockReturnValue(makeEventStream([
+      { type: 'done', message: assistantMessage },
+    ], assistantMessage))
+
+    const rt = createRuntime()
+    rt.enqueueUserMessage('test')
+    expect(rt.pendingInboundCount).toBe(1)
+
+    await rt.run()
+    expect(rt.pendingInboundCount).toBe(0)
+  })
+
+  it('multiple enqueued messages are all consumed in order', async () => {
+    const assistantMessage = makeAssistantMessage({
+      content: [{ type: 'text', text: 'ok' }],
+    })
+    streamSimpleMock.mockReturnValue(makeEventStream([
+      { type: 'done', message: assistantMessage },
+    ], assistantMessage))
+
+    const rt = createRuntime()
+    rt.enqueueUserMessage('first')
+    rt.enqueueUserMessage('second')
+    rt.enqueueUserMessage('third')
+
+    expect(rt.pendingInboundCount).toBe(3)
+    expect(rt.pendingInboundPreviews).toEqual(['first', 'second', 'third'])
+
+    await rt.run()
+
+    // All drained into messages
+    expect(rt.pendingInboundCount).toBe(0)
+    const userMsgs = rt.messages.filter(m => m.role === 'user')
+    expect(userMsgs.map(m => m.content)).toEqual(['first', 'second', 'third'])
+  })
+
+  it('enqueue during run is preserved (not lost)', async () => {
+    // This tests that enqueueUserMessage can be called while run() is in progress
+    // The message should be in pendingInbound after run() completes
+    const assistantMessage = makeAssistantMessage({
+      content: [{ type: 'text', text: 'ok' }],
+    })
+    streamSimpleMock.mockReturnValue(makeEventStream([
+      { type: 'done', message: assistantMessage },
+    ], assistantMessage))
+
+    const rt = createRuntime()
+    rt.enqueueUserMessage('initial')
+
+    // Start run, then enqueue more (simulating concurrent input)
+    const runPromise = rt.run()
+
+    // These arrive while run() is executing
+    rt.enqueueUserMessage('queued-during-run')
+
+    await runPromise
+
+    // The message queued during run should still be in pending
+    // (it was enqueued after drainPending was called at the start of the burst)
+    expect(rt.pendingInboundCount).toBe(1)
+    expect(rt.pendingInboundPreviews).toEqual(['queued-during-run'])
+  })
+})

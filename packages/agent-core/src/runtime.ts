@@ -175,6 +175,14 @@ export class AgentRuntime<TApi extends Api = Api> {
   get pendingQuestion(): PendingQuestion | null { return this._pendingQuestion }
   get resolvedQuestions(): readonly ResolvedQuestion[] { return this._resolvedQuestions }
   get lastOutcome(): RunOutcome | null { return this._lastOutcome }
+  /** Number of messages waiting in the inbound queue */
+  get pendingInboundCount(): number { return this._pendingInbound.length }
+  /** Preview of pending inbound user messages (for UI display) */
+  get pendingInboundPreviews(): string[] {
+    return this._pendingInbound
+      .filter(m => m.role === 'user' && typeof m.content === 'string')
+      .map(m => m.content as string)
+  }
   /** Route decisions made during this session (observability side-channel) */
   get routeRecords(): readonly ToolRouteDecision[] { return this._routeRecords }
   /** Safety decisions made during this session (observability side-channel) */
