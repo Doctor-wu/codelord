@@ -4,6 +4,8 @@ import {
   reduceLifecycleEvent,
   applyThinkingDelta,
   applyTextDelta,
+  captureTimelineSnapshot,
+  hydrateTimelineState,
 } from '../src/renderer/ink/timeline-projection.js'
 import type { TimelineState, AssistantItem, ToolCallItem, ToolBatchItem, UserItem, QuestionItem, StatusItem } from '../src/renderer/ink/timeline-projection.js'
 import { createToolCallLifecycle, _resetProvisionalIdCounter, createReasoningState } from '@agent/core'
@@ -561,6 +563,41 @@ describe('Timeline Projection', () => {
       // All items have unique ids
       const ids = state.items.map(i => i.id)
       expect(new Set(ids).size).toBe(ids.length)
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // Usage telemetry
+  // ---------------------------------------------------------------------------
+
+  describe('usage_updated', () => {
+    it('stores usage aggregate in timeline state', () => {
+      let state = createInitialTimelineState()
+      const usage = {
+        input: 100, output: 50, cacheRead: 30, cacheWrite: 10, totalTokens: 190,
+        cost: { input: 0.001, output: 0.002, cacheRead: 0.0003, cacheWrite: 0.0001, total: 0.0034 },
+        llmCalls: 1, lastCall: null,
+      }
+      state = reduceLifecycleEvent(state, { type: 'usage_updated', usage, timestamp: Date.now() })
+      expect(state.usage).not.toBeNull()
+      expect(state.usage!.totalTokens).toBe(190)
+      expect(state.usage!.cacheRead).toBe(30)
+    })
+
+    it('usage survives timeline snapshot round-trip', () => {
+      let state = createInitialTimelineState()
+      const usage = {
+        input: 200, output: 100, cacheRead: 50, cacheWrite: 20, totalTokens: 370,
+        cost: { input: 0.01, output: 0.02, cacheRead: 0.005, cacheWrite: 0.002, total: 0.037 },
+        llmCalls: 3, lastCall: null,
+      }
+      state = reduceLifecycleEvent(state, { type: 'usage_updated', usage, timestamp: Date.now() })
+
+      const snapshot = captureTimelineSnapshot(state)
+      const hydrated = hydrateTimelineState(snapshot)
+      expect(hydrated.usage).not.toBeNull()
+      expect(hydrated.usage!.totalTokens).toBe(370)
+      expect(hydrated.usage!.llmCalls).toBe(3)
     })
   })
 })

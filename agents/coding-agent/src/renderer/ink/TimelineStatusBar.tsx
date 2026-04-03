@@ -4,7 +4,7 @@
 
 import { Box, Text, useStdout } from 'ink'
 import type { TimelineState, ToolCallItem, ToolBatchItem } from './timeline-projection.js'
-import type { ToolCallLifecycle } from '@agent/core'
+import type { ToolCallLifecycle, UsageAggregate } from '@agent/core'
 import type { StepCategory } from './theme.js'
 import { STEP_COLORS, GLYPH } from './theme.js'
 import { classifyCommand, classifyToolName } from './classify.js'
@@ -20,6 +20,18 @@ function formatElapsed(ms: number): string {
   const minutes = Math.floor(seconds / 60)
   const remaining = seconds % 60
   return `${minutes}m${remaining}s`
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
+  return String(n)
+}
+
+function formatCost(n: number): string {
+  if (n === 0) return '$0'
+  if (n < 0.01) return `$${n.toFixed(4)}`
+  return `$${n.toFixed(2)}`
 }
 
 function classifyTc(tc: ToolCallLifecycle): StepCategory {
@@ -47,6 +59,8 @@ export function TimelineStatusBar({ state, maxSteps }: TimelineStatusBarProps) {
   const categoryEntries = (Object.entries(categoryCounts) as [StepCategory, number][])
     .filter(([, count]) => count > 0)
 
+  const usage = state.usage
+
   return (
     <Box flexDirection="column">
       <Box>
@@ -65,7 +79,18 @@ export function TimelineStatusBar({ state, maxSteps }: TimelineStatusBarProps) {
           ))}
         </Box>
 
-        <Text dimColor>{formatElapsed(elapsed)}</Text>
+        <Box gap={2}>
+          {usage && usage.totalTokens > 0 && (
+            <Text dimColor>tok {formatTokens(usage.totalTokens)}</Text>
+          )}
+          {usage && (usage.cacheRead > 0 || usage.cacheWrite > 0) && (
+            <Text dimColor>cache {formatTokens(usage.cacheRead)}r/{formatTokens(usage.cacheWrite)}w</Text>
+          )}
+          {usage && usage.cost.total > 0 && (
+            <Text dimColor>{formatCost(usage.cost.total)}</Text>
+          )}
+          <Text dimColor>{formatElapsed(elapsed)}</Text>
+        </Box>
       </Box>
     </Box>
   )

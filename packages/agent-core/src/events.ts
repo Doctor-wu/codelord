@@ -129,6 +129,61 @@ export interface ToolCallLifecycle {
 }
 
 // ---------------------------------------------------------------------------
+// UsageAggregate — cumulative token/cost telemetry for a session
+// ---------------------------------------------------------------------------
+
+export interface UsageCostBreakdown {
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+  total: number
+}
+
+export interface UsageAggregate {
+  /** Cumulative input tokens */
+  input: number
+  /** Cumulative output tokens */
+  output: number
+  /** Cumulative cache-read tokens */
+  cacheRead: number
+  /** Cumulative cache-write tokens */
+  cacheWrite: number
+  /** Cumulative total tokens */
+  totalTokens: number
+  /** Cumulative cost breakdown */
+  cost: UsageCostBreakdown
+  /** Number of LLM calls made */
+  llmCalls: number
+  /** Snapshot of the most recent LLM call */
+  lastCall: {
+    model: string
+    provider: string
+    stopReason: string
+    latencyMs: number
+    input: number
+    output: number
+    cacheRead: number
+    cacheWrite: number
+    totalTokens: number
+    cost: UsageCostBreakdown
+  } | null
+}
+
+export function createUsageAggregate(): UsageAggregate {
+  return {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 0,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    llmCalls: 0,
+    lastCall: null,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Lifecycle Events — stable, id-bearing semantic events
 // ---------------------------------------------------------------------------
 
@@ -142,6 +197,8 @@ export type LifecycleEvent =
   | { type: 'tool_call_created'; toolCall: ToolCallLifecycle }
   | { type: 'tool_call_updated'; toolCall: ToolCallLifecycle }
   | { type: 'tool_call_completed'; toolCall: ToolCallLifecycle }
+  // --- Usage telemetry ---
+  | { type: 'usage_updated'; usage: UsageAggregate; timestamp: number }
   // --- Session status ---
   | { type: 'blocked_enter'; reason: 'waiting_user' | 'interrupted' | 'pending_input'; question?: string; questionDetail?: QuestionDetail; reasoning?: AssistantReasoningState; timestamp: number }
   | { type: 'blocked_exit'; timestamp: number }

@@ -2,7 +2,7 @@
 // Timeline Projection — reduces LifecycleEvents into a stable view model
 // ---------------------------------------------------------------------------
 
-import type { LifecycleEvent, ToolCallLifecycle, AssistantReasoningState, QuestionDetail } from '@agent/core'
+import type { LifecycleEvent, ToolCallLifecycle, AssistantReasoningState, QuestionDetail, UsageAggregate } from '@agent/core'
 
 // ---------------------------------------------------------------------------
 // Timeline item types
@@ -85,6 +85,8 @@ export interface TimelineState {
   _currentAssistantTurnId: string | null
   /** Current open batch id — tool calls append here while the batch is open */
   _currentBatchId: string | null
+  /** Cumulative usage telemetry (updated via usage_updated lifecycle event) */
+  usage: UsageAggregate | null
 }
 
 export function createInitialTimelineState(idle = false): TimelineState {
@@ -96,6 +98,7 @@ export function createInitialTimelineState(idle = false): TimelineState {
     _nextId: 0,
     _currentAssistantTurnId: null,
     _currentBatchId: null,
+    usage: null,
   }
 }
 
@@ -159,6 +162,9 @@ export function reduceLifecycleEvent(state: TimelineState, event: LifecycleEvent
     case 'tool_call_completed': {
       return reduceToolCallEvent(state, event)
     }
+
+    case 'usage_updated':
+      return { ...state, usage: event.usage }
 
     case 'blocked_enter': {
       const items = [...state.items]
@@ -353,13 +359,13 @@ export interface TimelineSnapshot {
   items: TimelineItem[]
   startTime: number
   _nextId: number
+  usage: UsageAggregate | null
 }
 
 /** Extract a serializable snapshot from timeline state */
 export function captureTimelineSnapshot(state: TimelineState): TimelineSnapshot {
   return {
     items: state.items.map(item => {
-      // Strip streaming flags — everything is "done" in a snapshot
       if (item.type === 'assistant') {
         return { ...item, isStreaming: false }
       }
@@ -367,6 +373,7 @@ export function captureTimelineSnapshot(state: TimelineState): TimelineSnapshot 
     }),
     startTime: state.startTime,
     _nextId: state._nextId,
+    usage: state.usage,
   }
 }
 
@@ -380,6 +387,7 @@ export function hydrateTimelineState(snapshot: TimelineSnapshot): TimelineState 
     _nextId: snapshot._nextId,
     _currentAssistantTurnId: null,
     _currentBatchId: null,
+    usage: snapshot.usage ?? null,
   }
 }
 

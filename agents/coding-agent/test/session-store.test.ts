@@ -33,6 +33,7 @@ function makeSnapshot(overrides: Partial<SessionSnapshot> = {}): SessionSnapshot
     safetyRecords: [],
     sessionStepCount: 1,
     checkpoints: [],
+    usageAggregate: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, llmCalls: 0, lastCall: null },
     ...overrides,
   }
 }

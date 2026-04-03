@@ -71,6 +71,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     onLifecycleEvent: (event) => renderer.onLifecycleEvent?.(event),
     router,
     safetyPolicy,
+    sessionId,
   })
 
   // If resuming, hydrate runtime state

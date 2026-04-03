@@ -265,6 +265,7 @@ describe('Session snapshot: in-flight state handling', () => {
       safetyRecords: [],
       sessionStepCount: 1,
       checkpoints: [],
+      usageAggregate: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, llmCalls: 0, lastCall: null },
     }
 
     const { state, wasDowngraded, interruptedDuring } = resolveResumeState(snapshot)
@@ -305,6 +306,7 @@ describe('Session snapshot: in-flight state handling', () => {
       safetyRecords: [],
       sessionStepCount: 3,
       checkpoints: [],
+      usageAggregate: { input: 100, output: 50, cacheRead: 0, cacheWrite: 0, totalTokens: 150, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, llmCalls: 1, lastCall: null },
     }
 
     const rt = createRuntime()
@@ -365,6 +367,7 @@ describe('toSessionMeta', () => {
       safetyRecords: [],
       sessionStepCount: 5,
       checkpoints: [],
+      usageAggregate: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, llmCalls: 0, lastCall: null },
     }
 
     const meta = toSessionMeta(snapshot)
@@ -401,6 +404,7 @@ describe('resolveResumeState', () => {
     safetyRecords: [],
     sessionStepCount: 0,
     checkpoints: [],
+    usageAggregate: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, llmCalls: 0, lastCall: null },
   }
 
   it.each([

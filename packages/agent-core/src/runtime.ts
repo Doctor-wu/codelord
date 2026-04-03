@@ -2,6 +2,7 @@ import { streamSimple } from '@mariozechner/pi-ai'
 import type {
   Api,
   AssistantMessage,
+  CacheRetention,
   Context,
   Message,
   Model,
@@ -18,8 +19,8 @@ import { ToolRouter } from './tool-router.js'
 import type { ToolSafetyDecision } from './tool-safety.js'
 import { ToolSafetyPolicy } from './tool-safety.js'
 import type { LifecycleEvent, ToolCallLifecycle } from './events.js'
-import { createToolCallLifecycle, createReasoningState, projectDisplayReason } from './events.js'
-import type { AssistantReasoningState } from './events.js'
+import { createToolCallLifecycle, createReasoningState, projectDisplayReason, createUsageAggregate } from './events.js'
+import type { AssistantReasoningState, UsageAggregate } from './events.js'
 import type { SessionSnapshot } from './session-snapshot.js'
 import { resolveResumeState } from './session-snapshot.js'
 
@@ -104,6 +105,10 @@ export interface RuntimeOptions<TApi extends Api = Api> {
   onLifecycleEvent?: (event: LifecycleEvent) => void
   router?: ToolRouter
   safetyPolicy?: ToolSafetyPolicy
+  /** Session ID for prompt caching — providers that support session-based caching will use this */
+  sessionId?: string
+  /** Cache retention preference. Defaults to 'short' if sessionId is set. */
+  cacheRetention?: CacheRetention
 }
 
 // ---------------------------------------------------------------------------
@@ -142,6 +147,11 @@ export class AgentRuntime<TApi extends Api = Api> {
   private readonly emitLifecycle: (event: LifecycleEvent) => void
   private readonly router: ToolRouter
   private readonly safetyPolicy: ToolSafetyPolicy
+  private readonly _sessionId: string | undefined
+  private readonly _cacheRetention: CacheRetention | undefined
+
+  // --- Usage telemetry (observability side-channel) ---
+  private _usageAggregate: UsageAggregate = createUsageAggregate()
 
   // --- Route records (observability side-channel) ---
   private readonly _routeRecords: ToolRouteDecision[] = []
@@ -161,6 +171,8 @@ export class AgentRuntime<TApi extends Api = Api> {
     this.emitLifecycle = options.onLifecycleEvent ?? (() => {})
     this.router = options.router ?? new ToolRouter()
     this.safetyPolicy = options.safetyPolicy ?? new ToolSafetyPolicy()
+    this._sessionId = options.sessionId
+    this._cacheRetention = options.cacheRetention
   }
 
   // --- Public accessors ---
@@ -189,6 +201,8 @@ export class AgentRuntime<TApi extends Api = Api> {
   get routeRecords(): readonly ToolRouteDecision[] { return this._routeRecords }
   /** Safety decisions made during this session (observability side-channel) */
   get safetyRecords(): readonly ToolSafetyDecision[] { return this._safetyRecords }
+  /** Cumulative usage/cost telemetry for this session */
+  get usageAggregate(): UsageAggregate { return this._usageAggregate }
 
   // --- Snapshot export / import ---
 
@@ -219,6 +233,7 @@ export class AgentRuntime<TApi extends Api = Api> {
       safetyRecords: [...this._safetyRecords],
       sessionStepCount: this._sessionStepCount,
       checkpoints: meta.checkpoints ?? [],
+      usageAggregate: { ...this._usageAggregate, cost: { ...this._usageAggregate.cost }, lastCall: this._usageAggregate.lastCall ? { ...this._usageAggregate.lastCall, cost: { ...this._usageAggregate.lastCall.cost } } : null },
     }
   }
 
@@ -253,6 +268,11 @@ export class AgentRuntime<TApi extends Api = Api> {
 
     // Restore counters
     this._sessionStepCount = snapshot.sessionStepCount
+
+    // Restore usage telemetry
+    if (snapshot.usageAggregate) {
+      this._usageAggregate = { ...snapshot.usageAggregate, cost: { ...snapshot.usageAggregate.cost }, lastCall: snapshot.usageAggregate.lastCall ? { ...snapshot.usageAggregate.lastCall, cost: { ...snapshot.usageAggregate.lastCall.cost } } : null }
+    }
 
     // Set FSM state (may be downgraded from in-flight)
     this._state = state
@@ -452,10 +472,13 @@ export class AgentRuntime<TApi extends Api = Api> {
         tools: [...this.tools, askUserQuestionTool],
       }
 
+      const streamStartTime = Date.now()
       const eventStream = streamSimple(this.model, context, {
         ...this.streamOptions,
         apiKey: this.apiKey,
         signal: this._abortController.signal,
+        ...(this._sessionId ? { sessionId: this._sessionId } : {}),
+        ...(this._cacheRetention ? { cacheRetention: this._cacheRetention } : this._sessionId ? { cacheRetention: 'short' as CacheRetention } : {}),
       })
 
       let assistantMsg: AssistantMessage | undefined
@@ -556,6 +579,36 @@ export class AgentRuntime<TApi extends Api = Api> {
       // Commit assistant message to history, clear partial
       this.messages.push(assistantMsg)
       this._partial = null
+
+      // --- Accumulate usage telemetry ---
+      if (assistantMsg.usage) {
+        const u = assistantMsg.usage
+        const latencyMs = Date.now() - streamStartTime
+        this._usageAggregate.input += u.input
+        this._usageAggregate.output += u.output
+        this._usageAggregate.cacheRead += u.cacheRead
+        this._usageAggregate.cacheWrite += u.cacheWrite
+        this._usageAggregate.totalTokens += u.totalTokens
+        this._usageAggregate.cost.input += u.cost.input
+        this._usageAggregate.cost.output += u.cost.output
+        this._usageAggregate.cost.cacheRead += u.cost.cacheRead
+        this._usageAggregate.cost.cacheWrite += u.cost.cacheWrite
+        this._usageAggregate.cost.total += u.cost.total
+        this._usageAggregate.llmCalls++
+        this._usageAggregate.lastCall = {
+          model: assistantMsg.model ?? '',
+          provider: String(assistantMsg.provider ?? ''),
+          stopReason: assistantMsg.stopReason,
+          latencyMs,
+          input: u.input,
+          output: u.output,
+          cacheRead: u.cacheRead,
+          cacheWrite: u.cacheWrite,
+          totalTokens: u.totalTokens,
+          cost: { ...u.cost },
+        }
+        this.emitLifecycle({ type: 'usage_updated', usage: { ...this._usageAggregate, cost: { ...this._usageAggregate.cost }, lastCall: { ...this._usageAggregate.lastCall } }, timestamp: Date.now() })
+      }
       if (this._assistantTurnId) {
         if (this._currentReasoning) {
           this._currentReasoning.status = 'completed'

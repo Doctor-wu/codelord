@@ -1180,3 +1180,171 @@ describe('AgentRuntime queue (pendingInbound)', () => {
     expect(rt.pendingInboundPreviews).toEqual(['queued-during-run'])
   })
 })
+
+// ---------------------------------------------------------------------------
+// Usage accounting tests
+// ---------------------------------------------------------------------------
+
+describe('AgentRuntime usage accounting', () => {
+  afterEach(() => {
+    streamSimpleMock.mockReset()
+  })
+
+  const mockUsage = {
+    input: 100,
+    output: 50,
+    cacheRead: 30,
+    cacheWrite: 10,
+    totalTokens: 190,
+    cost: { input: 0.001, output: 0.002, cacheRead: 0.0003, cacheWrite: 0.0001, total: 0.0034 },
+  }
+
+  it('accumulates usage from assistant message', async () => {
+    const msg = makeAssistantMessage({
+      content: [{ type: 'text', text: 'hello' }],
+      usage: mockUsage,
+      model: 'test-model',
+      provider: 'test-provider',
+    })
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg }], msg))
+
+    const rt = createRuntime()
+    rt.enqueueUserMessage('hi')
+    await rt.run()
+
+    expect(rt.usageAggregate.input).toBe(100)
+    expect(rt.usageAggregate.output).toBe(50)
+    expect(rt.usageAggregate.cacheRead).toBe(30)
+    expect(rt.usageAggregate.totalTokens).toBe(190)
+    expect(rt.usageAggregate.llmCalls).toBe(1)
+    expect(rt.usageAggregate.cost.total).toBeCloseTo(0.0034)
+    expect(rt.usageAggregate.lastCall).not.toBeNull()
+    expect(rt.usageAggregate.lastCall!.stopReason).toBe('stop')
+  })
+
+  it('accumulates usage across multiple bursts', async () => {
+    const msg1 = makeAssistantMessage({
+      content: [{ type: 'text', text: 'first' }],
+      usage: mockUsage,
+    })
+    const msg2 = makeAssistantMessage({
+      content: [{ type: 'text', text: 'second' }],
+      usage: { ...mockUsage, input: 200, totalTokens: 290 },
+    })
+
+    streamSimpleMock
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg1 }], msg1))
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg2 }], msg2))
+
+    const rt = createRuntime()
+    rt.enqueueUserMessage('first')
+    await rt.run()
+
+    rt.enqueueUserMessage('second')
+    await rt.run()
+
+    expect(rt.usageAggregate.input).toBe(300)
+    expect(rt.usageAggregate.output).toBe(100)
+    expect(rt.usageAggregate.totalTokens).toBe(480)
+    expect(rt.usageAggregate.llmCalls).toBe(2)
+  })
+
+  it('emits usage_updated lifecycle event', async () => {
+    const msg = makeAssistantMessage({
+      content: [{ type: 'text', text: 'hello' }],
+      usage: mockUsage,
+    })
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg }], msg))
+
+    const lifecycleEvents: unknown[] = []
+    const rt = new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map(),
+      apiKey: 'test-key',
+      onLifecycleEvent: (e) => lifecycleEvents.push(e),
+    })
+    rt.enqueueUserMessage('hi')
+    await rt.run()
+
+    const usageEvent = lifecycleEvents.find((e: any) => e.type === 'usage_updated') as any
+    expect(usageEvent).toBeDefined()
+    expect(usageEvent.usage.totalTokens).toBe(190)
+    expect(usageEvent.usage.llmCalls).toBe(1)
+  })
+
+  it('passes sessionId and cacheRetention to streamSimple', async () => {
+    const msg = makeAssistantMessage({ content: [{ type: 'text', text: 'ok' }], usage: mockUsage })
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg }], msg))
+
+    const rt = new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map(),
+      apiKey: 'test-key',
+      sessionId: 'sess-123',
+      cacheRetention: 'long',
+    })
+    rt.enqueueUserMessage('hi')
+    await rt.run()
+
+    expect(streamSimpleMock).toHaveBeenCalledOnce()
+    const options = streamSimpleMock.mock.calls[0][2]
+    expect(options.sessionId).toBe('sess-123')
+    expect(options.cacheRetention).toBe('long')
+  })
+
+  it('defaults cacheRetention to short when sessionId is set', async () => {
+    const msg = makeAssistantMessage({ content: [{ type: 'text', text: 'ok' }], usage: mockUsage })
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg }], msg))
+
+    const rt = new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map(),
+      apiKey: 'test-key',
+      sessionId: 'sess-456',
+    })
+    rt.enqueueUserMessage('hi')
+    await rt.run()
+
+    const options = streamSimpleMock.mock.calls[0][2]
+    expect(options.sessionId).toBe('sess-456')
+    expect(options.cacheRetention).toBe('short')
+  })
+
+  it('usage aggregate round-trips through snapshot', async () => {
+    const msg = makeAssistantMessage({
+      content: [{ type: 'text', text: 'hello' }],
+      usage: mockUsage,
+    })
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg }], msg))
+
+    const rt = createRuntime()
+    rt.enqueueUserMessage('hi')
+    await rt.run()
+
+    const snapshot = rt.exportSnapshot({ sessionId: 'test', cwd: '/', provider: 'p', model: 'm' })
+    expect(snapshot.usageAggregate.totalTokens).toBe(190)
+
+    const rt2 = createRuntime()
+    rt2.hydrateFromSnapshot(snapshot)
+    expect(rt2.usageAggregate.totalTokens).toBe(190)
+    expect(rt2.usageAggregate.llmCalls).toBe(1)
+
+    // Continue accumulating after resume
+    const msg2 = makeAssistantMessage({
+      content: [{ type: 'text', text: 'more' }],
+      usage: { ...mockUsage, input: 50, totalTokens: 140 },
+    })
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg2 }], msg2))
+    rt2.enqueueUserMessage('more')
+    await rt2.run()
+
+    expect(rt2.usageAggregate.totalTokens).toBe(330)
+    expect(rt2.usageAggregate.llmCalls).toBe(2)
+  })
+})
