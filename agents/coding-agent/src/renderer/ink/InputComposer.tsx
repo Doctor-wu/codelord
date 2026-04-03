@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import React, { useState } from 'react'
-import { Box, Text, useInput, useStdout } from 'ink'
+import { Box, Text, useInput } from 'ink'
 import Spinner from 'ink-spinner'
 import { APP_COLOR, GLYPH, LANE } from './theme.js'
 
@@ -28,8 +28,6 @@ export function InputComposer({
 }: InputComposerProps) {
   const [value, setValue] = useState('')
   const [cursor, setCursor] = useState(0)
-  const { stdout } = useStdout()
-  const width = Math.max(20, (stdout?.columns ?? 80) - 1)
 
   useInput((input, key) => {
     if (!isActive) return
@@ -66,26 +64,22 @@ export function InputComposer({
     }
   }, { isActive })
 
-  const borderColor = getBorderColor(mode)
   const promptColor = getPromptColor(mode, isActive)
   const promptChar = mode === 'waiting_answer' ? '»' : '>'
   const queueCount = pendingQueue.length
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      {/* ── Deck separator ── */}
-      <Text color={borderColor}>{GLYPH.thinRule.repeat(width)}</Text>
-
-      {/* ── Status strip ── */}
-      <StatusStrip mode={mode} queueCount={queueCount} />
+      {/* ── Status strip (only when there's something to show) ── */}
+      {mode !== 'idle' && <StatusStrip mode={mode} queueCount={queueCount} />}
 
       {/* ── Queue preview (when messages are pending) ── */}
       {queueCount > 0 && (
         <QueuePreview queue={pendingQueue} />
       )}
 
-      {/* ── Input row ── */}
-      <Box>
+      {/* ── Input row (spaced from status when running) ── */}
+      <Box marginTop={mode === 'running' ? 1 : 0}>
         <Text color={promptColor} bold={isActive}>{promptChar} </Text>
         {isActive ? (
           <InputField value={value} cursor={cursor} />
@@ -154,11 +148,7 @@ function StatusStrip({ mode, queueCount }: { mode: SessionMode; queueCount: numb
       )
     case 'idle':
     default:
-      return (
-        <Box>
-          <Text color={LANE.muted}>{GLYPH.phaseDim} ready</Text>
-        </Box>
-      )
+      return null
   }
 }
 
@@ -196,16 +186,6 @@ function HintBar({ mode, isRunning }: { mode: SessionMode; isRunning: boolean })
       <Text dimColor>/exit to quit</Text>
     </Box>
   )
-}
-
-function getBorderColor(mode: SessionMode): string {
-  switch (mode) {
-    case 'running': return APP_COLOR
-    case 'waiting_answer': return LANE.control
-    case 'interrupted': return LANE.control
-    case 'error': return LANE.error
-    default: return LANE.muted
-  }
 }
 
 function getPromptColor(mode: SessionMode, isActive: boolean): string {

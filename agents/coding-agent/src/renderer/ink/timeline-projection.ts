@@ -87,6 +87,8 @@ export interface TimelineState {
   _currentBatchId: string | null
   /** Cumulative usage telemetry (updated via usage_updated lifecycle event) */
   usage: UsageAggregate | null
+  /** Cumulative step count (increments on each assistant_turn_start) */
+  stepCount: number
 }
 
 export function createInitialTimelineState(idle = false): TimelineState {
@@ -99,6 +101,7 @@ export function createInitialTimelineState(idle = false): TimelineState {
     _currentAssistantTurnId: null,
     _currentBatchId: null,
     usage: null,
+    stepCount: 0,
   }
 }
 
@@ -128,6 +131,7 @@ export function reduceLifecycleEvent(state: TimelineState, event: LifecycleEvent
         ...state,
         _currentAssistantTurnId: event.id,
         _currentBatchId: null,
+        stepCount: state.stepCount + 1,
         items: [...state.items, {
           type: 'assistant',
           id: event.id,
@@ -215,6 +219,11 @@ export function reduceLifecycleEvent(state: TimelineState, event: LifecycleEvent
             }],
       }
     }
+
+    // Events consumed by trace recorder, not by timeline projection
+    case 'queue_drained':
+    case 'question_answered':
+      return state
   }
 }
 
@@ -360,6 +369,7 @@ export interface TimelineSnapshot {
   startTime: number
   _nextId: number
   usage: UsageAggregate | null
+  stepCount: number
 }
 
 /** Extract a serializable snapshot from timeline state */
@@ -374,6 +384,7 @@ export function captureTimelineSnapshot(state: TimelineState): TimelineSnapshot 
     startTime: state.startTime,
     _nextId: state._nextId,
     usage: state.usage,
+    stepCount: state.stepCount,
   }
 }
 
@@ -388,6 +399,7 @@ export function hydrateTimelineState(snapshot: TimelineSnapshot): TimelineState 
     _currentAssistantTurnId: null,
     _currentBatchId: null,
     usage: snapshot.usage ?? null,
+    stepCount: snapshot.stepCount ?? 0,
   }
 }
 

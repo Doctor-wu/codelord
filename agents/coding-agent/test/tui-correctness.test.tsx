@@ -703,3 +703,30 @@ describe('Queue input during running', () => {
     expect(output).not.toContain('queued')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Status bar: steps display
+// ---------------------------------------------------------------------------
+
+describe('Status bar step telemetry', () => {
+  it('displays steps current/max after assistant turns', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'hi', timestamp: 1 })
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 3 })
+
+    const output = renderApp(state)
+    expect(output).toContain('steps 1/10')
+  })
+
+  it('step count increments across multiple turns', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a2', reasoning: createReasoningState(), timestamp: 3 })
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a2', reasoning: createReasoningState(), timestamp: 4 })
+
+    const output = renderApp(state)
+    expect(output).toContain('steps 2/10')
+  })
+})

@@ -67,9 +67,14 @@ export function TimelineStatusBar({ state, maxSteps }: TimelineStatusBarProps) {
         <Text dimColor>{GLYPH.thinRule.repeat(cols)}</Text>
       </Box>
       <Box justifyContent="space-between">
-        <Text dimColor>
-          tools {allToolCalls.length}
-        </Text>
+        <Box gap={2}>
+          <Text dimColor>
+            steps {state.stepCount}/{maxSteps}
+          </Text>
+          <Text dimColor>
+            tools {allToolCalls.length}
+          </Text>
+        </Box>
 
         <Box gap={2}>
           {categoryEntries.map(([cat, count]) => (

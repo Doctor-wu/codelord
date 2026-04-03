@@ -567,6 +567,35 @@ describe('Timeline Projection', () => {
   })
 
   // ---------------------------------------------------------------------------
+  // Step count telemetry
+  // ---------------------------------------------------------------------------
+
+  describe('stepCount', () => {
+    it('increments on each assistant_turn_start', () => {
+      let state = createInitialTimelineState()
+      expect(state.stepCount).toBe(0)
+
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      expect(state.stepCount).toBe(1)
+
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a2', reasoning: createReasoningState(), timestamp: 3 })
+      expect(state.stepCount).toBe(2)
+    })
+
+    it('survives timeline snapshot round-trip', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a2', reasoning: createReasoningState(), timestamp: 2 })
+      expect(state.stepCount).toBe(2)
+
+      const snapshot = captureTimelineSnapshot(state)
+      const hydrated = hydrateTimelineState(snapshot)
+      expect(hydrated.stepCount).toBe(2)
+    })
+  })
+
+  // ---------------------------------------------------------------------------
   // Usage telemetry
   // ---------------------------------------------------------------------------
 

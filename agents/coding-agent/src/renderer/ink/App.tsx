@@ -46,8 +46,6 @@ export function App({ state, version, provider, model, maxSteps, inputActive, on
         <TimelineItemView key={item.id} item={item} isLast={index === state.items.length - 1} />
       ))}
 
-      <TimelineStatusBar state={state} maxSteps={maxSteps} />
-
       {onInputSubmit && (
         <InputComposer
           isActive={!!inputActive}
@@ -57,6 +55,8 @@ export function App({ state, version, provider, model, maxSteps, inputActive, on
           isRunning={!!isRunning}
         />
       )}
+
+      <TimelineStatusBar state={state} maxSteps={maxSteps} />
     </Box>
   )
 }
