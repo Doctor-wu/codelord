@@ -39,3 +39,43 @@ export function getProviderBrand(provider: string): ProviderBrand {
 export const APP_NAME = 'codelord'
 export const APP_COLOR = '#1e50a0' // TARDIS blue
 export const META_COLOR = 'gray'
+
+// ---------------------------------------------------------------------------
+// Operator console palette — industrial mission console
+// ---------------------------------------------------------------------------
+
+/** Muted lane colors for conversation tracks */
+export const LANE = {
+  user: 'cyan',
+  userDim: '#4a8a8a',
+  assistant: '#8888aa',
+  reasoning: '#666688',
+  control: 'yellow',
+  controlDim: '#8a8a4a',
+} as const
+
+/** Box-drawing characters for structured layout */
+export const GLYPH = {
+  // Lane markers
+  userMark: '▍',
+  assistantMark: '▏',
+  reasoningMark: '▏',
+  // Batch structure
+  batchTop: '┌',
+  batchMid: '│',
+  batchBot: '└',
+  batchActive: '┃',
+  // Tool phases
+  phaseActive: '●',
+  phasePulse: '◉',
+  phaseDim: '○',
+  phaseDone: '✓',
+  phaseFail: '✗',
+  phaseBlocked: '⊘',
+  // Status
+  live: '▸',
+  settled: '▹',
+  // Separators
+  thinRule: '─',
+  thickRule: '━',
+} as const

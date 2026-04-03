@@ -185,7 +185,7 @@ describe('Interrupted display deduplication', () => {
       timestamp: 1,
     })
     const output = renderApp(state)
-    const matches = output.match(/Agent paused/g)
+    const matches = output.match(/PAUSED/g)
     expect(matches).toHaveLength(1)
   })
 })
@@ -485,7 +485,7 @@ describe('Session mode in composer', () => {
       <App state={state} version="0.0.1" provider="test" model="test" maxSteps={10}
         inputActive={true} onInputSubmit={() => {}} />,
     )
-    expect(output).toContain('interrupted')
+    expect(output).toContain('PAUSED')
     expect(output).toContain('continue')
   })
 

@@ -1,12 +1,12 @@
 // ---------------------------------------------------------------------------
-// TimelineStatusBar — bottom bar for timeline-driven UI
+// TimelineStatusBar — compact telemetry strip
 // ---------------------------------------------------------------------------
 
-import { Box, Text } from 'ink'
+import { Box, Text, useStdout } from 'ink'
 import type { TimelineState, ToolCallItem, ToolBatchItem } from './timeline-projection.js'
 import type { ToolCallLifecycle } from '@agent/core'
 import type { StepCategory } from './theme.js'
-import { STEP_COLORS } from './theme.js'
+import { STEP_COLORS, GLYPH } from './theme.js'
 import { classifyCommand, classifyToolName } from './classify.js'
 
 interface TimelineStatusBarProps {
@@ -28,9 +28,10 @@ function classifyTc(tc: ToolCallLifecycle): StepCategory {
 }
 
 export function TimelineStatusBar({ state, maxSteps }: TimelineStatusBarProps) {
+  const { stdout } = useStdout()
+  const cols = Math.max(40, (stdout?.columns ?? 80) - 1)
   const elapsed = Date.now() - state.startTime
 
-  // Collect all tool calls — standalone + inside batches
   const allToolCalls: ToolCallLifecycle[] = []
   for (const item of state.items) {
     if (item.type === 'tool_call') allToolCalls.push((item as ToolCallItem).toolCall)
@@ -49,17 +50,17 @@ export function TimelineStatusBar({ state, maxSteps }: TimelineStatusBarProps) {
   return (
     <Box flexDirection="column">
       <Box>
-        <Text dimColor>{'\u2500'.repeat(60)}</Text>
+        <Text dimColor>{GLYPH.thinRule.repeat(cols)}</Text>
       </Box>
       <Box justifyContent="space-between">
         <Text dimColor>
-          Tools {allToolCalls.length}
+          tools {allToolCalls.length}
         </Text>
 
         <Box gap={2}>
           {categoryEntries.map(([cat, count]) => (
-            <Text key={cat} color={STEP_COLORS[cat]}>
-              {count} {cat}
+            <Text key={cat} color={STEP_COLORS[cat]} dimColor>
+              {count}{cat[0]}
             </Text>
           ))}
         </Box>

@@ -1,9 +1,10 @@
 // ---------------------------------------------------------------------------
-// QuestionCard — prominent display for pending user questions
+// QuestionCard — control-layer prompt for pending user questions
 // ---------------------------------------------------------------------------
 
-import { Box, Text } from 'ink'
+import { Box, Text, useStdout } from 'ink'
 import type { QuestionItem } from './timeline-projection.js'
+import { LANE, GLYPH } from './theme.js'
 
 interface QuestionCardProps {
   item: QuestionItem
@@ -11,48 +12,60 @@ interface QuestionCardProps {
 
 export function QuestionCard({ item }: QuestionCardProps) {
   const detail = item.detail
+  const { stdout } = useStdout()
+  const width = Math.max(30, (stdout?.columns ?? 80) - 4)
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      {/* Header */}
+      {/* ── Control header ── */}
       <Box>
-        <Text color="yellow" bold>? </Text>
-        <Text color="yellow" bold>{item.question}</Text>
+        <Text color={LANE.control}>{GLYPH.thickRule.repeat(Math.min(40, width))}</Text>
+      </Box>
+      <Box>
+        <Text color={LANE.control} bold>{GLYPH.live} AWAITING INPUT</Text>
       </Box>
 
-      {/* Why asking */}
+      {/* ── Question ── */}
+      <Box paddingLeft={2}>
+        <Text color={LANE.control} bold>{item.question}</Text>
+      </Box>
+
+      {/* ── Why asking ── */}
       {detail?.whyAsk && (
         <Box paddingLeft={2}>
-          <Text dimColor italic>↳ {detail.whyAsk}</Text>
+          <Text dimColor italic>{GLYPH.settled} {detail.whyAsk}</Text>
         </Box>
       )}
 
-      {/* Options */}
+      {/* ── Options ── */}
       {detail?.options && detail.options.length > 0 && (
         <Box flexDirection="column" paddingLeft={2}>
-          <Text dimColor>options:</Text>
           {detail.options.map((opt, i) => (
-            <Box key={i} paddingLeft={2}>
-              <Text color="yellow">• </Text>
+            <Box key={i}>
+              <Text color={LANE.control}> {GLYPH.settled} </Text>
               <Text>{opt}</Text>
             </Box>
           ))}
         </Box>
       )}
 
-      {/* Expected format */}
+      {/* ── Expected format ── */}
       {detail?.expectedAnswerFormat && (
         <Box paddingLeft={2}>
           <Text dimColor>format: {detail.expectedAnswerFormat}</Text>
         </Box>
       )}
 
-      {/* Default plan */}
+      {/* ── Default plan ── */}
       {detail?.defaultPlanIfNoAnswer && (
         <Box paddingLeft={2}>
           <Text dimColor>default: {detail.defaultPlanIfNoAnswer}</Text>
         </Box>
       )}
+
+      <Box>
+        <Text color={LANE.control}>{GLYPH.thickRule.repeat(Math.min(40, width))}</Text>
+      </Box>
     </Box>
   )
 }

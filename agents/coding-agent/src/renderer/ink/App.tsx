@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// App — top-level Ink component, production-grade conversation timeline
+// App — top-level Ink component, operator console timeline
 // ---------------------------------------------------------------------------
 
 import { Box, Text } from 'ink'
@@ -12,7 +12,9 @@ import { TimelineStatusBar } from './TimelineStatusBar.js'
 import { InputComposer } from './InputComposer.js'
 import type { SessionMode } from './InputComposer.js'
 import { projectDisplayReason } from '@agent/core'
+import type { ReasoningStatus } from '@agent/core'
 import { summarizeThought } from './summarize.js'
+import { LANE, GLYPH } from './theme.js'
 
 interface AppProps {
   state: TimelineState
@@ -20,14 +22,11 @@ interface AppProps {
   provider: string
   model: string
   maxSteps: number
-  /** Whether the input composer is active */
   inputActive?: boolean
-  /** Called when user submits input */
   onInputSubmit?: (text: string) => void
 }
 
 export function App({ state, version, provider, model, maxSteps, inputActive, onInputSubmit }: AppProps) {
-  // Derive session mode for the composer
   const sessionMode = deriveSessionMode(state)
 
   return (
@@ -39,15 +38,12 @@ export function App({ state, version, provider, model, maxSteps, inputActive, on
         isRunning={state.isRunning}
       />
 
-      {/* Timeline items */}
       {state.items.map((item, index) => (
         <TimelineItemView key={item.id} item={item} isLast={index === state.items.length - 1} />
       ))}
 
-      {/* Status bar */}
       <TimelineStatusBar state={state} maxSteps={maxSteps} />
 
-      {/* Input composer — always rendered in REPL mode */}
       {onInputSubmit && (
         <InputComposer
           isActive={!!inputActive}
@@ -81,51 +77,51 @@ function TimelineItemView({ item, isLast }: { item: TimelineItem; isLast: boolea
 }
 
 // ---------------------------------------------------------------------------
-// Conversation layer: user + assistant
+// User lane — strong identity track
 // ---------------------------------------------------------------------------
 
 function UserItemView({ item }: { item: UserItem }) {
   return (
     <Box flexDirection="column" marginTop={1}>
       <Box>
-        <Text color="cyan" bold>YOU</Text>
+        <Text color={LANE.user}>{GLYPH.userMark} </Text>
+        <Text color={LANE.user} bold>YOU</Text>
       </Box>
-      <Box paddingLeft={2}>
+      <Box>
+        <Text color={LANE.userDim}>{GLYPH.userMark} </Text>
         <Text>{item.content}</Text>
       </Box>
     </Box>
   )
 }
 
+// ---------------------------------------------------------------------------
+// Assistant lane — text + stable reasoning strip
+// ---------------------------------------------------------------------------
+
 function AssistantItemView({ item }: { item: AssistantItem }) {
   if (!item.thinking && !item.text && !item.reasoningSnapshot) return null
 
-  // Reasoning lane content — stable, not fleeting
-  // Priority: projectDisplayReason > reasoningSnapshot > summarizeThought
   const reasoningLine = item.reasoning ? projectDisplayReason(item.reasoning) : null
   const stableReasoning = reasoningLine || item.reasoningSnapshot || (item.thinking ? summarizeThought(item.thinking) : null)
-
-  // Show reasoning lane when:
-  // 1. Streaming and no text yet (thinking phase) — always show
-  // 2. Streaming with text (acting phase) — show as stable context strip
-  // 3. Not streaming but has reasoning — show as completed context
   const hasReasoning = !!stableReasoning
-  const isThinkingPhase = item.isStreaming && !item.text
-  const showReasoningLane = hasReasoning
+  const reasoningStatus = item.reasoning?.status ?? 'thinking'
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      {/* ── Reasoning lane — stable cognitive context strip ── */}
-      {showReasoningLane && (
+      {/* ── Reasoning lane — stable cognitive strip ── */}
+      {hasReasoning && (
         <Box>
-          <Text color="gray">{isThinkingPhase ? '◐ ' : '◑ '}</Text>
-          <Text dimColor italic>{stableReasoning}</Text>
+          <Text color={LANE.reasoning}>{GLYPH.reasoningMark} </Text>
+          <Text color={LANE.reasoning}>{getReasoningIcon(reasoningStatus, item.isStreaming)} </Text>
+          <Text color={LANE.reasoning} italic>{stableReasoning}</Text>
         </Box>
       )}
 
-      {/* ── Assistant text — the primary content ── */}
+      {/* ── Assistant text ── */}
       {item.text && (
         <Box>
+          <Text color={LANE.assistant}>{GLYPH.assistantMark} </Text>
           <Text>{item.text}</Text>
         </Box>
       )}
@@ -133,15 +129,27 @@ function AssistantItemView({ item }: { item: AssistantItem }) {
   )
 }
 
+function getReasoningIcon(status: ReasoningStatus, isStreaming: boolean): string {
+  if (!isStreaming) return GLYPH.settled
+  switch (status) {
+    case 'thinking': return '◐'
+    case 'deciding': return '◑'
+    case 'acting': return GLYPH.live
+    case 'blocked': return GLYPH.phaseBlocked
+    case 'completed': return GLYPH.settled
+    default: return GLYPH.settled
+  }
+}
+
 // ---------------------------------------------------------------------------
-// Control layer: status
+// Control layer: status items
 // ---------------------------------------------------------------------------
 
 function StatusItemView({ item }: { item: StatusItem }) {
   if (item.status === 'error') {
     return (
       <Box marginTop={1}>
-        <Text color="red" bold>✗ Error: </Text>
+        <Text color="red" bold>{GLYPH.phaseFail} ERROR </Text>
         <Text color="red">{item.message}</Text>
       </Box>
     )
@@ -149,8 +157,8 @@ function StatusItemView({ item }: { item: StatusItem }) {
   if (item.status === 'interrupted') {
     return (
       <Box marginTop={1}>
-        <Text color="yellow" bold>⏸ </Text>
-        <Text color="yellow">Agent paused</Text>
+        <Text color={LANE.control} bold>{GLYPH.phaseBlocked} PAUSED </Text>
+        <Text color={LANE.controlDim}>Agent execution suspended</Text>
       </Box>
     )
   }

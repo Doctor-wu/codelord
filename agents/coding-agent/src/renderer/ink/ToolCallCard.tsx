@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// ToolCallCard — progressive execution object in the conversation timeline
+// ToolCallCard — live execution object in the operator console
 // ---------------------------------------------------------------------------
 
 import React, { useEffect, useState } from 'react'
@@ -7,7 +7,7 @@ import { Box, Text, useStdout } from 'ink'
 import type { ToolCallItem } from './timeline-projection.js'
 import type { ToolCallLifecycle } from '@agent/core'
 import { classifyCommand, classifyToolName } from './classify.js'
-import { STEP_COLORS, META_COLOR } from './theme.js'
+import { STEP_COLORS, META_COLOR, GLYPH } from './theme.js'
 import type { StepCategory } from './theme.js'
 import { formatToolDisplayName, extractToolCommand } from '../tool-display.js'
 import { normalizeInline, getDisplayWidth, formatToolResultLines } from './summarize.js'
@@ -21,8 +21,12 @@ export function ToolCallCard({ item, isLast }: ToolCallCardProps) {
   return <ToolCallView tc={item.toolCall} isLast={isLast} />
 }
 
-/** Reusable inner view — renders a single ToolCallLifecycle without needing a ToolCallItem wrapper */
-export function ToolCallView({ tc, isLast, dimCompleted = false }: { tc: ToolCallLifecycle; isLast: boolean; dimCompleted?: boolean }) {
+/** Reusable inner view — renders a single ToolCallLifecycle */
+export function ToolCallView({ tc, isLast, dimCompleted = false }: {
+  tc: ToolCallLifecycle
+  isLast: boolean
+  dimCompleted?: boolean
+}) {
   const isActive = tc.phase === 'executing' || tc.phase === 'generating' || tc.phase === 'routed' || tc.phase === 'checked'
   const isDone = tc.phase === 'completed'
   const isBlocked = tc.phase === 'blocked'
@@ -53,13 +57,15 @@ export function ToolCallView({ tc, isLast, dimCompleted = false }: { tc: ToolCal
   const displayResult = buildDisplayResult(tc)
   const { headLines, tailLines, hiddenLineCount } = formatToolResultLines(displayResult)
 
-  // Visual weight: active cards are full color, completed cards are dimmed
-  const borderChar = isActive ? '┃' : '│'
+  // Visual weight hierarchy
+  const borderChar = isActive ? GLYPH.batchActive : GLYPH.batchMid
   const borderDim = (isDone && !tc.isError) || (dimCompleted && isDone)
+  const contentDim = isDone && !tc.isError
+  const hasStderr = tc.phase === 'executing' && !!tc.stderr
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      {/* ── Header: border + phase icon + tool name + command ── */}
+      {/* ── Header: phase icon + tool name + command + phase label ── */}
       <Box>
         <Text color={color} dimColor={borderDim}>{borderChar} </Text>
         <Text color={color} dimColor={borderDim}>{phaseIcon} </Text>
@@ -71,17 +77,17 @@ export function ToolCallView({ tc, isLast, dimCompleted = false }: { tc: ToolCal
       {tc.displayReason && (
         <Box>
           <Text color={color} dimColor={borderDim}>{borderChar} </Text>
-          <Text dimColor italic>  ↳ {tc.displayReason}</Text>
+          <Text dimColor italic>  {GLYPH.settled} {tc.displayReason}</Text>
         </Box>
       )}
 
-      {/* ── Route badge: original → actual ── */}
+      {/* ── Route badge ── */}
       {tc.route?.wasRouted && (
         <Box>
           <Text color={color} dimColor={borderDim}>{borderChar} </Text>
-          <Text color="blue">  ⤷ </Text>
+          <Text dimColor>  routed </Text>
           <Text dimColor>{formatToolDisplayName(tc.route.originalToolName)}</Text>
-          <Text dimColor> → </Text>
+          <Text dimColor> {GLYPH.thinRule}{'>'} </Text>
           <Text dimColor={borderDim}>{toolName}</Text>
           {tc.route.reason && <Text dimColor> ({tc.route.reason})</Text>}
         </Box>
@@ -91,26 +97,26 @@ export function ToolCallView({ tc, isLast, dimCompleted = false }: { tc: ToolCal
       {tc.safety && !tc.safety.allowed && (
         <Box>
           <Text color={color} dimColor={borderDim}>{borderChar} </Text>
-          <Text color="red" bold>  ⛔ BLOCKED </Text>
+          <Text color="red" bold>  {GLYPH.phaseBlocked} BLOCKED </Text>
           <Text color="red">risk:{tc.safety.riskLevel}</Text>
-          {tc.safety.reason && <Text color="red" dimColor> — {tc.safety.reason}</Text>}
+          {tc.safety.reason && <Text color="red" dimColor> {GLYPH.thinRule} {tc.safety.reason}</Text>}
         </Box>
       )}
       {tc.safety && tc.safety.allowed && tc.safety.riskLevel !== 'safe' && (
         <Box>
           <Text color={color} dimColor={borderDim}>{borderChar} </Text>
-          <Text color="yellow">  ⚠ risk:{tc.safety.riskLevel}</Text>
+          <Text color="yellow">  risk:{tc.safety.riskLevel}</Text>
         </Box>
       )}
 
-      {/* ── Streaming output ── */}
+      {/* ── Live output tail ── */}
       {headLines.length > 0 && (
         <>
           {headLines.map((line, i) => (
             <Box key={`h-${i}`}>
               <Text color={color} dimColor={borderDim}>{borderChar} </Text>
-              <Text dimColor={!isActive}>{i === 0 ? '⎿ ' : '  '}</Text>
-              <Text color={tc.isError ? 'red' : undefined} dimColor={isDone && !tc.isError}>{line || ' '}</Text>
+              <Text dimColor={contentDim}>{i === 0 && isActive ? GLYPH.live : ' '} </Text>
+              <Text color={tc.isError ? 'red' : undefined} dimColor={contentDim}>{line || ' '}</Text>
             </Box>
           ))}
           {hiddenLineCount > 0 && (
@@ -123,11 +129,20 @@ export function ToolCallView({ tc, isLast, dimCompleted = false }: { tc: ToolCal
           {tailLines.map((line, i) => (
             <Box key={`t-${i}`}>
               <Text color={color} dimColor={borderDim}>{borderChar} </Text>
-              <Text dimColor={!isActive}>  </Text>
-              <Text color={tc.isError ? 'red' : undefined} dimColor={isDone && !tc.isError}>{line || ' '}</Text>
+              <Text dimColor={contentDim}>  </Text>
+              <Text color={tc.isError ? 'red' : undefined} dimColor={contentDim}>{line || ' '}</Text>
             </Box>
           ))}
         </>
+      )}
+
+      {/* ── Stderr (separate, highlighted) ── */}
+      {hasStderr && !tc.stdout?.includes(tc.stderr) && (
+        <Box>
+          <Text color={color} dimColor={borderDim}>{borderChar} </Text>
+          <Text color="red" dimColor>{GLYPH.live} stderr: </Text>
+          <Text color="red" dimColor>{tc.stderr.split('\n')[0]}</Text>
+        </Box>
       )}
 
       {/* ── Completion footer ── */}
@@ -135,7 +150,7 @@ export function ToolCallView({ tc, isLast, dimCompleted = false }: { tc: ToolCal
         <Box>
           <Text color={color} dimColor={borderDim}>{borderChar} </Text>
           <Text color={tc.isError ? 'red' : 'green'} dimColor={!tc.isError}>
-            {tc.isError ? '✗ failed' : '✓ done'}
+            {tc.isError ? `${GLYPH.phaseFail} failed` : `${GLYPH.phaseDone} done`}
           </Text>
           {tc.executionStartedAt && (
             <Text dimColor> {formatDuration(tc.completedAt - tc.executionStartedAt)}</Text>
@@ -158,10 +173,10 @@ function classifyToolCallCategory(tc: ToolCallLifecycle): Exclude<StepCategory, 
 }
 
 function getPhaseIcon(tc: ToolCallLifecycle, dimmed: boolean): string {
-  if (tc.phase === 'blocked') return '⛔'
-  if (tc.completedAt) return tc.isError ? '✗' : '✓'
-  if (tc.phase === 'executing') return dimmed ? '○' : '●'
-  return dimmed ? '○' : '●'
+  if (tc.phase === 'blocked') return GLYPH.phaseBlocked
+  if (tc.completedAt) return tc.isError ? GLYPH.phaseFail : GLYPH.phaseDone
+  if (tc.phase === 'executing') return dimmed ? GLYPH.phaseDim : GLYPH.phasePulse
+  return dimmed ? GLYPH.phaseDim : GLYPH.phaseActive
 }
 
 function getPhaseLabel(tc: ToolCallLifecycle): string | null {
