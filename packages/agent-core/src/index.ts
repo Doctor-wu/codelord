@@ -62,3 +62,6 @@ export type { PendingQuestion, ResolvedQuestion } from './tools/ask-user.js'
 
 export { builtinContracts } from './tools/contracts.js'
 export type { ToolContract } from './tools/contracts.js'
+
+export { toSessionMeta, resolveResumeState } from './session-snapshot.js'
+export type { SessionSnapshot, SessionMeta } from './session-snapshot.js'

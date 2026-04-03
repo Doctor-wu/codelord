@@ -14,7 +14,10 @@ import {
   reduceLifecycleEvent,
   applyThinkingDelta,
   applyTextDelta,
+  captureTimelineSnapshot,
+  hydrateTimelineState,
 } from './ink/timeline-projection.js'
+import type { TimelineSnapshot } from './ink/timeline-projection.js'
 
 // ---------------------------------------------------------------------------
 // TimelineStore — event → state bridge
@@ -61,6 +64,15 @@ class TimelineStore {
 
   onLifecycleEvent(event: LifecycleEvent): void {
     this.state = reduceLifecycleEvent(this.state, event)
+    this.notify()
+  }
+
+  captureSnapshot(): TimelineSnapshot {
+    return captureTimelineSnapshot(this.state)
+  }
+
+  hydrateFromSnapshot(snapshot: TimelineSnapshot): void {
+    this.state = hydrateTimelineState(snapshot)
     this.notify()
   }
 }
@@ -282,5 +294,13 @@ export class InkRenderer implements InteractiveRenderer {
       this.inkInstance.unmount()
       this.inkInstance = null
     }
+  }
+
+  captureTimelineSnapshot(): TimelineSnapshot {
+    return this.store.captureSnapshot()
+  }
+
+  hydrateTimeline(snapshot: TimelineSnapshot): void {
+    this.store.hydrateFromSnapshot(snapshot)
   }
 }

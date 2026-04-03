@@ -20,6 +20,8 @@ import { ToolSafetyPolicy } from './tool-safety.js'
 import type { LifecycleEvent, ToolCallLifecycle } from './events.js'
 import { createToolCallLifecycle, createReasoningState, projectDisplayReason } from './events.js'
 import type { AssistantReasoningState } from './events.js'
+import type { SessionSnapshot } from './session-snapshot.js'
+import { resolveResumeState } from './session-snapshot.js'
 
 // ---------------------------------------------------------------------------
 // Runtime state — current control phase of the runtime
@@ -187,6 +189,75 @@ export class AgentRuntime<TApi extends Api = Api> {
   get routeRecords(): readonly ToolRouteDecision[] { return this._routeRecords }
   /** Safety decisions made during this session (observability side-channel) */
   get safetyRecords(): readonly ToolSafetyDecision[] { return this._safetyRecords }
+
+  // --- Snapshot export / import ---
+
+  /**
+   * Export the current session state as a serializable snapshot.
+   * Safe to call at any time — in-flight states are recorded honestly.
+   * Does NOT include API keys or auth secrets.
+   */
+  exportSnapshot(meta: { sessionId: string; cwd: string; provider: string; model: string; createdAt?: number }): SessionSnapshot {
+    const now = Date.now()
+    const isInFlight = this._state === 'STREAMING' || this._state === 'TOOL_EXEC'
+    return {
+      version: 1,
+      sessionId: meta.sessionId,
+      createdAt: meta.createdAt ?? now,
+      updatedAt: now,
+      cwd: meta.cwd,
+      provider: meta.provider,
+      model: meta.model,
+      runtimeState: this._state,
+      wasInFlight: isInFlight,
+      messages: [...this.messages],
+      pendingInbound: [...this._pendingInbound],
+      pendingQuestion: this._pendingQuestion ? { ...this._pendingQuestion } : null,
+      resolvedQuestions: [...this._resolvedQuestions],
+      lastOutcome: this._lastOutcome ? { ...this._lastOutcome } : null,
+      routeRecords: [...this._routeRecords],
+      safetyRecords: [...this._safetyRecords],
+      sessionStepCount: this._sessionStepCount,
+    }
+  }
+
+  /**
+   * Restore runtime state from a persisted snapshot.
+   * In-flight states are downgraded to a safe state.
+   * Returns info about whether the state was downgraded.
+   */
+  hydrateFromSnapshot(snapshot: SessionSnapshot): {
+    wasDowngraded: boolean
+    interruptedDuring: RuntimeState | null
+  } {
+    const { state, wasDowngraded, interruptedDuring } = resolveResumeState(snapshot)
+
+    // Restore conversation
+    this.messages.length = 0
+    this.messages.push(...snapshot.messages)
+
+    // Restore queue
+    this._pendingInbound = [...snapshot.pendingInbound]
+
+    // Restore question
+    this._pendingQuestion = snapshot.pendingQuestion ? { ...snapshot.pendingQuestion } : null
+
+    // Restore side channels
+    this._resolvedQuestions = [...snapshot.resolvedQuestions]
+    this._lastOutcome = snapshot.lastOutcome ? { ...snapshot.lastOutcome } : null
+    this._routeRecords.length = 0
+    this._routeRecords.push(...snapshot.routeRecords)
+    this._safetyRecords.length = 0
+    this._safetyRecords.push(...snapshot.safetyRecords)
+
+    // Restore counters
+    this._sessionStepCount = snapshot.sessionStepCount
+
+    // Set FSM state (may be downgraded from in-flight)
+    this._state = state
+
+    return { wasDowngraded, interruptedDuring }
+  }
 
   // --- Inbound message injection ---
 

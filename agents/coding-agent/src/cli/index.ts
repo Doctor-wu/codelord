@@ -11,6 +11,7 @@ interface CliFlags {
   model?: string
   provider?: string
   maxSteps?: number
+  new?: boolean
 }
 
 function readVersion(): string {
@@ -34,6 +35,7 @@ function readFlags(options: Record<string, unknown>): CliFlags {
     model: typeof options.model === 'string' ? options.model : undefined,
     provider: typeof options.provider === 'string' ? options.provider : undefined,
     maxSteps: typeof options.maxSteps === 'number' ? options.maxSteps : undefined,
+    new: options.new === true,
   }
 }
 
@@ -47,6 +49,7 @@ function createCli() {
     .option('--model <name>', 'Override model')
     .option('--provider <name>', 'Override provider')
     .option('--max-steps <n>', 'Override max steps', { type: [Number] })
+    .option('--new', 'Start a new session (skip resume)')
 
   cli
     .command('init', 'Initialize configuration')
@@ -98,7 +101,7 @@ export async function runCli(argv = process.argv): Promise<void> {
   const config = loadConfig(toConfigOverrides(flags))
   const model = resolveModel(config)
   const apiKey = await resolveApiKey(config)
-  await startRepl({ model, apiKey, config })
+  await startRepl({ model, apiKey, config, forceNew: flags.new ?? false })
 }
 
 void runCli().catch((error: unknown) => {

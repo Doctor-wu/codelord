@@ -1,4 +1,5 @@
 import type { AgentEvent, LifecycleEvent } from '@agent/core'
+import type { TimelineSnapshot } from './ink/timeline-projection.js'
 
 // ---------------------------------------------------------------------------
 // Renderer interface — pure output, no interaction logic
@@ -29,4 +30,8 @@ export interface InteractiveRenderer extends Renderer {
   setRunning(running: boolean, runtimeQueue?: RuntimeQueueInfo): void
   /** Set the callback for queue submissions during running */
   setQueueTarget(enqueue: (text: string) => void): void
+  /** Capture current timeline state for persistence */
+  captureTimelineSnapshot(): TimelineSnapshot
+  /** Restore timeline state from a persisted snapshot */
+  hydrateTimeline(snapshot: TimelineSnapshot): void
 }

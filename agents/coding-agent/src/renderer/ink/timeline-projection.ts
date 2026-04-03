@@ -341,6 +341,49 @@ function extractReasoningSnapshot(thinking: string): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// Timeline snapshot — serializable subset for persistence
+// ---------------------------------------------------------------------------
+
+/**
+ * A serializable snapshot of the timeline state.
+ * Used for session persistence — on resume, this is hydrated back into
+ * a full TimelineState so the UI shows continuity.
+ */
+export interface TimelineSnapshot {
+  items: TimelineItem[]
+  startTime: number
+  _nextId: number
+}
+
+/** Extract a serializable snapshot from timeline state */
+export function captureTimelineSnapshot(state: TimelineState): TimelineSnapshot {
+  return {
+    items: state.items.map(item => {
+      // Strip streaming flags — everything is "done" in a snapshot
+      if (item.type === 'assistant') {
+        return { ...item, isStreaming: false }
+      }
+      return { ...item }
+    }),
+    startTime: state.startTime,
+    _nextId: state._nextId,
+  }
+}
+
+/** Hydrate a TimelineState from a persisted snapshot */
+export function hydrateTimelineState(snapshot: TimelineSnapshot): TimelineState {
+  return {
+    items: snapshot.items,
+    isRunning: false,
+    isIdle: true,
+    startTime: snapshot.startTime,
+    _nextId: snapshot._nextId,
+    _currentAssistantTurnId: null,
+    _currentBatchId: null,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
