@@ -1,0 +1,313 @@
+import React from 'react'
+import { renderToString } from 'ink'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { App } from '../src/renderer/ink/App.js'
+import {
+  createInitialTimelineState,
+  reduceLifecycleEvent,
+  applyThinkingDelta,
+  applyTextDelta,
+} from '../src/renderer/ink/timeline-projection.js'
+import type { TimelineState, AssistantItem, UserItem, QuestionItem, StatusItem, ToolCallItem } from '../src/renderer/ink/timeline-projection.js'
+import { createToolCallLifecycle, _resetProvisionalIdCounter, createReasoningState } from '@agent/core'
+import type { LifecycleEvent } from '@agent/core'
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function renderApp(state: TimelineState): string {
+  return renderToString(
+    <App state={state} version="0.0.1" provider="test" model="test" maxSteps={10} />,
+  )
+}
+
+function simulateFullTurn(initialState?: TimelineState): TimelineState {
+  let state = initialState ?? createInitialTimelineState()
+  // User turn
+  state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'hello', timestamp: 1 })
+  // Assistant turn
+  state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+  state = applyTextDelta(state, 'The answer is 42.')
+  state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: { ...createReasoningState(), status: 'completed' }, timestamp: 3 })
+  // Session done (success)
+  state = reduceLifecycleEvent(state, { type: 'session_done', success: true, text: 'The answer is 42.', timestamp: 4 })
+  return state
+}
+
+// ---------------------------------------------------------------------------
+// 1. Final answer does NOT render twice
+// ---------------------------------------------------------------------------
+
+describe('Final result deduplication', () => {
+  beforeEach(() => _resetProvisionalIdCounter())
+
+  it('success session_done does not add a status item (text already in AssistantItem)', () => {
+    const state = simulateFullTurn()
+    // Should have: user, assistant — no 'done' status item
+    const types = state.items.map(i => i.type)
+    expect(types).toEqual(['user', 'assistant'])
+    expect(types).not.toContain('status')
+  })
+
+  it('final text appears exactly once in rendered output', () => {
+    const state = simulateFullTurn()
+    const output = renderApp(state)
+    const matches = output.match(/The answer is 42\./g)
+    expect(matches).toHaveLength(1)
+  })
+
+  it('error session_done still adds an error status item', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'session_done', success: false, error: 'Max steps exceeded', timestamp: 1 })
+    const last = state.items[state.items.length - 1] as StatusItem
+    expect(last.type).toBe('status')
+    expect(last.status).toBe('error')
+    expect(last.message).toBe('Max steps exceeded')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 2. No extra console/log output (structural — REPL no longer uses console)
+// ---------------------------------------------------------------------------
+
+describe('REPL stdout ownership', () => {
+  it('REPL module does not import readline', async () => {
+    // Structural test: the repl module should not import readline
+    const { readFileSync } = await import('node:fs')
+    const replSource = readFileSync(
+      new URL('../src/cli/repl.ts', import.meta.url),
+      'utf-8',
+    )
+    expect(replSource).not.toContain("from 'node:readline'")
+    expect(replSource).not.toContain('require(')
+  })
+
+  it('REPL module does not use console.log or console.error', async () => {
+    const { readFileSync } = await import('node:fs')
+    const replSource = readFileSync(
+      new URL('../src/cli/repl.ts', import.meta.url),
+      'utf-8',
+    )
+    expect(replSource).not.toContain('console.log')
+    expect(replSource).not.toContain('console.error')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 3. User input appears exactly once in timeline
+// ---------------------------------------------------------------------------
+
+describe('User input in timeline', () => {
+  beforeEach(() => _resetProvisionalIdCounter())
+
+  it('user_turn adds exactly one UserItem', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'hello world', timestamp: 1 })
+    const userItems = state.items.filter(i => i.type === 'user')
+    expect(userItems).toHaveLength(1)
+    expect((userItems[0] as UserItem).content).toBe('hello world')
+  })
+
+  it('user input renders exactly once in App output', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'test input', timestamp: 1 })
+    const output = renderApp(state)
+    const matches = output.match(/test input/g)
+    expect(matches).toHaveLength(1)
+  })
+
+  it('preserves original text content (no trimming in timeline)', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: '  spaced input  ', timestamp: 1 })
+    const item = state.items[0] as UserItem
+    expect(item.content).toBe('  spaced input  ')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 4. waiting_user / question not duplicated
+// ---------------------------------------------------------------------------
+
+describe('Question display deduplication', () => {
+  beforeEach(() => _resetProvisionalIdCounter())
+
+  it('blocked_enter with waiting_user adds exactly one question item', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, {
+      type: 'blocked_enter',
+      reason: 'waiting_user',
+      question: 'What color?',
+      timestamp: 1,
+    })
+    const questionItems = state.items.filter(i => i.type === 'question')
+    expect(questionItems).toHaveLength(1)
+  })
+
+  it('question text renders exactly once', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, {
+      type: 'blocked_enter',
+      reason: 'waiting_user',
+      question: 'Pick a number',
+      timestamp: 1,
+    })
+    const output = renderApp(state)
+    const matches = output.match(/Pick a number/g)
+    expect(matches).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 5. interrupted not duplicated
+// ---------------------------------------------------------------------------
+
+describe('Interrupted display deduplication', () => {
+  beforeEach(() => _resetProvisionalIdCounter())
+
+  it('blocked_enter with interrupted adds exactly one status item', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, {
+      type: 'blocked_enter',
+      reason: 'interrupted',
+      timestamp: 1,
+    })
+    const statusItems = state.items.filter(i => i.type === 'status')
+    expect(statusItems).toHaveLength(1)
+    expect((statusItems[0] as StatusItem).status).toBe('interrupted')
+  })
+
+  it('interrupted message renders exactly once', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, {
+      type: 'blocked_enter',
+      reason: 'interrupted',
+      timestamp: 1,
+    })
+    const output = renderApp(state)
+    const matches = output.match(/interrupted/gi)
+    // Should appear once (in the status item)
+    expect(matches!.length).toBe(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 6. Tool stdout/stderr streaming still works
+// ---------------------------------------------------------------------------
+
+describe('Tool streaming correctness', () => {
+  beforeEach(() => _resetProvisionalIdCounter())
+
+  it('tool stdout updates are reflected in timeline', () => {
+    let state = createInitialTimelineState()
+    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'echo hi' }, command: 'echo hi' })
+    tc.phase = 'executing'
+    state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: { ...tc } })
+
+    tc.stdout = 'hi\n'
+    state = reduceLifecycleEvent(state, { type: 'tool_call_updated', toolCall: { ...tc } })
+
+    const item = state.items[0] as ToolCallItem
+    expect(item.toolCall.stdout).toBe('hi\n')
+  })
+
+  it('tool stderr updates are reflected in timeline', () => {
+    let state = createInitialTimelineState()
+    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'bad' }, command: 'bad' })
+    tc.phase = 'executing'
+    state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: { ...tc } })
+
+    tc.stderr = 'error output\n'
+    state = reduceLifecycleEvent(state, { type: 'tool_call_updated', toolCall: { ...tc } })
+
+    const item = state.items[0] as ToolCallItem
+    expect(item.toolCall.stderr).toBe('error output\n')
+  })
+
+  it('assistant text streaming works via deltas', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+    state = applyTextDelta(state, 'hello ')
+    state = applyTextDelta(state, 'world')
+
+    const item = state.items[0] as AssistantItem
+    expect(item.text).toBe('hello world')
+    expect(item.isStreaming).toBe(true)
+  })
+
+  it('assistant thinking streaming works via deltas', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+    state = applyThinkingDelta(state, 'let me ')
+    state = applyThinkingDelta(state, 'think')
+
+    const item = state.items[0] as AssistantItem
+    expect(item.thinking).toBe('let me think')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 7. Timeline item ordering stability
+// ---------------------------------------------------------------------------
+
+describe('Timeline ordering stability', () => {
+  beforeEach(() => _resetProvisionalIdCounter())
+
+  it('items appear in chronological order across a full turn', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'hi', timestamp: 1 })
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'ls', args: {}, command: 'ls' })
+    state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc })
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 3 })
+
+    expect(state.items.map(i => i.type)).toEqual(['user', 'assistant', 'tool_call'])
+  })
+
+  it('all items have stable ids (not purely index-based)', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'hi', timestamp: 1 })
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+    state = reduceLifecycleEvent(state, { type: 'blocked_enter', reason: 'waiting_user', question: 'Q?', timestamp: 3 })
+
+    for (const item of state.items) {
+      expect(item).toHaveProperty('id')
+      const id = (item as { id: string }).id
+      expect(id).toBeTruthy()
+      // Ids should be semantically meaningful, not just array indices
+      expect(id).not.toMatch(/^[0-9]+$/)
+    }
+  })
+
+  it('tool call updates do not duplicate items', () => {
+    let state = createInitialTimelineState()
+    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'ls' }, command: 'ls' })
+    state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: { ...tc } })
+    tc.phase = 'executing'
+    state = reduceLifecycleEvent(state, { type: 'tool_call_updated', toolCall: { ...tc } })
+    tc.phase = 'completed'
+    tc.result = 'done'
+    state = reduceLifecycleEvent(state, { type: 'tool_call_completed', toolCall: { ...tc } })
+
+    expect(state.items).toHaveLength(1)
+  })
+
+  it('multi-turn conversation maintains correct order', () => {
+    let state = createInitialTimelineState(true)
+    // Turn 1
+    state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'first', timestamp: 1 })
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+    state = applyTextDelta(state, 'response 1')
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 3 })
+    state = reduceLifecycleEvent(state, { type: 'session_done', success: true, text: 'response 1', timestamp: 4 })
+    // Turn 2
+    state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u2', content: 'second', timestamp: 5 })
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a2', reasoning: createReasoningState(), timestamp: 6 })
+    state = applyTextDelta(state, 'response 2')
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a2', reasoning: createReasoningState(), timestamp: 7 })
+
+    expect(state.items.map(i => i.type)).toEqual(['user', 'assistant', 'user', 'assistant'])
+    expect((state.items[0] as UserItem).content).toBe('first')
+    expect((state.items[2] as UserItem).content).toBe('second')
+  })
+})

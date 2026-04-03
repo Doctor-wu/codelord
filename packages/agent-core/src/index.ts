@@ -27,6 +27,17 @@ export type { ToolRouteDecision } from './tool-router.js'
 export { ToolSafetyPolicy } from './tool-safety.js'
 export type { RiskLevel, ToolSafetyDecision } from './tool-safety.js'
 
+export { createToolCallLifecycle, _resetProvisionalIdCounter, createReasoningState, projectDisplayReason } from './events.js'
+export type {
+  ToolCallLifecycle,
+  ToolCallPhase,
+  ToolCallRouteInfo,
+  ToolCallSafetyInfo,
+  LifecycleEvent,
+  AssistantReasoningState,
+  ReasoningStatus,
+} from './events.js'
+
 export { bashTool, createBashToolHandler, bashContract } from './tools/bash.js'
 export type { BashToolOptions } from './tools/bash.js'
 

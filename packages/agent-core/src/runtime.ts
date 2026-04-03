@@ -17,6 +17,9 @@ import type { ToolRouteDecision } from './tool-router.js'
 import { ToolRouter } from './tool-router.js'
 import type { ToolSafetyDecision } from './tool-safety.js'
 import { ToolSafetyPolicy } from './tool-safety.js'
+import type { LifecycleEvent, ToolCallLifecycle } from './events.js'
+import { createToolCallLifecycle, createReasoningState, projectDisplayReason } from './events.js'
+import type { AssistantReasoningState } from './events.js'
 
 // ---------------------------------------------------------------------------
 // Runtime state — current control phase of the runtime
@@ -96,6 +99,7 @@ export interface RuntimeOptions<TApi extends Api = Api> {
   maxSteps?: number
   streamOptions?: Omit<SimpleStreamOptions, 'apiKey'>
   onEvent?: (event: AgentEvent) => void
+  onLifecycleEvent?: (event: LifecycleEvent) => void
   router?: ToolRouter
   safetyPolicy?: ToolSafetyPolicy
 }
@@ -116,6 +120,9 @@ export class AgentRuntime<TApi extends Api = Api> {
   private _waitingUserAnswered = false
   private _resolvedQuestions: ResolvedQuestion[] = []
   private _lastOutcome: RunOutcome | null = null
+  private _assistantTurnId: string | null = null
+  private _assistantTurnCounter = 0
+  private _currentReasoning: AssistantReasoningState | null = null
 
   // --- Interrupt control ---
   private _interruptRequested = false
@@ -130,6 +137,7 @@ export class AgentRuntime<TApi extends Api = Api> {
   private readonly maxSteps: number
   private readonly streamOptions?: Omit<SimpleStreamOptions, 'apiKey'>
   private readonly emit: (event: AgentEvent) => void
+  private readonly emitLifecycle: (event: LifecycleEvent) => void
   private readonly router: ToolRouter
   private readonly safetyPolicy: ToolSafetyPolicy
 
@@ -148,6 +156,7 @@ export class AgentRuntime<TApi extends Api = Api> {
     this.maxSteps = options.maxSteps ?? 10
     this.streamOptions = options.streamOptions
     this.emit = options.onEvent ?? (() => {})
+    this.emitLifecycle = options.onLifecycleEvent ?? (() => {})
     this.router = options.router ?? new ToolRouter()
     this.safetyPolicy = options.safetyPolicy ?? new ToolSafetyPolicy()
   }
@@ -185,6 +194,7 @@ export class AgentRuntime<TApi extends Api = Api> {
    */
   enqueueUserMessage(content: string): void {
     this.enqueue({ role: 'user', content, timestamp: Date.now() })
+    this.emitLifecycle({ type: 'user_turn', id: `user-${Date.now()}`, content, timestamp: Date.now() })
   }
 
   // --- Interrupt control ---
@@ -230,6 +240,7 @@ export class AgentRuntime<TApi extends Api = Api> {
       content: answer,
       timestamp: Date.now(),
     })
+    this.emitLifecycle({ type: 'user_turn', id: `user-${Date.now()}`, content: answer, timestamp: Date.now() })
 
     this._pendingQuestion = null
     this._waitingUserAnswered = true
@@ -334,6 +345,9 @@ export class AgentRuntime<TApi extends Api = Api> {
       this._burstStepCount++
       this._sessionStepCount++
       this.emit({ type: 'step_start', step: this._burstStepCount })
+      this._assistantTurnId = `assistant-${++this._assistantTurnCounter}`
+      this._currentReasoning = createReasoningState()
+      this.emitLifecycle({ type: 'assistant_turn_start', id: this._assistantTurnId, reasoning: { ...this._currentReasoning }, timestamp: Date.now() })
 
       if (this._burstStepCount > this.maxSteps) {
         this.transition('READY')
@@ -377,9 +391,15 @@ export class AgentRuntime<TApi extends Api = Api> {
               break
             case 'thinking_delta':
               this.emit({ type: 'thinking_delta', contentIndex: event.contentIndex, delta: event.delta })
+              if (this._currentReasoning) {
+                this._currentReasoning.rawThoughtText += event.delta
+              }
               break
             case 'thinking_end':
               this.emit({ type: 'thinking_end', contentIndex: event.contentIndex, text: event.content })
+              if (this._currentReasoning) {
+                this._currentReasoning.status = 'deciding'
+              }
               break
             case 'text_start':
               this.emit({ type: 'text_start', contentIndex: event.contentIndex })
@@ -456,6 +476,12 @@ export class AgentRuntime<TApi extends Api = Api> {
       // Commit assistant message to history, clear partial
       this.messages.push(assistantMsg)
       this._partial = null
+      if (this._assistantTurnId) {
+        if (this._currentReasoning) {
+          this._currentReasoning.status = 'completed'
+        }
+        this.emitLifecycle({ type: 'assistant_turn_end', id: this._assistantTurnId, reasoning: { ...(this._currentReasoning ?? createReasoningState()) }, timestamp: Date.now() })
+      }
 
       // Decide next state
       if (assistantMsg.stopReason === 'toolUse' && toolCalls.length > 0) {
@@ -481,11 +507,28 @@ export class AgentRuntime<TApi extends Api = Api> {
               options: args.options as string[] | undefined,
             }
             this.emit({ type: 'waiting_user', question: this._pendingQuestion })
+            if (this._currentReasoning) {
+              this._currentReasoning.status = 'blocked'
+            }
+            this.emitLifecycle({ type: 'blocked_enter', reason: 'waiting_user', question: this._pendingQuestion.question, reasoning: this._currentReasoning ? { ...this._currentReasoning } : undefined, timestamp: Date.now() })
             this.transition('BLOCKED')
-            return this.finishBurst({ type: 'blocked', reason: 'waiting_user' })
+            return this.finishBurst({ type: 'blocked', reason: 'waiting_user' }, true)
           }
 
           // --- Route the tool call through the router ---
+          if (this._currentReasoning) {
+            this._currentReasoning.status = 'acting'
+          }
+          const lifecycle = createToolCallLifecycle({
+            id: tc.id,
+            toolName: tc.name,
+            args: tc.arguments,
+            command: extractCommandForDisplay(tc.name, tc.arguments),
+          })
+          // Project displayReason from current reasoning state
+          lifecycle.displayReason = this._currentReasoning ? projectDisplayReason(this._currentReasoning) : null
+          this.emitLifecycle({ type: 'tool_call_created', toolCall: { ...lifecycle } })
+
           const decision = this.router.route(tc.name, tc.arguments)
 
           if (decision.wasRouted) {
@@ -499,6 +542,18 @@ export class AgentRuntime<TApi extends Api = Api> {
               resolvedArgs: decision.resolvedArgs,
               reason: decision.reason!,
             })
+            lifecycle.route = {
+              wasRouted: true,
+              ruleId: decision.ruleId,
+              originalToolName: decision.originalToolName,
+              originalArgs: decision.originalArgs,
+              reason: decision.reason,
+            }
+            lifecycle.toolName = decision.resolvedToolName
+            lifecycle.args = decision.resolvedArgs
+            lifecycle.command = extractCommandForDisplay(decision.resolvedToolName, decision.resolvedArgs)
+            lifecycle.phase = 'routed'
+            this.emitLifecycle({ type: 'tool_call_updated', toolCall: { ...lifecycle } })
           }
 
           const execToolName = decision.resolvedToolName
@@ -515,6 +570,14 @@ export class AgentRuntime<TApi extends Api = Api> {
             ruleId: safetyDecision.ruleId,
             reason: safetyDecision.reason,
           })
+          lifecycle.safety = {
+            riskLevel: safetyDecision.riskLevel,
+            allowed: safetyDecision.allowed,
+            ruleId: safetyDecision.ruleId,
+            reason: safetyDecision.reason,
+          }
+          lifecycle.phase = 'checked'
+          this.emitLifecycle({ type: 'tool_call_updated', toolCall: { ...lifecycle } })
 
           let resultText: string
           let isError: boolean
@@ -523,7 +586,15 @@ export class AgentRuntime<TApi extends Api = Api> {
             // Dangerous — do NOT call handler, return structured failure
             resultText = `ERROR [RISK_BLOCKED]: Operation blocked by safety policy. Risk level: ${safetyDecision.riskLevel}. Rule: ${safetyDecision.ruleId}. Reason: ${safetyDecision.reason}. Please use a safer approach.`
             isError = true
+            lifecycle.phase = 'blocked'
+            lifecycle.result = resultText
+            lifecycle.isError = true
+            lifecycle.completedAt = Date.now()
+            this.emitLifecycle({ type: 'tool_call_completed', toolCall: { ...lifecycle } })
           } else {
+            lifecycle.phase = 'executing'
+            lifecycle.executionStartedAt = Date.now()
+            this.emitLifecycle({ type: 'tool_call_updated', toolCall: { ...lifecycle } })
             this.emit({ type: 'tool_exec_start', toolName: execToolName, args: execArgs })
 
             const handler = this.toolHandlers.get(execToolName)
@@ -536,6 +607,9 @@ export class AgentRuntime<TApi extends Api = Api> {
                 const result = await handler(execArgs, {
                   emitOutput: (stream, chunk) => {
                     this.emit({ type: 'tool_output_delta', toolName: execToolName, stream, chunk })
+                    if (stream === 'stdout') lifecycle.stdout += chunk
+                    else lifecycle.stderr += chunk
+                    this.emitLifecycle({ type: 'tool_call_updated', toolCall: { ...lifecycle } })
                   },
                 })
                 resultText = result.output
@@ -545,6 +619,11 @@ export class AgentRuntime<TApi extends Api = Api> {
                 isError = true
               }
             }
+            lifecycle.phase = 'completed'
+            lifecycle.result = resultText
+            lifecycle.isError = isError
+            lifecycle.completedAt = Date.now()
+            this.emitLifecycle({ type: 'tool_call_completed', toolCall: { ...lifecycle } })
           }
 
           this.emit({ type: 'tool_result', toolName: execToolName, result: resultText, isError })
@@ -602,9 +681,19 @@ export class AgentRuntime<TApi extends Api = Api> {
 
   /**
    * Record the outcome and return it.
+   * @param skipLifecycle - if true, don't emit lifecycle event (caller already did)
    */
-  private finishBurst(outcome: RunOutcome): RunOutcome {
+  private finishBurst(outcome: RunOutcome, skipLifecycle = false): RunOutcome {
     this._lastOutcome = outcome
+    if (skipLifecycle) return outcome
+    // Emit lifecycle for terminal states
+    if (outcome.type === 'blocked') {
+      this.emitLifecycle({ type: 'blocked_enter', reason: outcome.reason, reasoning: this._currentReasoning ? { ...this._currentReasoning } : undefined, timestamp: Date.now() })
+    } else if (outcome.type === 'success') {
+      this.emitLifecycle({ type: 'session_done', success: true, text: outcome.text, timestamp: Date.now() })
+    } else if (outcome.type === 'error') {
+      this.emitLifecycle({ type: 'session_done', success: false, error: outcome.error, timestamp: Date.now() })
+    }
     return outcome
   }
 
@@ -640,4 +729,16 @@ export class AgentRuntime<TApi extends Api = Api> {
       .map((c) => c.text)
       .join('') ?? ''
   }
+}
+
+// ---------------------------------------------------------------------------
+// Minimal command extraction for lifecycle display (no external deps)
+// ---------------------------------------------------------------------------
+
+function extractCommandForDisplay(toolName: string, args: Record<string, unknown>): string {
+  if (toolName === 'bash') return typeof args.command === 'string' ? args.command : toolName
+  if (typeof args.file_path === 'string') return args.file_path
+  if (typeof args.query === 'string') return args.query
+  if (typeof args.path === 'string') return args.path
+  return toolName
 }

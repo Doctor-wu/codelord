@@ -1,14 +1,14 @@
-import * as readline from 'node:readline'
 import type { Api, Model } from '@mariozechner/pi-ai'
 import { AgentRuntime } from '@agent/core'
 import type { AgentEvent, RunOutcome } from '@agent/core'
 import type { CodelordConfig } from '@agent/config'
+import type { InteractiveRenderer } from '../renderer/types.js'
 import { createToolKernel } from './tool-kernel.js'
 import { buildSystemPrompt } from './system-prompt.js'
 import { createRenderer } from './run.js'
 
 // ---------------------------------------------------------------------------
-// REPL — minimal interactive shell over a single AgentRuntime
+// REPL — interactive shell with Ink as sole stdout owner
 // ---------------------------------------------------------------------------
 
 interface ReplOptions {
@@ -24,7 +24,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   const { tools, toolHandlers, contracts, router, safetyPolicy } = createToolKernel({ cwd, config })
   const systemPrompt = buildSystemPrompt({ cwd, contracts })
 
-  const renderer = createRenderer(config, { idle: true })
+  const renderer = createRenderer(config, { idle: true, interactive: true }) as InteractiveRenderer
 
   const runtime = new AgentRuntime({
     model,
@@ -34,106 +34,62 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     apiKey,
     maxSteps: config.maxSteps,
     onEvent: (event: AgentEvent) => renderer.onEvent(event),
+    onLifecycleEvent: (event) => renderer.onLifecycleEvent?.(event),
     router,
     safetyPolicy,
-  })
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    prompt: '> ',
   })
 
   // --- Interrupt handling ---
   // When runtime is running, Ctrl+C requests interrupt.
-  // When idle (waiting for input), Ctrl+C exits the REPL.
+  // When idle (waiting for input), Ctrl+C exits.
   let running = false
 
   process.on('SIGINT', () => {
     if (running) {
       runtime.requestInterrupt()
     } else {
-      console.log('\nBye!')
+      renderer.cleanup()
       process.exit(0)
     }
   })
 
-  console.log('codelord REPL (type /exit to quit, Ctrl+C to interrupt)\n')
-  rl.prompt()
+  // --- Main REPL loop ---
+  // All output goes through Ink. No direct terminal writes.
+  while (true) {
+    renderer.setRunning(false)
+    const line = await renderer.waitForInput()
 
-  for await (const line of rl) {
-    const input = line.trim()
+    // null means input closed (cleanup)
+    if (line === null) break
 
-    if (!input) {
-      rl.prompt()
-      continue
-    }
+    // Preserve original text for timeline; only trim for command detection
+    const trimmed = line.trim()
+
+    if (!trimmed) continue
 
     // --- Slash commands ---
-    if (input === '/exit') {
-      console.log('Bye!')
-      rl.close()
-      renderer.cleanup()
-      return
+    if (trimmed === '/exit') {
+      break
     }
 
     // --- Inject input into runtime ---
+    renderer.setRunning(true)
+
     if (runtime.pendingQuestion) {
-      // User is answering a pending question
-      runtime.answerPendingQuestion(input)
+      runtime.answerPendingQuestion(trimmed)
     } else {
-      // Normal user turn
-      runtime.enqueueUserMessage(input)
+      runtime.enqueueUserMessage(line)
     }
 
     // --- Drive runtime ---
     running = true
-    let outcome: RunOutcome
     try {
-      outcome = await runtime.run()
-    } catch (err) {
-      console.error(`Fatal: ${err instanceof Error ? err.message : String(err)}`)
-      running = false
-      rl.prompt()
-      continue
+      await runtime.run()
+    } catch {
+      // Errors are already emitted as lifecycle events and rendered by Ink
     }
     running = false
-
-    // --- Handle outcome ---
-    switch (outcome.type) {
-      case 'success':
-        // Turn complete, session stays alive
-        break
-
-      case 'error':
-        console.error(`[error] ${outcome.error}`)
-        break
-
-      case 'blocked':
-        switch (outcome.reason) {
-          case 'waiting_user': {
-            const q = runtime.pendingQuestion
-            if (q) {
-              console.log(`\n[question] ${q.question}`)
-              if (q.whyAsk) console.log(`  reason: ${q.whyAsk}`)
-              if (q.options?.length) console.log(`  options: ${q.options.join(', ')}`)
-              if (q.expectedAnswerFormat) console.log(`  format: ${q.expectedAnswerFormat}`)
-              if (q.defaultPlanIfNoAnswer) console.log(`  default: ${q.defaultPlanIfNoAnswer}`)
-            }
-            break
-          }
-          case 'interrupted':
-            console.log('\n[interrupted] Agent paused. Continue with your next input.')
-            break
-          case 'pending_input':
-            break
-        }
-        break
-    }
-
-    rl.prompt()
   }
 
-  // stdin closed (e.g. piped input exhausted)
-  rl.close()
   renderer.cleanup()
 }

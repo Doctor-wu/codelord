@@ -1,34 +1,36 @@
 // ---------------------------------------------------------------------------
-// InkRenderer — React + Ink implementation of the Renderer interface
+// InkRenderer — React + Ink implementation driven by timeline projection
 // ---------------------------------------------------------------------------
 
 import React, { useState, useEffect } from 'react'
 import { render } from 'ink'
 import type { Instance } from 'ink'
-import type { AgentEvent } from '@agent/core'
-import type { Renderer } from './types.js'
+import type { AgentEvent, LifecycleEvent } from '@agent/core'
+import type { Renderer, InteractiveRenderer } from './types.js'
 import { App } from './ink/App.js'
-import type { AppState, StepState, ToolCallState } from './ink/state.js'
-import { createInitialState, finalizeCompletedStepCategory } from './ink/state.js'
-import { classifyCommand, classifyToolName } from './ink/classify.js'
-import type { StepCategory } from './ink/theme.js'
-import { extractToolCommand } from './tool-display.js'
+import type { TimelineState } from './ink/timeline-projection.js'
+import {
+  createInitialTimelineState,
+  reduceLifecycleEvent,
+  applyThinkingDelta,
+  applyTextDelta,
+} from './ink/timeline-projection.js'
 
 // ---------------------------------------------------------------------------
-// Event emitter bridge: InkRenderer pushes events, React component subscribes
+// Event emitter bridge: InkRenderer pushes state, React component subscribes
 // ---------------------------------------------------------------------------
 
-type StateListener = (state: AppState) => void
+type StateListener = (state: TimelineState) => void
 
-class StateStore {
-  private state: AppState
+class TimelineStore {
+  private state: TimelineState
   private listeners: Set<StateListener> = new Set()
 
-  constructor(maxSteps: number, idle = false) {
-    this.state = createInitialState(maxSteps, idle)
+  constructor(idle = false) {
+    this.state = createInitialTimelineState(idle)
   }
 
-  getState(): AppState {
+  getState(): TimelineState {
     return this.state
   }
 
@@ -37,343 +39,113 @@ class StateStore {
     return () => this.listeners.delete(listener)
   }
 
-  private emit(): void {
-    // Shallow clone to trigger React re-render
+  private notify(): void {
     this.state = { ...this.state }
     for (const listener of this.listeners) {
       listener(this.state)
     }
   }
 
-  // --- State mutation methods ---
+  // --- Raw stream events (high-frequency deltas) ---
 
-  stepStart(step: number): void {
-    // Clear idle state on first activity
-    if (this.state.isIdle) {
-      this.state.isIdle = false
-      this.state.isRunning = true
-    }
-
-    // Complete current step and push to history
-    if (this.state.currentStep) {
-      const completedStep: StepState = {
-        ...this.state.currentStep,
-        category: finalizeCompletedStepCategory(this.state.currentStep),
-        isComplete: true,
-      }
-      this.state.steps = [...this.state.steps, completedStep]
-    }
-
-    this.state.currentStep = {
-      step,
-      category: 'text',
-      thinking: '',
-      text: '',
-      toolCalls: [],
-      isComplete: false,
-    }
-    this.emit()
-  }
-
-  thinkingDelta(delta: string): void {
-    if (!this.state.currentStep) return
-    this.state.currentStep = {
-      ...this.state.currentStep,
-      thinking: this.state.currentStep.thinking + delta,
-    }
-    this.emit()
-  }
-
-  thinkingEnd(_text: string): void {
-    this.emit()
-  }
-
-  textDelta(delta: string): void {
-    if (!this.state.currentStep) return
-    this.state.currentStep = {
-      ...this.state.currentStep,
-      text: this.state.currentStep.text + delta,
-    }
-    this.emit()
-  }
-
-  textEnd(_text: string): void {
-    if (this.state.currentStep && this.state.currentStep.toolCalls.length === 0) {
-      this.state.currentStep = {
-        ...this.state.currentStep,
-        category: 'text',
-      }
-    }
-    this.emit()
-  }
-
-  toolCallEnd(toolName: string, args: Record<string, unknown>): void {
-    if (!this.state.currentStep) return
-
-    const command = extractToolCommand(toolName, args)
-
-    const toolCalls = [...this.state.currentStep.toolCalls]
-    const existingIndex = findLatestPendingToolCallIndex(toolCalls, toolName)
-
-    if (existingIndex === undefined) {
-      toolCalls.push({
-        name: toolName,
-        args,
-        command,
-        result: '',
-        isError: false,
-        isExecuting: false,
-        hasStdout: false,
-        hasStderr: false,
-        startTime: Date.now(),
-      })
-    } else {
-      toolCalls[existingIndex] = {
-        ...toolCalls[existingIndex]!,
-        name: toolName,
-        args,
-        command,
-      }
-    }
-
-    this.state.currentStep = {
-      ...this.state.currentStep,
-      toolCalls,
-      category: classifyStepCategory(toolName, command),
-    }
-    this.emit()
-  }
-
-  toolCallStart(contentIndex: number, toolName: string, args: Record<string, unknown>): void {
-    if (!this.state.currentStep) return
-
-    const streamKey = `tool-${contentIndex}`
-    const command = extractToolCommand(toolName, args)
-    const toolCalls = [...this.state.currentStep.toolCalls]
-    const existingIndex = toolCalls.findIndex((toolCall) => toolCall.streamKey === streamKey)
-
-    if (existingIndex === -1) {
-      toolCalls.push({
-        streamKey,
-        name: toolName,
-        args,
-        command,
-        result: '',
-        isError: false,
-        isExecuting: false,
-        hasStdout: false,
-        hasStderr: false,
-        startTime: Date.now(),
-      })
-    } else {
-      toolCalls[existingIndex] = {
-        ...toolCalls[existingIndex]!,
-        name: toolName,
-        args,
-        command,
-      }
-    }
-
-    this.state.currentStep = {
-      ...this.state.currentStep,
-      toolCalls,
-      category: classifyStepCategory(toolName, command),
-    }
-    this.emit()
-  }
-
-  toolCallDelta(contentIndex: number, toolName: string, args: Record<string, unknown>): void {
-    if (!this.state.currentStep) return
-
-    const streamKey = `tool-${contentIndex}`
-    const command = extractToolCommand(toolName, args)
-    const toolCalls = [...this.state.currentStep.toolCalls]
-    const existingIndex = toolCalls.findIndex((toolCall) => toolCall.streamKey === streamKey)
-
-    if (existingIndex === -1) {
-      toolCalls.push({
-        streamKey,
-        name: toolName,
-        args,
-        command,
-        result: '',
-        isError: false,
-        isExecuting: false,
-        hasStdout: false,
-        hasStderr: false,
-        startTime: Date.now(),
-      })
-    } else {
-      toolCalls[existingIndex] = {
-        ...toolCalls[existingIndex]!,
-        name: toolName,
-        args,
-        command,
-      }
-    }
-
-    this.state.currentStep = {
-      ...this.state.currentStep,
-      toolCalls,
-      category: classifyStepCategory(toolName, command),
-    }
-    this.emit()
-  }
-
-  toolExecStart(toolName: string, args: Record<string, unknown>): void {
-    if (!this.state.currentStep) return
-
-    const toolCalls = [...this.state.currentStep.toolCalls]
-    const existingIndex = findLatestPendingToolCallIndex(toolCalls, toolName)
-
-    if (existingIndex === undefined) {
-      const command = extractToolCommand(toolName, args)
-
-      toolCalls.push({
-        name: toolName,
-        args,
-        command,
-        result: '',
-        isError: false,
-        isExecuting: true,
-        hasStdout: false,
-        hasStderr: false,
-        startTime: Date.now(),
-      })
-    } else {
-      toolCalls[existingIndex] = {
-        ...toolCalls[existingIndex]!,
-        isExecuting: true,
-      }
-    }
-
-    this.state.currentStep = {
-      ...this.state.currentStep,
-      toolCalls,
-    }
-    this.emit()
-  }
-
-  toolOutputDelta(toolName: string, stream: 'stdout' | 'stderr', chunk: string): void {
-    if (!this.state.currentStep) return
-
-    const toolCalls = [...this.state.currentStep.toolCalls]
-    for (let i = toolCalls.length - 1; i >= 0; i--) {
-      const toolCall = toolCalls[i]
-      if (!toolCall || toolCall.name !== toolName || toolCall.endTime) continue
-
-      let nextResult = toolCall.result ?? ''
-      let hasStdout = toolCall.hasStdout
-      let hasStderr = toolCall.hasStderr
-
-      if (stream === 'stdout' && !hasStdout) {
-        nextResult += `${nextResult ? '\n' : ''}stdout:\n`
-        hasStdout = true
-      }
-
-      if (stream === 'stderr' && !hasStderr) {
-        nextResult += `${nextResult ? '\n' : ''}stderr:\n`
-        hasStderr = true
-      }
-
-      nextResult += chunk
-
-      toolCalls[i] = {
-        ...toolCall,
-        result: nextResult,
-        hasStdout,
-        hasStderr,
-      }
-      break
-    }
-
-    this.state.currentStep = {
-      ...this.state.currentStep,
-      toolCalls,
-    }
-    this.emit()
-  }
-
-  toolResult(toolName: string, result: string, isError: boolean): void {
-    if (!this.state.currentStep) return
-
-    const toolCalls = [...this.state.currentStep.toolCalls]
-    // Find the last unfinished tool call matching this tool name.
-    for (let i = toolCalls.length - 1; i >= 0; i--) {
-      if (toolCalls[i]!.name === toolName && !toolCalls[i]!.endTime) {
-        const currentResult = toolCalls[i]!.result ?? ''
-        toolCalls[i] = {
-          ...toolCalls[i]!,
-          result: currentResult.trim().length
-            ? appendFinalToolMetadata(currentResult, result)
-            : result,
-          isError,
-          isExecuting: false,
-          endTime: Date.now(),
-        }
+  onRawEvent(event: AgentEvent): void {
+    switch (event.type) {
+      case 'thinking_delta':
+        this.state = applyThinkingDelta(this.state, event.delta)
+        this.notify()
         break
-      }
+      case 'text_delta':
+        this.state = applyTextDelta(this.state, event.delta)
+        this.notify()
+        break
+      // Other raw events are handled via lifecycle or ignored
     }
-
-    // Override category to error if tool failed
-    const category = isError ? 'error' : this.state.currentStep.category
-
-    this.state.currentStep = {
-      ...this.state.currentStep,
-      toolCalls,
-      category,
-    }
-    this.emit()
   }
 
-  done(finalAnswer: string | null, error: string | null): void {
-    // Complete current step
-    if (this.state.currentStep) {
-      const completedStep: StepState = {
-        ...this.state.currentStep,
-        category: finalizeCompletedStepCategory(this.state.currentStep),
-        isComplete: true,
-      }
-      this.state.steps = [...this.state.steps, completedStep]
-      this.state.currentStep = null
-    }
+  // --- Lifecycle events (stable semantic events) ---
 
-    this.state = {
-      ...this.state,
-      finalAnswer,
-      error,
-      isRunning: false,
-    }
-    this.emit()
-  }
-
-  setError(error: string): void {
-    this.state = {
-      ...this.state,
-      error,
-      isRunning: false,
-    }
-    this.emit()
+  onLifecycleEvent(event: LifecycleEvent): void {
+    this.state = reduceLifecycleEvent(this.state, event)
+    this.notify()
   }
 }
 
 // ---------------------------------------------------------------------------
-// Bridge component: subscribes to StateStore and re-renders App
+// Input state bridge: REPL waits for input, Ink component submits it
+// ---------------------------------------------------------------------------
+
+class InputBridge {
+  private _isActive = false
+  private _resolve: ((value: string | null) => void) | null = null
+  private _listeners: Set<(active: boolean) => void> = new Set()
+
+  get isActive(): boolean { return this._isActive }
+
+  setActive(active: boolean): void {
+    this._isActive = active
+    for (const listener of this._listeners) listener(active)
+  }
+
+  subscribe(listener: (active: boolean) => void): () => void {
+    this._listeners.add(listener)
+    return () => this._listeners.delete(listener)
+  }
+
+  /** Called by the Ink InputComposer when user presses Enter */
+  submit(text: string): void {
+    if (this._resolve) {
+      const resolve = this._resolve
+      this._resolve = null
+      resolve(text)
+    }
+  }
+
+  /** Called by REPL to wait for next input */
+  waitForInput(): Promise<string | null> {
+    return new Promise(resolve => {
+      this._resolve = resolve
+    })
+  }
+
+  /** Called on cleanup to unblock any pending wait */
+  close(): void {
+    if (this._resolve) {
+      this._resolve(null)
+      this._resolve = null
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Bridge component: subscribes to TimelineStore and re-renders App
 // ---------------------------------------------------------------------------
 
 interface BridgeProps {
-  store: StateStore
+  store: TimelineStore
+  inputBridge: InputBridge | null
   version: string
   provider: string
   model: string
+  maxSteps: number
 }
 
-function Bridge({ store, version, provider, model }: BridgeProps) {
-  const [state, setState] = useState<AppState>(store.getState())
+function Bridge({ store, inputBridge, version, provider, model, maxSteps }: BridgeProps) {
+  const [state, setState] = useState<TimelineState>(store.getState())
+  const [inputActive, setInputActive] = useState(inputBridge?.isActive ?? false)
 
   useEffect(() => {
     return store.subscribe(setState)
   }, [store])
+
+  useEffect(() => {
+    if (!inputBridge) return
+    setInputActive(inputBridge.isActive)
+    return inputBridge.subscribe(setInputActive)
+  }, [inputBridge])
+
+  const handleSubmit = inputBridge
+    ? (text: string) => inputBridge.submit(text)
+    : undefined
 
   return (
     <App
@@ -381,6 +153,9 @@ function Bridge({ store, version, provider, model }: BridgeProps) {
       version={version}
       provider={provider}
       model={model}
+      maxSteps={maxSteps}
+      inputActive={inputActive}
+      onInputSubmit={handleSubmit}
     />
   )
 }
@@ -396,127 +171,66 @@ export interface InkRendererConfig {
   maxSteps: number
   /** Start in idle state (no thinking spinner). Use for REPL mode. */
   idle?: boolean
+  /** Enable interactive input (REPL mode). */
+  interactive?: boolean
 }
 
-export class InkRenderer implements Renderer {
+export class InkRenderer implements InteractiveRenderer {
   private inkInstance: Instance | null = null
-  private readonly store: StateStore
+  private readonly store: TimelineStore
   private readonly config: InkRendererConfig
+  private readonly inputBridge: InputBridge | null
 
   constructor(config: InkRendererConfig) {
     this.config = config
-    this.store = new StateStore(config.maxSteps, config.idle)
+    this.store = new TimelineStore(config.idle)
+    this.inputBridge = config.interactive ? new InputBridge() : null
 
     // Mount Ink
     this.inkInstance = render(
       <Bridge
         store={this.store}
+        inputBridge={this.inputBridge}
         version={config.version}
         provider={config.provider}
         model={config.model}
+        maxSteps={config.maxSteps}
       />,
     )
+
+    // If interactive, start with input active
+    if (this.inputBridge) {
+      this.inputBridge.setActive(true)
+    }
   }
 
   onEvent(event: AgentEvent): void {
-    switch (event.type) {
-      case 'step_start':
-        this.store.stepStart(event.step)
-        break
+    // Raw stream events go directly to the store for delta processing
+    this.store.onRawEvent(event)
+  }
 
-      case 'thinking_start':
-        break
+  onLifecycleEvent(event: LifecycleEvent): void {
+    this.store.onLifecycleEvent(event)
+  }
 
-      case 'thinking_delta':
-        this.store.thinkingDelta(event.delta)
-        break
+  // --- InteractiveRenderer ---
 
-      case 'thinking_end':
-        this.store.thinkingEnd(event.text)
-        break
+  async waitForInput(): Promise<string | null> {
+    if (!this.inputBridge) throw new Error('waitForInput requires interactive mode')
+    return this.inputBridge.waitForInput()
+  }
 
-      case 'text_start':
-        break
-
-      case 'text_delta':
-        this.store.textDelta(event.delta)
-        break
-
-      case 'text_end':
-        this.store.textEnd(event.text)
-        break
-
-      case 'toolcall_start':
-        this.store.toolCallStart(event.contentIndex, event.toolName, event.args)
-        break
-
-      case 'toolcall_delta':
-        this.store.toolCallDelta(event.contentIndex, event.toolName, event.args)
-        break
-
-      case 'toolcall_end':
-        this.store.toolCallEnd(
-          event.toolCall.name,
-          event.toolCall.arguments as Record<string, unknown>,
-        )
-        break
-
-      case 'tool_exec_start':
-        this.store.toolExecStart(event.toolName, event.args)
-        break
-
-      case 'tool_output_delta':
-        this.store.toolOutputDelta(event.toolName, event.stream, event.chunk)
-        break
-
-      case 'tool_result':
-        this.store.toolResult(event.toolName, event.result, event.isError)
-        break
-
-      case 'done':
-        if (event.result.type === 'success') {
-          this.store.done(event.result.text || null, null)
-        } else {
-          this.store.done(null, event.result.error)
-        }
-        break
-
-      case 'error':
-        this.store.setError(event.error)
-        break
+  setRunning(running: boolean): void {
+    if (this.inputBridge) {
+      this.inputBridge.setActive(!running)
     }
   }
 
   cleanup(): void {
+    this.inputBridge?.close()
     if (this.inkInstance) {
       this.inkInstance.unmount()
       this.inkInstance = null
     }
   }
-}
-
-function appendFinalToolMetadata(currentResult: string, finalResult: string): string {
-  const truncationMatch = finalResult.match(/\[output truncated[^\]]*\]$/)
-  if (!truncationMatch || currentResult.includes(truncationMatch[0])) {
-    return currentResult
-  }
-
-  return `${currentResult}\n${truncationMatch[0]}`
-}
-
-function classifyStepCategory(toolName: string, command: string): StepCategory {
-  return toolName === 'bash'
-    ? classifyCommand(command)
-    : classifyToolName(toolName)
-}
-
-function findLatestPendingToolCallIndex(
-  toolCalls: ToolCallState[],
-  toolName: string,
-): number | undefined {
-  return [...toolCalls]
-    .map((toolCall, index) => ({ toolCall, index }))
-    .reverse()
-    .find(({ toolCall }) => toolCall.name === toolName && !toolCall.endTime)
-    ?.index
 }

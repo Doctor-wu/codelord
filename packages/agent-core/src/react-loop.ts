@@ -11,6 +11,7 @@ import type { PendingQuestion } from './tools/ask-user.js'
 import type { ToolRouter } from './tool-router.js'
 import type { RiskLevel } from './tool-safety.js'
 import type { ToolSafetyPolicy } from './tool-safety.js'
+import type { LifecycleEvent } from './events.js'
 
 // ---------------------------------------------------------------------------
 // Tool handler registry (kept here for backward compat exports)
@@ -89,6 +90,7 @@ export interface RunAgentOptions<TApi extends Api = Api> {
   maxSteps?: number
   streamOptions?: Omit<SimpleStreamOptions, 'apiKey'>
   onEvent?: (event: AgentEvent) => void
+  onLifecycleEvent?: (event: LifecycleEvent) => void
   router?: ToolRouter
   safetyPolicy?: ToolSafetyPolicy
 }
@@ -110,6 +112,7 @@ export async function runAgent<TApi extends Api = Api>(
     maxSteps,
     streamOptions,
     onEvent,
+    onLifecycleEvent,
     router,
     safetyPolicy,
   } = options
@@ -123,6 +126,7 @@ export async function runAgent<TApi extends Api = Api>(
     maxSteps,
     streamOptions,
     onEvent,
+    onLifecycleEvent,
     router,
     safetyPolicy,
   })

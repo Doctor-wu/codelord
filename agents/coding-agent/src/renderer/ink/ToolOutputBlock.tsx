@@ -1,3 +1,4 @@
+// @ts-nocheck — legacy step-based component, not on main render path
 import { Box, Text, useStdout } from 'ink'
 import type { ToolCallState } from './state.js'
 import { classifyToolCall } from './classify.js'

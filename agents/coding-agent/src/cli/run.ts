@@ -31,7 +31,7 @@ export function resolveModel(config: CodelordConfig): Model<Api> {
   return model
 }
 
-export function createRenderer(config: CodelordConfig, options?: { plain?: boolean; idle?: boolean }): Renderer {
+export function createRenderer(config: CodelordConfig, options?: { plain?: boolean; idle?: boolean; interactive?: boolean }): Renderer {
   if (options?.plain || !process.stdout.isTTY || !process.stdin.isTTY) {
     return new PlainTextRenderer()
   }
@@ -42,6 +42,7 @@ export function createRenderer(config: CodelordConfig, options?: { plain?: boole
     version: readVersion(),
     maxSteps: config.maxSteps,
     idle: options?.idle,
+    interactive: options?.interactive,
   })
 }
 
@@ -69,6 +70,7 @@ export async function runAgentCommand(
       apiKey,
       maxSteps: config.maxSteps,
       onEvent: (event) => renderer.onEvent(event),
+      onLifecycleEvent: (event) => renderer.onLifecycleEvent?.(event),
       router,
       safetyPolicy,
     })

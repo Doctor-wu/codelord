@@ -2,7 +2,6 @@
 // Bash command → StepCategory classification
 // ---------------------------------------------------------------------------
 
-import type { ToolCallState } from './state.js'
 import type { StepCategory } from './theme.js'
 
 type ToolStepCategory = Exclude<StepCategory, 'text'>
@@ -103,14 +102,4 @@ export function classifyToolName(toolName: string): ToolStepCategory {
   if (lower.includes('write') || lower.includes('edit') || lower.includes('create')) return 'write'
   if (lower.includes('test') || lower.includes('check') || lower.includes('lint')) return 'verify'
   return 'read'
-}
-
-export function classifyToolCall(
-  toolCall: Pick<ToolCallState, 'name' | 'command' | 'isError'>,
-): ToolStepCategory {
-  if (toolCall.isError) return 'error'
-
-  return toolCall.name === 'bash'
-    ? classifyCommand(toolCall.command)
-    : classifyToolName(toolCall.name)
 }
