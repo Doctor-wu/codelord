@@ -13,7 +13,7 @@ import { InputComposer } from './InputComposer.js'
 import type { SessionMode } from './InputComposer.js'
 import { projectDisplayReason } from '@agent/core'
 import type { ReasoningStatus } from '@agent/core'
-import { summarizeThought } from './summarize.js'
+import { summarizeThought, extractThoughtViewport } from './summarize.js'
 import { LANE, GLYPH } from './theme.js'
 
 interface AppProps {
@@ -106,25 +106,73 @@ function UserItemView({ item }: { item: UserItem }) {
 // ---------------------------------------------------------------------------
 
 function AssistantItemView({ item }: { item: AssistantItem }) {
-  if (!item.thinking && !item.text && !item.reasoningSnapshot) return null
+  if (!item.thinking && !item.text && !item.reasoningSnapshot && !item.liveProxy) return null
 
+  const reasoningStatus = item.reasoning?.status ?? 'thinking'
+
+  // --- Two distinct display modes ---
+
+  // Mode A: Provider has real thought → rolling viewport
+  if (item.hasProviderThought && item.thinking) {
+    if (item.isStreaming) {
+      // Live streaming: show rolling viewport of latest 5 lines
+      const viewportLines = extractThoughtViewport(item.thinking, 5)
+      return (
+        <Box flexDirection="column" marginTop={1}>
+          {viewportLines.map((line, i) => (
+            <Box key={i}>
+              <Text color={LANE.reasoningMuted}>{GLYPH.reasoningMark} </Text>
+              {i === 0 && <Text color={LANE.reasoning}>{getReasoningIcon(reasoningStatus, true)} </Text>}
+              {i > 0 && <Text color={LANE.reasoning}>  </Text>}
+              <Text color={LANE.reasoning} italic>{line || ' '}</Text>
+            </Box>
+          ))}
+          {item.text && (
+            <Box>
+              <Text color={LANE.assistantMuted}>{GLYPH.assistantMark} </Text>
+              <Text>{item.text}</Text>
+            </Box>
+          )}
+        </Box>
+      )
+    }
+    // Settled: preserve viewport-level readability, just change the icon
+    const viewportLines = extractThoughtViewport(item.thinking, 5)
+    return (
+      <Box flexDirection="column" marginTop={1}>
+        {viewportLines.map((line, i) => (
+          <Box key={i}>
+            <Text color={LANE.reasoningMuted}>{GLYPH.reasoningMark} </Text>
+            {i === 0 && <Text color={LANE.reasoning}>{GLYPH.settled} </Text>}
+            {i > 0 && <Text color={LANE.reasoning}>  </Text>}
+            <Text color={LANE.reasoning} italic dimColor>{line || ' '}</Text>
+          </Box>
+        ))}
+        {item.text && (
+          <Box>
+            <Text color={LANE.assistantMuted}>{GLYPH.assistantMark} </Text>
+            <Text>{item.text}</Text>
+          </Box>
+        )}
+      </Box>
+    )
+  }
+
+  // Mode B: No provider thought → derived live proxy or settled fallback
   const reasoningLine = item.reasoning ? projectDisplayReason(item.reasoning) : null
   const stableReasoning = reasoningLine || item.reasoningSnapshot || (item.thinking ? summarizeThought(item.thinking) : null)
-  const hasReasoning = !!stableReasoning
-  const reasoningStatus = item.reasoning?.status ?? 'thinking'
+  const displayReasoning = stableReasoning || (item.isStreaming ? item.liveProxy : null)
+  const hasReasoning = !!displayReasoning
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      {/* ── Reasoning lane — stable cognitive strip ── */}
       {hasReasoning && (
         <Box>
           <Text color={LANE.reasoningMuted}>{GLYPH.reasoningMark} </Text>
           <Text color={LANE.reasoning}>{getReasoningIcon(reasoningStatus, item.isStreaming)} </Text>
-          <Text color={LANE.reasoning} italic>{stableReasoning}</Text>
+          <Text color={LANE.reasoning} italic>{displayReasoning}</Text>
         </Box>
       )}
-
-      {/* ── Assistant text ── */}
       {item.text && (
         <Box>
           <Text color={LANE.assistantMuted}>{GLYPH.assistantMark} </Text>

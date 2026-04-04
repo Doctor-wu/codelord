@@ -511,14 +511,20 @@ describe('Session mode in composer', () => {
 describe('Thinking vs working convergence', () => {
   beforeEach(() => _resetProvisionalIdCounter())
 
-  it('does not render raw thinking as large text block', () => {
+  it('renders thinking as a bounded viewport, not a full dump', () => {
     let state = createInitialTimelineState()
     state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
-    state = applyThinkingDelta(state, 'First I need to understand the codebase. Let me check the directory structure and find relevant files.')
+    // Add many lines of thinking — only the last 5 should be visible
+    for (let i = 1; i <= 10; i++) {
+      state = applyThinkingDelta(state, `Thought line ${i}.\n`)
+    }
 
     const output = renderApp(state)
-    // Should NOT contain the full raw thinking text
-    expect(output).not.toContain('Let me check the directory structure')
+    // Early lines should NOT be visible (viewport is last 5)
+    expect(output).not.toContain('Thought line 1.')
+    expect(output).not.toContain('Thought line 5.')
+    // Latest lines should be visible
+    expect(output).toContain('Thought line 10.')
   })
 
   it('working status is the sole running indicator in composer', () => {
@@ -533,6 +539,26 @@ describe('Thinking vs working convergence', () => {
     )
     // Composer shows working — this is the authoritative running indicator
     expect(output).toContain('working')
+  })
+
+  it('settled provider thought preserves viewport, not single-line summary', () => {
+    let state = createInitialTimelineState()
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+    for (let i = 1; i <= 8; i++) {
+      state = applyThinkingDelta(state, `Settled line ${i}.\n`)
+    }
+    state = applyTextDelta(state, 'Final answer.')
+    // End the turn — settled
+    state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: { ...createReasoningState(), status: 'completed' }, timestamp: 2 })
+
+    const output = renderApp(state)
+    // Latest lines should still be visible even after settling
+    expect(output).toContain('Settled line 8.')
+    expect(output).toContain('Settled line 7.')
+    // Early lines should NOT be visible (viewport is last 5)
+    expect(output).not.toContain('Settled line 1.')
+    // Text should also be visible
+    expect(output).toContain('Final answer.')
   })
 })
 

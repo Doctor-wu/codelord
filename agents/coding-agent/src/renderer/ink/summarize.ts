@@ -70,6 +70,40 @@ export function summarizeThought(thought: string): string {
 }
 
 /**
+ * Extract a rolling viewport of the latest N lines from accumulated thinking text.
+ * Used for live streaming display — always shows the freshest content.
+ *
+ * Returns an array of lines (at most `maxLines`). If the text has fewer lines,
+ * returns all of them. Empty trailing lines are trimmed.
+ */
+export function extractThoughtViewport(thinking: string, maxLines = 5): string[] {
+  if (!thinking) return []
+  // Split on newlines, trim trailing empties
+  const lines = thinking.split('\n')
+  while (lines.length > 0 && lines[lines.length - 1]!.trim() === '') {
+    lines.pop()
+  }
+  if (lines.length === 0) return []
+  if (lines.length <= maxLines) return lines
+  return lines.slice(-maxLines)
+}
+
+/**
+ * Sanitize a reasoning string into a single-line operator hint for tool cards.
+ * Collapses all whitespace (newlines, tabs, runs of spaces) into single spaces,
+ * trims, and truncates to maxLen.
+ *
+ * This is intentionally separate from the assistant-lane viewport —
+ * tool/batch reason must always be a single line.
+ */
+export function sanitizeOperatorHint(text: string, maxLen = 80): string {
+  if (!text) return ''
+  const collapsed = text.replace(/[\n\r\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim()
+  if (collapsed.length <= maxLen) return collapsed
+  return collapsed.slice(0, maxLen - 1) + '\u2026'
+}
+
+/**
  * Summarize text content to the first line, truncated.
  */
 export function summarizeText(text: string): string {

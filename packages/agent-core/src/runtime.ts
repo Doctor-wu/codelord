@@ -508,8 +508,13 @@ export class AgentRuntime<TApi extends Api = Api> {
       }
 
       const streamStartTime = Date.now()
+      // Enable reasoning summary for models that support it (conservative level)
+      const reasoningOpt = (this.model as { reasoning?: boolean }).reasoning
+        ? { reasoning: 'high' as const }
+        : {}
       const eventStream = streamSimple(this.model, context, {
         ...this.streamOptions,
+        ...reasoningOpt,
         apiKey: this.apiKey,
         signal: this._abortController.signal,
         ...(this._sessionId ? { sessionId: this._sessionId } : {}),
@@ -618,7 +623,7 @@ export class AgentRuntime<TApi extends Api = Api> {
               break
             }
             case 'toolcall_end':
-              this.emit({ type: 'toolcall_end', toolCall: event.toolCall })
+              this.emit({ type: 'toolcall_end', contentIndex: event.contentIndex, toolCall: event.toolCall })
               toolCalls.push(event.toolCall)
               this._partial.toolCalls.push(event.toolCall)
               break
@@ -761,8 +766,8 @@ export class AgentRuntime<TApi extends Api = Api> {
             args: tc.arguments,
             command: extractCommandForDisplay(tc.name, tc.arguments),
           })
-          // Project displayReason from current reasoning state
-          lifecycle.displayReason = this._currentReasoning ? projectDisplayReason(this._currentReasoning) : null
+          // displayReason is reserved for explicit tool-scoped rationale only.
+          // Generic assistant-level reasoning belongs in the assistant lane, not here.
           this.emitLifecycle({ type: 'tool_call_created', toolCall: { ...lifecycle } })
 
           const decision = this.router.route(tc.name, tc.arguments)

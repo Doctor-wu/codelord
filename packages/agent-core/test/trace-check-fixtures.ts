@@ -236,6 +236,77 @@ export function interruptObservedWithoutBlocked(): TraceRunV2 {
 // Fixture: multi-step run with cross-step seq disorder
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Fixture: reasoning stream present (thinking_start/delta/end + tool call)
+// ---------------------------------------------------------------------------
+
+export function reasoningStreamPresent(): TraceRunV2 {
+  resetSeq()
+  const step = makeStep(1)
+  // Stable thinking stream
+  step.ledgers.providerStream.push(
+    PE(nextSeq(), 'thinking_start'),
+    PE(nextSeq(), 'thinking_delta', { deltaPreview: 'Let me analyze...' }),
+    PE(nextSeq(), 'thinking_delta', { deltaPreview: 'I should read the file first.' }),
+    PE(nextSeq(), 'thinking_end'),
+    // Then a tool call
+    PE(nextSeq(), 'toolcall_start', { toolCallId: 'tc-1', toolName: 'read_file' }),
+    PE(nextSeq(), 'toolcall_delta', { toolCallId: 'tc-1', argsPreview: '{"path":"/src' }),
+    PE(nextSeq(), 'toolcall_end', { toolCallId: 'tc-1', toolName: 'read_file' }),
+    PE(nextSeq(), 'done', { stopReason: 'tool_use' }),
+  )
+  step.ledgers.agentEvents.push(
+    AE(nextSeq(), 'toolcall_end', { toolCallId: 'tc-1', toolName: 'read_file' }),
+  )
+  step.ledgers.lifecycleEvents.push(
+    LE(nextSeq(), 'assistant_turn_start'),
+    LE(nextSeq(), 'tool_call_created', { toolCallId: 'tc-1', toolName: 'read_file', phase: 'generating' }),
+    LE(nextSeq(), 'tool_call_completed', { toolCallId: 'tc-1', toolName: 'read_file', phase: 'completed' }),
+    LE(nextSeq(), 'assistant_turn_end'),
+  )
+  return makeRun([step])
+}
+
+// ---------------------------------------------------------------------------
+// Fixture: no thought + high density toolcall_delta
+// ---------------------------------------------------------------------------
+
+export function noThoughtHighDensityToolcallDelta(): TraceRunV2 {
+  resetSeq()
+  const step = makeStep(1)
+  // No thinking_* events at all.
+  // toolcall_start at t=BASE_TIME+10, then 40 rapid toolcall_delta in 200ms
+  const tcStartSeq = nextSeq()
+  step.ledgers.providerStream.push(
+    PE(tcStartSeq, 'toolcall_start', { toolCallId: 'tc-1', toolName: 'file_write', timestamp: BASE_TIME + 10 }),
+  )
+  // 40 deltas in 200ms → 5ms apart → 200 Hz
+  for (let i = 0; i < 40; i++) {
+    step.ledgers.providerStream.push(
+      PE(nextSeq(), 'toolcall_delta', { toolCallId: 'tc-1', argsPreview: `chunk-${i}`, timestamp: BASE_TIME + 15 + i * 5 }),
+    )
+  }
+  step.ledgers.providerStream.push(
+    PE(nextSeq(), 'toolcall_end', { toolCallId: 'tc-1', toolName: 'file_write', timestamp: BASE_TIME + 250 }),
+    PE(nextSeq(), 'done', { stopReason: 'tool_use', timestamp: BASE_TIME + 260 }),
+  )
+  step.ledgers.agentEvents.push(
+    AE(nextSeq(), 'toolcall_end', { toolCallId: 'tc-1', toolName: 'file_write' }),
+  )
+  // lifecycle tool_call_created arrives much later than the first raw partial
+  step.ledgers.lifecycleEvents.push(
+    LE(nextSeq(), 'assistant_turn_start', { timestamp: BASE_TIME + 5 }),
+    LE(nextSeq(), 'tool_call_created', { toolCallId: 'tc-1', toolName: 'file_write', phase: 'generating', timestamp: BASE_TIME + 800 }),
+    LE(nextSeq(), 'tool_call_completed', { toolCallId: 'tc-1', toolName: 'file_write', phase: 'completed', timestamp: BASE_TIME + 900 }),
+    LE(nextSeq(), 'assistant_turn_end', { timestamp: BASE_TIME + 950 }),
+  )
+  return makeRun([step])
+}
+
+// ---------------------------------------------------------------------------
+// Fixture: multi-step run with cross-step seq disorder
+// ---------------------------------------------------------------------------
+
 export function crossStepSeqDisorder(): TraceRunV2 {
   const step1 = makeStep(1)
   step1.ledgers.lifecycleEvents.push(LE(10, 'assistant_turn_start'), LE(20, 'assistant_turn_end'))

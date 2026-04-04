@@ -140,6 +140,7 @@ export class TraceRecorder {
         base.contentIndex = event.contentIndex
         base.toolName = event.toolName; break
       case 'toolcall_end':
+        base.contentIndex = event.contentIndex
         base.toolCallId = event.toolCall.id
         base.toolName = event.toolCall.name; break
       case 'tool_routed':

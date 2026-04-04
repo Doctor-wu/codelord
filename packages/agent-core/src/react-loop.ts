@@ -46,7 +46,7 @@ export type AgentEvent =
   | { type: 'text_end'; contentIndex: number; text: string }
   | { type: 'toolcall_start'; contentIndex: number; toolName: string; args: Record<string, unknown> }
   | { type: 'toolcall_delta'; contentIndex: number; toolName: string; args: Record<string, unknown> }
-  | { type: 'toolcall_end'; toolCall: ToolCall }
+  | { type: 'toolcall_end'; contentIndex: number; toolCall: ToolCall }
   | { type: 'tool_routed'; ruleId: string; originalToolName: string; originalArgs: Record<string, unknown>; resolvedToolName: string; resolvedArgs: Record<string, unknown>; reason: string }
   | { type: 'tool_safety_checked'; toolName: string; riskLevel: RiskLevel; allowed: boolean; ruleId: string; reason: string }
   | { type: 'tool_exec_start'; toolName: string; args: Record<string, unknown> }

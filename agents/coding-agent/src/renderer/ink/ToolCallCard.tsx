@@ -10,7 +10,7 @@ import { classifyCommand, classifyToolName } from './classify.js'
 import { STEP_COLORS, META_COLOR, GLYPH, LANE } from './theme.js'
 import type { StepCategory } from './theme.js'
 import { formatToolDisplayName, extractToolCommand } from '../tool-display.js'
-import { normalizeInline, getDisplayWidth, formatToolResultLines } from './summarize.js'
+import { normalizeInline, getDisplayWidth, formatToolResultLines, sanitizeOperatorHint } from './summarize.js'
 
 interface ToolCallCardProps {
   item: ToolCallItem
@@ -73,11 +73,11 @@ export function ToolCallView({ tc, isLast, dimCompleted = false }: {
         {phaseLabel && <Text dimColor> {phaseLabel}</Text>}
       </Box>
 
-      {/* ── Reasoning: why this tool was called ── */}
+      {/* ── Reasoning: why this tool was called (always single-line) ── */}
       {tc.displayReason && (
         <Box>
           <Text color={color} dimColor={borderDim}>{borderChar} </Text>
-          <Text dimColor italic>  {GLYPH.settled} {tc.displayReason}</Text>
+          <Text dimColor italic>  {GLYPH.settled} {sanitizeOperatorHint(tc.displayReason)}</Text>
         </Box>
       )}
 

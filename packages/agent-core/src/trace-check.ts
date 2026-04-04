@@ -8,7 +8,7 @@ import type { TraceRunV2, TraceStepV2, LifecycleTraceEvent, ProviderStreamTraceE
 // Check result types
 // ---------------------------------------------------------------------------
 
-export type CheckSeverity = 'error' | 'warning'
+export type CheckSeverity = 'error' | 'warning' | 'diagnostic'
 
 export interface CheckIssue {
   severity: CheckSeverity
@@ -26,6 +26,7 @@ export interface CheckResult {
   issues: CheckIssue[]
   errorCount: number
   warningCount: number
+  diagnosticCount: number
 }
 
 // ---------------------------------------------------------------------------
@@ -70,11 +71,13 @@ export function checkTrace(trace: TraceRunV2): CheckResult {
   checkQueueDrainedConsistency(normalized, issues)
   checkSessionDoneAfterLastStep(normalized, issues)
   checkInterruptChain(normalized, issues)
+  checkStreamingDiagnostics(normalized, issues)
 
   const errorCount = issues.filter(i => i.severity === 'error').length
   const warningCount = issues.filter(i => i.severity === 'warning').length
+  const diagnosticCount = issues.filter(i => i.severity === 'diagnostic').length
 
-  return { passed: errorCount === 0, issues, errorCount, warningCount }
+  return { passed: errorCount === 0, issues, errorCount, warningCount, diagnosticCount }
 }
 
 // ---------------------------------------------------------------------------
@@ -377,20 +380,138 @@ function checkInterruptChain(trace: TraceRunV2, issues: CheckIssue[]): void {
 }
 
 // ---------------------------------------------------------------------------
+// Streaming diagnostics — factual observations, not errors
+// ---------------------------------------------------------------------------
+
+/**
+ * Streaming diagnostics: surface factual observations about the run's streaming
+ * signature. These are not errors — they describe risk signatures that operators
+ * and dogfooders should be aware of.
+ */
+function checkStreamingDiagnostics(trace: TraceRunV2, issues: CheckIssue[]): void {
+  checkThinkingAbsent(trace, issues)
+  checkToolcallDeltaDensity(trace, issues)
+  checkPartialToLifecycleGap(trace, issues)
+}
+
+/**
+ * thinking_absent: the entire run has no thinking_start / thinking_delta / thinking_end.
+ * This is a factual observation — some providers don't emit thinking events, and that's
+ * fine. But it means the UI had no raw thought stream to display, which can look like
+ * the agent is "frozen" during long reasoning phases.
+ */
+function checkThinkingAbsent(trace: TraceRunV2, issues: CheckIssue[]): void {
+  const thinkingTypes = new Set(['thinking_start', 'thinking_delta', 'thinking_end'])
+  let hasThinking = false
+  for (const step of trace.steps) {
+    for (const pe of step.ledgers.providerStream) {
+      if (thinkingTypes.has(pe.type)) { hasThinking = true; break }
+    }
+    if (hasThinking) break
+  }
+  if (!hasThinking) {
+    issues.push(issue(
+      'diagnostic', null, 'thinking_absent',
+      'no thinking_start/delta/end events in the entire run — UI had no raw thought stream to display',
+    ))
+  }
+}
+
+/**
+ * toolcall_delta_density_high: a single tool call has an unusually high density of
+ * toolcall_delta events. This typically happens with large file writes where the
+ * provider streams args in many small chunks.
+ *
+ * Threshold: >20 deltas within a 500ms window for a single toolCallId.
+ * This is conservative — normal tool calls rarely exceed 10 deltas total.
+ */
+function checkToolcallDeltaDensity(trace: TraceRunV2, issues: CheckIssue[]): void {
+  for (const step of trace.steps) {
+    // Group toolcall_delta by toolCallId
+    const deltasByTc = new Map<string, { timestamps: number[]; count: number }>()
+    for (const pe of step.ledgers.providerStream) {
+      if (pe.type === 'toolcall_delta' && pe.toolCallId) {
+        let entry = deltasByTc.get(pe.toolCallId)
+        if (!entry) { entry = { timestamps: [], count: 0 }; deltasByTc.set(pe.toolCallId, entry) }
+        entry.timestamps.push(pe.timestamp)
+        entry.count++
+      }
+    }
+    for (const [tcId, { timestamps, count }] of deltasByTc) {
+      if (count <= 20) continue
+      // Check density: sort timestamps and find max count in any 500ms window
+      timestamps.sort((a, b) => a - b)
+      let maxInWindow = 0
+      let windowStart = 0
+      for (let i = 0; i < timestamps.length; i++) {
+        while (timestamps[i] - timestamps[windowStart] > 500) windowStart++
+        maxInWindow = Math.max(maxInWindow, i - windowStart + 1)
+      }
+      if (maxInWindow > 20) {
+        const hz = Math.round(maxInWindow / 0.5)
+        issues.push(issue(
+          'diagnostic', step.step, 'toolcall_delta_density_high',
+          `toolcall_delta density for tc=${tcId.slice(0, 8)}: ${maxInWindow} deltas in 500ms (~${hz} Hz), total ${count} deltas — may cause excessive UI redraws`,
+        ))
+      }
+    }
+  }
+}
+
+/**
+ * partial_to_lifecycle_gap_large: the first raw provider toolcall_start/toolcall_delta
+ * for a tool call arrives significantly before the lifecycle tool_call_created event.
+ * This gap means the UI cannot show a proper tool card until the lifecycle event fires,
+ * even though partial data is already streaming.
+ *
+ * Threshold: >300ms gap. In a healthy pipeline, lifecycle tool_call_created should
+ * fire within ~50ms of the first raw partial.
+ */
+function checkPartialToLifecycleGap(trace: TraceRunV2, issues: CheckIssue[]): void {
+  for (const step of trace.steps) {
+    // Find first raw partial timestamp per toolCallId
+    const firstPartial = new Map<string, number>()
+    for (const pe of step.ledgers.providerStream) {
+      if ((pe.type === 'toolcall_start' || pe.type === 'toolcall_delta') && pe.toolCallId) {
+        if (!firstPartial.has(pe.toolCallId)) firstPartial.set(pe.toolCallId, pe.timestamp)
+      }
+    }
+    // Find lifecycle tool_call_created timestamp per toolCallId
+    const lifecycleCreated = new Map<string, number>()
+    for (const le of step.ledgers.lifecycleEvents) {
+      if (le.type === 'tool_call_created' && le.toolCallId) {
+        lifecycleCreated.set(le.toolCallId, le.timestamp)
+      }
+    }
+    for (const [tcId, partialTs] of firstPartial) {
+      const createdTs = lifecycleCreated.get(tcId)
+      if (createdTs === undefined) continue // separate rule handles missing lifecycle
+      const gap = createdTs - partialTs
+      if (gap > 300) {
+        issues.push(issue(
+          'diagnostic', step.step, 'partial_to_lifecycle_gap_large',
+          `tc=${tcId.slice(0, 8)}: first raw partial at t=${partialTs}, lifecycle tool_call_created at t=${createdTs} — gap ${gap}ms (>300ms threshold). UI cannot show tool card until lifecycle fires.`,
+        ))
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Formatting
 // ---------------------------------------------------------------------------
 
 export function formatCheckResult(result: CheckResult, runId: string): string {
   const lines: string[] = []
   if (result.passed) {
-    lines.push(`PASS  ${runId}  (${result.warningCount} warnings)`)
+    lines.push(`PASS  ${runId}  (${result.warningCount} warnings, ${result.diagnosticCount} diagnostics)`)
   } else {
-    lines.push(`FAIL  ${runId}  (${result.errorCount} errors, ${result.warningCount} warnings)`)
+    lines.push(`FAIL  ${runId}  (${result.errorCount} errors, ${result.warningCount} warnings, ${result.diagnosticCount} diagnostics)`)
   }
 
   for (const issue of result.issues) {
     const stepLabel = issue.step !== null ? `step ${issue.step}` : 'global'
-    const sev = issue.severity === 'error' ? 'ERROR' : 'WARNING'
+    const sev = issue.severity === 'error' ? 'ERROR' : issue.severity === 'warning' ? 'WARNING' : 'DIAG'
     const seqInfo = issue.seq !== null ? ` seq=${issue.seq}` : ''
     const srcInfo = issue.source ? ` (${issue.source})` : ''
     lines.push(`  ${sev} ${stepLabel}:${seqInfo}${srcInfo} ${issue.message} [${issue.rule}]`)

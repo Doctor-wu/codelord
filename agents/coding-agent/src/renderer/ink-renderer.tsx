@@ -14,6 +14,9 @@ import {
   reduceLifecycleEvent,
   applyThinkingDelta,
   applyTextDelta,
+  applyToolCallStart,
+  applyToolCallDelta,
+  applyToolCallEnd,
   captureTimelineSnapshot,
   hydrateTimelineState,
 } from './ink/timeline-projection.js'
@@ -28,6 +31,10 @@ type StateListener = (state: TimelineState) => void
 class TimelineStore {
   private state: TimelineState
   private listeners: Set<StateListener> = new Set()
+  /** Throttle timer for high-frequency toolcall_delta events */
+  private _deltaFlushTimer: ReturnType<typeof setTimeout> | null = null
+  private _pendingDeltaState: TimelineState | null = null
+  private static readonly DELTA_THROTTLE_MS = 67 // ~15Hz
 
   constructor(idle = false) {
     this.state = createInitialTimelineState(idle)
@@ -49,6 +56,34 @@ class TimelineStore {
     }
   }
 
+  /** Flush any pending throttled delta state immediately */
+  private flushPendingDelta(): void {
+    if (this._deltaFlushTimer) {
+      clearTimeout(this._deltaFlushTimer)
+      this._deltaFlushTimer = null
+    }
+    if (this._pendingDeltaState) {
+      this.state = this._pendingDeltaState
+      this._pendingDeltaState = null
+      this.notify()
+    }
+  }
+
+  /** Schedule a throttled notification for delta updates */
+  private notifyThrottled(newState: TimelineState): void {
+    this._pendingDeltaState = newState
+    if (!this._deltaFlushTimer) {
+      this._deltaFlushTimer = setTimeout(() => {
+        this._deltaFlushTimer = null
+        if (this._pendingDeltaState) {
+          this.state = this._pendingDeltaState
+          this._pendingDeltaState = null
+          this.notify()
+        }
+      }, TimelineStore.DELTA_THROTTLE_MS)
+    }
+  }
+
   onRawEvent(event: AgentEvent): void {
     switch (event.type) {
       case 'thinking_delta':
@@ -59,10 +94,36 @@ class TimelineStore {
         this.state = applyTextDelta(this.state, event.delta)
         this.notify()
         break
+      case 'toolcall_start':
+        // Flush any pending delta before start
+        this.flushPendingDelta()
+        this.state = applyToolCallStart(this.state, event.contentIndex, event.toolName, event.args)
+        this.notify()
+        break
+      case 'toolcall_delta':
+        // Throttle high-frequency delta updates (~15Hz max)
+        this.notifyThrottled(
+          applyToolCallDelta(this._pendingDeltaState ?? this.state, event.contentIndex, event.toolName, event.args),
+        )
+        break
+      case 'toolcall_end':
+        // Flush pending delta, then apply end
+        this.flushPendingDelta()
+        this.state = applyToolCallEnd(this.state, event.contentIndex, event.toolCall.id, event.toolCall.name, event.toolCall.arguments)
+        this.notify()
+        break
     }
   }
 
   onLifecycleEvent(event: LifecycleEvent): void {
+    // Flush any pending throttled delta before processing lifecycle events
+    // This ensures provisional→stable handoff sees the latest state
+    this.state = this._pendingDeltaState ?? this.state
+    this._pendingDeltaState = null
+    if (this._deltaFlushTimer) {
+      clearTimeout(this._deltaFlushTimer)
+      this._deltaFlushTimer = null
+    }
     this.state = reduceLifecycleEvent(this.state, event)
     this.notify()
   }

@@ -292,7 +292,7 @@ describe('Event Spine — lifecycle events from runtime', () => {
     }
   })
 
-  it('tool_call.displayReason is projected from reasoning state', async () => {
+  it('tool_call.displayReason is null — generic reasoning is not projected to tools', async () => {
     const lifecycleEvents: LifecycleEvent[] = []
     const router = new ToolRouter()
     const safetyPolicy = new ToolSafetyPolicy({ cwd: '/tmp' })
@@ -344,11 +344,11 @@ describe('Event Spine — lifecycle events from runtime', () => {
     rt.messages.push({ role: 'user', content: 'read', timestamp: Date.now() })
     await rt.run()
 
+    // displayReason must be null — generic assistant reasoning does not belong on tool cards
     const completed = lifecycleEvents.find(e => e.type === 'tool_call_completed')
     expect(completed).toBeDefined()
     if (completed?.type === 'tool_call_completed') {
-      expect(completed.toolCall.displayReason).toBeTruthy()
-      expect(completed.toolCall.displayReason).toContain('foo.ts')
+      expect(completed.toolCall.displayReason).toBeNull()
     }
   })
 

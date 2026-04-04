@@ -5,7 +5,6 @@
 import React from 'react'
 import { Box, Text } from 'ink'
 import type { ToolBatchItem } from './timeline-projection.js'
-import { projectDisplayReason } from '@agent/core'
 import { ToolCallView } from './ToolCallCard.js'
 import { GLYPH, LANE } from './theme.js'
 
@@ -15,13 +14,14 @@ interface ToolBatchCardProps {
 }
 
 export function ToolBatchCard({ item, isLast }: ToolBatchCardProps) {
-  const { toolCalls, reasoning } = item
+  const { toolCalls } = item
   const total = toolCalls.length
   const completedCount = toolCalls.filter(tc => tc.phase === 'completed').length
   const hasBlocked = toolCalls.some(tc => tc.phase === 'blocked')
   const allDone = completedCount === total
 
-  const batchReasoning = reasoning ? projectDisplayReason(reasoning) : null
+  // Batch reasoning is intentionally NOT projected from generic assistant thought.
+  // Only explicit batch-scoped rationale would be shown here (not yet available).
   const headerColor = allDone ? LANE.muted : LANE.assistant
 
   return (
@@ -34,18 +34,8 @@ export function ToolBatchCard({ item, isLast }: ToolBatchCardProps) {
         {hasBlocked && <Text color={LANE.error}> blocked</Text>}
       </Box>
 
-      {/* ── Batch reasoning context ── */}
-      {batchReasoning && (
-        <Box>
-          <Text color={headerColor}>{GLYPH.batchMid} </Text>
-          <Text color={LANE.reasoning} italic>{batchReasoning}</Text>
-        </Box>
-      )}
-
       {/* ── Tool calls ── */}
       {toolCalls.map((tc, index) => {
-        const isActiveStep = tc.phase === 'executing' || tc.phase === 'generating' || tc.phase === 'routed' || tc.phase === 'checked'
-        const isCompletedStep = tc.phase === 'completed'
         const isLastStep = index === total - 1
         const rail = isLastStep && allDone ? GLYPH.batchBot : GLYPH.batchMid
 

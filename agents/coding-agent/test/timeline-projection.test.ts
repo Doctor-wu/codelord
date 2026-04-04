@@ -4,6 +4,9 @@ import {
   reduceLifecycleEvent,
   applyThinkingDelta,
   applyTextDelta,
+  applyToolCallStart,
+  applyToolCallDelta,
+  applyToolCallEnd,
   captureTimelineSnapshot,
   hydrateTimelineState,
 } from '../src/renderer/ink/timeline-projection.js'
@@ -627,6 +630,325 @@ describe('Timeline Projection', () => {
       expect(hydrated.usage).not.toBeNull()
       expect(hydrated.usage!.totalTokens).toBe(370)
       expect(hydrated.usage!.llmCalls).toBe(3)
+    })
+  })
+
+  // =========================================================================
+  // M1X-Streaming: Provisional tool calls + live proxy + handoff
+  // =========================================================================
+
+  describe('provisional tool calls (raw stream → UI)', () => {
+    it('toolcall_start creates a provisional tool card before lifecycle', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+
+      state = applyToolCallStart(state, 0, 'file_write', { file_path: 'foo.ts' })
+
+      // Should have assistant + provisional tool_call
+      expect(state.items.map(i => i.type)).toEqual(['assistant', 'tool_call'])
+      const tc = (state.items[1] as ToolCallItem).toolCall
+      expect(tc.toolName).toBe('file_write')
+      expect(tc.phase).toBe('generating')
+      expect(tc.provisionalId).toBeTruthy()
+    })
+
+    it('toolcall_delta updates provisional tool args', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = applyToolCallStart(state, 0, 'file_write', { file_path: 'foo.ts' })
+      state = applyToolCallDelta(state, 0, 'file_write', { file_path: 'foo.ts', content: 'partial content...' })
+
+      const tc = (state.items[1] as ToolCallItem).toolCall
+      expect(tc.args.content).toBe('partial content...')
+    })
+
+    it('toolcall_end finalizes provisional with real id', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = applyToolCallStart(state, 0, 'file_write', { file_path: 'foo.ts' })
+      state = applyToolCallEnd(state, 0, 'tc-real-1', 'file_write', { file_path: 'foo.ts', content: 'full content' })
+
+      const tc = (state.items[1] as ToolCallItem).toolCall
+      expect(tc.id).toBe('tc-real-1')
+      expect(tc.args.content).toBe('full content')
+    })
+
+    it('provisional → stable handoff: no duplicate on tool_call_created', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+
+      // Raw stream creates provisional
+      state = applyToolCallStart(state, 0, 'file_write', { file_path: 'foo.ts' })
+      state = applyToolCallEnd(state, 0, 'tc-real-1', 'file_write', { file_path: 'foo.ts', content: 'done' })
+
+      // Lifecycle arrives — should replace, not duplicate
+      const stableTc = createToolCallLifecycle({ id: 'tc-real-1', toolName: 'file_write', args: { file_path: 'foo.ts', content: 'done' }, command: 'foo.ts' })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: stableTc })
+
+      // Still only 2 items: assistant + tool_call (not 3)
+      expect(state.items.map(i => i.type)).toEqual(['assistant', 'tool_call'])
+      const tc = (state.items[1] as ToolCallItem).toolCall
+      expect(tc.id).toBe('tc-real-1')
+      // Stable version should have null provisionalId
+      expect(tc.provisionalId).toBeNull()
+    })
+
+    it('provisional appears before lifecycle tool_call_created', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+
+      // After toolcall_start, tool is visible
+      state = applyToolCallStart(state, 0, 'bash', { command: 'ls' })
+      expect(state.items).toHaveLength(2)
+      expect(state.items[1]!.type).toBe('tool_call')
+
+      // Before lifecycle arrives, tool is already there
+      const tcBefore = (state.items[1] as ToolCallItem).toolCall
+      expect(tcBefore.phase).toBe('generating')
+    })
+  })
+
+  describe('no thinking + toolcall delta only (live proxy)', () => {
+    it('assistant gets liveProxy when no thinking_* events', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+
+      // Initial live proxy
+      const item0 = state.items[0] as AssistantItem
+      expect(item0.liveProxy).toBe('Thinking…')
+      expect(item0.hasProviderThought).toBe(false)
+
+      // toolcall_start updates live proxy
+      state = applyToolCallStart(state, 0, 'file_write', { file_path: 'foo.ts' })
+      const item1 = state.items[0] as AssistantItem
+      expect(item1.liveProxy).toBe('正在构建 file_write 调用…')
+    })
+
+    it('liveProxy updates with args preview on toolcall_delta', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = applyToolCallStart(state, 0, 'file_read', { file_path: 'src/main.ts' })
+      state = applyToolCallDelta(state, 0, 'file_read', { file_path: 'src/main.ts' })
+
+      const item = state.items[0] as AssistantItem
+      expect(item.liveProxy).toContain('file_read')
+      expect(item.liveProxy).toContain('src/main.ts')
+    })
+
+    it('liveProxy is null when provider sends thinking_*', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+
+      // Provider sends thinking
+      state = applyThinkingDelta(state, 'I need to check the file structure.')
+
+      const item = state.items[0] as AssistantItem
+      expect(item.hasProviderThought).toBe(true)
+      expect(item.liveProxy).toBeNull()
+
+      // Even after toolcall_start, liveProxy stays null because provider has thoughts
+      state = applyToolCallStart(state, 0, 'bash', { command: 'ls' })
+      const item2 = state.items[0] as AssistantItem
+      expect(item2.liveProxy).toBeNull()
+    })
+
+    it('liveProxy cleared on assistant_turn_end', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = applyToolCallStart(state, 0, 'bash', { command: 'ls' })
+
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+      const item = state.items[0] as AssistantItem
+      expect(item.liveProxy).toBeNull()
+    })
+  })
+
+  describe('reasoning fallback when no provider thought', () => {
+    it('assistant item is visible even with only liveProxy (no thinking, no text)', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+
+      const item = state.items[0] as AssistantItem
+      // Has liveProxy but no thinking/text
+      expect(item.thinking).toBe('')
+      expect(item.text).toBe('')
+      expect(item.liveProxy).toBe('Thinking…')
+      // The UI should render this (checked by App.tsx logic: !thinking && !text && !liveProxy → null)
+    })
+  })
+
+  describe('throttled partial updates flush final state', () => {
+    it('multiple toolcall_delta produce consistent final args', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = applyToolCallStart(state, 0, 'file_write', { file_path: 'x.ts' })
+
+      // Simulate many deltas (in real usage, throttled by TimelineStore)
+      for (let i = 0; i < 100; i++) {
+        state = applyToolCallDelta(state, 0, 'file_write', { file_path: 'x.ts', content: 'a'.repeat(i + 1) })
+      }
+
+      const tc = (state.items[1] as ToolCallItem).toolCall
+      expect(tc.args.content).toBe('a'.repeat(100))
+    })
+
+    it('toolcall_end after many deltas has correct final state', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = applyToolCallStart(state, 0, 'file_write', { file_path: 'x.ts' })
+
+      for (let i = 0; i < 50; i++) {
+        state = applyToolCallDelta(state, 0, 'file_write', { file_path: 'x.ts', content: `line${i}` })
+      }
+
+      state = applyToolCallEnd(state, 0, 'tc-final', 'file_write', { file_path: 'x.ts', content: 'final content' })
+
+      const tc = (state.items[1] as ToolCallItem).toolCall
+      expect(tc.id).toBe('tc-final')
+      expect(tc.args.content).toBe('final content')
+    })
+  })
+
+  describe('provisional tool in batch', () => {
+    it('two provisional tools form a batch', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+
+      state = applyToolCallStart(state, 0, 'file_read', { file_path: 'a.ts' })
+      state = applyToolCallStart(state, 1, 'file_read', { file_path: 'b.ts' })
+
+      // Should form a batch
+      expect(state.items.map(i => i.type)).toEqual(['assistant', 'tool_batch'])
+      const batch = state.items[1] as ToolBatchItem
+      expect(batch.toolCalls).toHaveLength(2)
+    })
+
+    it('provisional batch handoff: stable lifecycle replaces provisional in batch', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+
+      // Two provisional tools
+      state = applyToolCallStart(state, 0, 'file_read', { file_path: 'a.ts' })
+      state = applyToolCallEnd(state, 0, 'tc-1', 'file_read', { file_path: 'a.ts' })
+      state = applyToolCallStart(state, 1, 'file_read', { file_path: 'b.ts' })
+      state = applyToolCallEnd(state, 1, 'tc-2', 'file_read', { file_path: 'b.ts' })
+
+      // Lifecycle arrives for both
+      const stableTc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'file_read', args: { file_path: 'a.ts' }, command: 'a.ts' })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: stableTc1 })
+      const stableTc2 = createToolCallLifecycle({ id: 'tc-2', toolName: 'file_read', args: { file_path: 'b.ts' }, command: 'b.ts' })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: stableTc2 })
+
+      // Still a batch with 2 items, not 4
+      expect(state.items.map(i => i.type)).toEqual(['assistant', 'tool_batch'])
+      const batch = state.items[1] as ToolBatchItem
+      expect(batch.toolCalls).toHaveLength(2)
+      expect(batch.toolCalls[0]!.id).toBe('tc-1')
+      expect(batch.toolCalls[1]!.id).toBe('tc-2')
+    })
+  })
+
+  // =========================================================================
+  // Reasoning viewport: streaming thought display behavior
+  // =========================================================================
+
+  describe('reasoning viewport behavior', () => {
+    it('continuous thinking_delta keeps updating thinking text (not frozen)', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+      })
+
+      // Simulate many thinking deltas
+      state = applyThinkingDelta(state, 'First line of thought.\n')
+      state = applyThinkingDelta(state, 'Second line of thought.\n')
+      state = applyThinkingDelta(state, 'Third line of thought.\n')
+      state = applyThinkingDelta(state, 'Fourth line of thought.\n')
+      state = applyThinkingDelta(state, 'Fifth line of thought.\n')
+      state = applyThinkingDelta(state, 'Sixth line — this should be in viewport.\n')
+
+      const item = state.items[0] as AssistantItem
+      // Full thinking text is preserved
+      expect(item.thinking).toContain('Sixth line')
+      expect(item.thinking.split('\n').filter(l => l).length).toBe(6)
+      // hasProviderThought is true
+      expect(item.hasProviderThought).toBe(true)
+    })
+
+    it('reasoningSnapshot freezes early but thinking keeps growing', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+      })
+
+      state = applyThinkingDelta(state, 'I need to check the configuration files to understand the project structure.')
+      const earlySnapshot = (state.items[0] as AssistantItem).reasoningSnapshot
+
+      // More thinking arrives
+      state = applyThinkingDelta(state, '\nNow looking at package.json.')
+      state = applyThinkingDelta(state, '\nChecking tsconfig.json next.')
+      state = applyThinkingDelta(state, '\nAlso need to review the test setup.')
+
+      const item = state.items[0] as AssistantItem
+      // Snapshot is frozen at early value
+      expect(item.reasoningSnapshot).toBe(earlySnapshot)
+      // But thinking text has all the content
+      expect(item.thinking).toContain('test setup')
+      expect(item.thinking).toContain('configuration files')
+    })
+
+    it('hasProviderThought=true prevents liveProxy from being set', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+      })
+
+      // Provider sends thought
+      state = applyThinkingDelta(state, 'Real thought from provider.')
+
+      // Then toolcall_start tries to set liveProxy
+      state = applyToolCallStart(state, 0, 'bash', { command: 'ls' })
+
+      const item = state.items[0] as AssistantItem
+      expect(item.hasProviderThought).toBe(true)
+      expect(item.liveProxy).toBeNull()
+    })
+
+    it('hasProviderThought=false allows liveProxy display', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+      })
+
+      // No thinking_delta, just toolcall
+      state = applyToolCallStart(state, 0, 'file_write', { file_path: 'foo.ts' })
+
+      const item = state.items[0] as AssistantItem
+      expect(item.hasProviderThought).toBe(false)
+      expect(item.liveProxy).toBeTruthy()
+      expect(item.liveProxy).toContain('file_write')
+    })
+
+    it('after thinking_end, settled summary is available', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+      })
+
+      state = applyThinkingDelta(state, 'I will read the package.json to check dependencies.')
+      state = applyTextDelta(state, 'Here is the answer.')
+
+      // End the turn
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_end', id: 'a1', reasoning: { ...createReasoningState(), status: 'completed' }, timestamp: 2,
+      })
+
+      const item = state.items[0] as AssistantItem
+      expect(item.isStreaming).toBe(false)
+      // reasoningSnapshot should be available for settled display
+      expect(item.reasoningSnapshot).toBeTruthy()
+      // Full thinking preserved
+      expect(item.thinking).toContain('package.json')
     })
   })
 })

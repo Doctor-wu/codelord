@@ -314,3 +314,61 @@ describe('checkTrace — synthetic fixture regression suite', () => {
     expect(intIssue!.source).toBe('lifecycle_event')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Streaming diagnostics suite
+// ---------------------------------------------------------------------------
+
+describe('checkTrace — streaming diagnostics', () => {
+  it('reasoningStreamPresent does NOT trigger thinking_absent', () => {
+    const result = checkTrace(fixtures.reasoningStreamPresent())
+    expect(result.issues.some(i => i.rule === 'thinking_absent')).toBe(false)
+  })
+
+  it('reasoningStreamPresent passes all checks (no errors)', () => {
+    const result = checkTrace(fixtures.reasoningStreamPresent())
+    expect(result.passed).toBe(true)
+    expect(result.errorCount).toBe(0)
+  })
+
+  it('noThoughtHighDensityToolcallDelta triggers thinking_absent', () => {
+    const result = checkTrace(fixtures.noThoughtHighDensityToolcallDelta())
+    const diag = result.issues.find(i => i.rule === 'thinking_absent')
+    expect(diag).toBeDefined()
+    expect(diag!.severity).toBe('diagnostic')
+  })
+
+  it('noThoughtHighDensityToolcallDelta triggers toolcall_delta_density_high', () => {
+    const result = checkTrace(fixtures.noThoughtHighDensityToolcallDelta())
+    const diag = result.issues.find(i => i.rule === 'toolcall_delta_density_high')
+    expect(diag).toBeDefined()
+    expect(diag!.severity).toBe('diagnostic')
+    expect(diag!.message).toContain('Hz')
+  })
+
+  it('noThoughtHighDensityToolcallDelta triggers partial_to_lifecycle_gap_large', () => {
+    const result = checkTrace(fixtures.noThoughtHighDensityToolcallDelta())
+    const diag = result.issues.find(i => i.rule === 'partial_to_lifecycle_gap_large')
+    expect(diag).toBeDefined()
+    expect(diag!.severity).toBe('diagnostic')
+    expect(diag!.message).toContain('gap')
+  })
+
+  it('diagnostics do not affect passed status', () => {
+    const result = checkTrace(fixtures.noThoughtHighDensityToolcallDelta())
+    // diagnostics are informational — should not cause failure
+    expect(result.passed).toBe(true)
+    expect(result.diagnosticCount).toBeGreaterThan(0)
+  })
+
+  it('cleanRun triggers thinking_absent (no thinking events in clean run)', () => {
+    const result = checkTrace(fixtures.cleanRun())
+    // cleanRun has text_start/delta/end but no thinking_* — should trigger
+    expect(result.issues.some(i => i.rule === 'thinking_absent')).toBe(true)
+  })
+
+  it('cleanRun does NOT trigger toolcall_delta_density_high', () => {
+    const result = checkTrace(fixtures.cleanRun())
+    expect(result.issues.some(i => i.rule === 'toolcall_delta_density_high')).toBe(false)
+  })
+})

@@ -120,7 +120,12 @@ export interface ToolCallLifecycle {
   result: string | null
   /** Whether the result is an error */
   isError: boolean
-  /** Optional reason/intent for this tool call (from model, may be empty) */
+  /**
+   * Explicit tool-scoped rationale — why THIS specific tool was called.
+   * Must not be populated with generic assistant-level reasoning.
+   * Null when no tool-specific rationale is available (the common case today).
+   * Reserved for future use when the model provides per-tool-call justification.
+   */
   displayReason: string | null
   /** Timestamps */
   createdAt: number
