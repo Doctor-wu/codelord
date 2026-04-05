@@ -1,7 +1,7 @@
 # Codelord
 
 Codelord is a production-oriented coding agent monorepo.
-It is not organized as "one big app"; it is organized as a reusable engine plus a concrete product shell.
+It is organized as a reusable engine plus a concrete product shell, not as one giant app.
 
 ## Workspace Layout
 
@@ -10,11 +10,9 @@ It is not organized as "one big app"; it is organized as a reusable engine plus 
 | `packages/config` | Config schema, defaults, validation, layered loading |
 | `packages/agent-core` | Runtime, tools, event spine, trace schema, safety, router |
 | `agents/coding-agent` | `codelord` CLI, REPL, Ink renderer, persistence, auth |
+| `docs/planning` | Owner-facing roadmap, sprint, closure ledger, decision log |
+| `docs/system` | Stable architecture, design principles, eval rules |
 | `docs/agent/modules` | Agent-facing module summaries |
-| `RoadMap.md` | Long-range roadmap |
-| `Now.md` | Current priority |
-| `ClosureLedger.md` | Temporary-state ledger |
-| `DecisionLog.md` | Why the route changed |
 
 ## Common Commands
 
@@ -27,18 +25,26 @@ It is not organized as "one big app"; it is organized as a reusable engine plus 
 
 ### For Humans
 
-- Start here: `README.md`
-- Current focus: `Now.md`
-- Long-range direction: `RoadMap.md`
-- Stable structure: `ARCHITECTURE.md`
+- Current battle: `docs/planning/Sprint.md`
+- Long-range direction: `docs/planning/RoadMap.md`
+- Stable structure: `docs/system/ARCHITECTURE.md`
+- Temporary-state debt: `docs/planning/ClosureLedger.md`
 
 ### For Agents
 
 - Entry rules: `AGENTS.md`
-- Stable boundaries: `ARCHITECTURE.md`
-- Design constraints: `DesignPrinciples.md`
-- Evidence bar: `EVALS.md`
+- Stable boundaries: `docs/system/ARCHITECTURE.md`
+- Design constraints: `docs/system/DesignPrinciples.md`
+- Evidence bar: `docs/system/EVALS.md`
 - Module summaries: `docs/agent/modules/README.md`
+
+## Planning Model
+
+Codelord uses a sprint loop, not a static status page.
+
+1. `docs/planning/RoadMap.md` holds the long-range route and milestone pool.
+2. `docs/planning/Sprint.md` holds the current active sprint only.
+3. When a sprint closes, update the roadmap, archive the sprint, and load the next sprint from the roadmap.
 
 ## Product Posture
 
@@ -48,4 +54,7 @@ Codelord is optimized for:
 - eval-first claims
 - rewritable roadmap, stable architecture
 
-That means current-focus details live outside the roadmap, and temporary solutions must carry explicit closure conditions.
+That means:
+- current execution lives in `docs/planning/Sprint.md`
+- long-range intent lives in `docs/planning/RoadMap.md`
+- temporary solutions must carry explicit closure conditions in `docs/planning/ClosureLedger.md`

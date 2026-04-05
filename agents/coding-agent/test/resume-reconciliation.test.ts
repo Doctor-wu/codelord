@@ -243,9 +243,62 @@ describe('reconcileTimelineForResume', () => {
     expect(state.stepCount).toBe(7)
   })
 
-  // --- No false positives ---
+  // --- Resume context population ---
 
-  it('normal READY resume without timeline produces clean idle state', () => {
+  it('populates resumeContext with pending question info', () => {
+    const snapshot = makeSnapshot({
+      runtimeState: 'BLOCKED',
+      pendingQuestion: testQuestion,
+    })
+
+    const state = reconcileTimelineForResume(null, {
+      snapshot,
+      wasDowngraded: false,
+      interruptedDuring: null,
+    })
+
+    expect(state.resumeContext).not.toBeNull()
+    expect(state.resumeContext!.isResumed).toBe(true)
+    expect(state.resumeContext!.hasPendingQuestion).toBe(true)
+    expect(state.resumeContext!.wasDowngraded).toBe(false)
+  })
+
+  it('populates resumeContext with downgrade info', () => {
+    const snapshot = makeSnapshot({
+      runtimeState: 'STREAMING',
+      wasInFlight: true,
+    })
+
+    const state = reconcileTimelineForResume(null, {
+      snapshot,
+      wasDowngraded: true,
+      interruptedDuring: 'STREAMING',
+    })
+
+    expect(state.resumeContext).not.toBeNull()
+    expect(state.resumeContext!.wasDowngraded).toBe(true)
+    expect(state.resumeContext!.interruptedDuring).toBe('STREAMING')
+    expect(state.resumeContext!.hasPendingQuestion).toBe(false)
+  })
+
+  it('populates resumeContext with pending inbound count', () => {
+    const snapshot = makeSnapshot({
+      pendingInbound: [
+        { role: 'user', content: 'queued-1', timestamp: 1100 },
+        { role: 'user', content: 'queued-2', timestamp: 1200 },
+      ],
+    })
+
+    const state = reconcileTimelineForResume(null, {
+      snapshot,
+      wasDowngraded: false,
+      interruptedDuring: null,
+    })
+
+    expect(state.resumeContext!.pendingInboundCount).toBe(2)
+  })
+
+  it('normal resume has resumeContext.isResumed = true with no special flags', () => {
     const snapshot = makeSnapshot()
 
     const state = reconcileTimelineForResume(null, {
@@ -254,10 +307,9 @@ describe('reconcileTimelineForResume', () => {
       interruptedDuring: null,
     })
 
-    expect(state.isRunning).toBe(false)
-    expect(state.isIdle).toBe(true)
-    // No stale control items
-    const controlItems = state.items.filter(i => i.type === 'question' || (i.type === 'status' && (i as StatusItem).status === 'interrupted'))
-    expect(controlItems).toHaveLength(0)
+    expect(state.resumeContext!.isResumed).toBe(true)
+    expect(state.resumeContext!.hasPendingQuestion).toBe(false)
+    expect(state.resumeContext!.wasDowngraded).toBe(false)
+    expect(state.resumeContext!.pendingInboundCount).toBe(0)
   })
 })

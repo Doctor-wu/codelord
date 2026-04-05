@@ -5,14 +5,15 @@ Scope: `agents/coding-agent/**`
 ## Read First
 
 - Root `AGENTS.md`
-- `ARCHITECTURE.md`
-- `DesignPrinciples.md`
+- `docs/planning/Sprint.md`
+- `docs/system/ARCHITECTURE.md`
+- `docs/system/DesignPrinciples.md`
 - `docs/agent/modules/cli-composition.md`
 - `docs/agent/modules/renderer.md`
 - `docs/agent/modules/persistence.md`
 - `docs/agent/modules/auth.md`
 
-If the task touches current operator UX or streaming behavior, also read `Now.md` and `ClosureLedger.md`.
+If the task touches current operator UX or streaming behavior, also read `docs/planning/ClosureLedger.md`.
 
 ## What This Package Owns
 
@@ -44,4 +45,4 @@ If the task touches current operator UX or streaming behavior, also read `Now.md
 - Renderer semantics change → update `docs/agent/modules/renderer.md`
 - Persistence or undo change → update `docs/agent/modules/persistence.md`
 - Auth change → update `docs/agent/modules/auth.md`
-- Current operator UX workaround changed → update `ClosureLedger.md` or `Now.md`
+- Current operator UX workaround changed → update `docs/planning/ClosureLedger.md` or `docs/planning/Sprint.md`

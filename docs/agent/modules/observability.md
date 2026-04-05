@@ -70,7 +70,7 @@ Use this module when the question is "what happened?" or "why did the operator s
 
 ## Required Doc Follow-Through
 
-- Trace or event semantics changed → update `ARCHITECTURE.md` and this file.
-- Current observability gap or workaround added → update `ClosureLedger.md`.
-- Current proof standard changed → update `EVALS.md`.
-- Current focus shifted because of trace findings → update `DecisionLog.md` or `Now.md` as appropriate.
+- Trace or event semantics changed → update `docs/system/ARCHITECTURE.md` and this file.
+- Current observability gap or workaround added → update `docs/planning/ClosureLedger.md`.
+- Current proof standard changed → update `docs/system/EVALS.md`.
+- Current focus shifted because of trace findings → update `docs/planning/DecisionLog.md` or `docs/planning/Sprint.md` as appropriate.

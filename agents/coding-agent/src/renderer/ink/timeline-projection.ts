@@ -79,6 +79,20 @@ export type TimelineItem =
 // TimelineState — the complete view model for Ink
 // ---------------------------------------------------------------------------
 
+/** Resume context — set by reconciliation, consumed by renderer for status display */
+export interface ResumeContext {
+  /** Session was resumed (not a fresh start) */
+  isResumed: boolean
+  /** The previous run was interrupted mid-flight and downgraded */
+  wasDowngraded: boolean
+  /** What phase was interrupted (e.g. 'STREAMING') */
+  interruptedDuring: string | null
+  /** Runtime has a pending question awaiting user answer */
+  hasPendingQuestion: boolean
+  /** Number of pending inbound queue messages at resume time */
+  pendingInboundCount: number
+}
+
 export interface TimelineState {
   items: TimelineItem[]
   isRunning: boolean
@@ -96,6 +110,8 @@ export interface TimelineState {
   stepCount: number
   /** Map of provisional tool call ids (contentIndex → provisionalId) for handoff */
   _provisionalToolCalls: Map<number, string>
+  /** Resume context — populated by reconciliation, null for fresh sessions */
+  resumeContext: ResumeContext | null
 }
 
 export function createInitialTimelineState(idle = false): TimelineState {
@@ -110,6 +126,7 @@ export function createInitialTimelineState(idle = false): TimelineState {
     usage: null,
     stepCount: 0,
     _provisionalToolCalls: new Map(),
+    resumeContext: null,
   }
 }
 
@@ -696,6 +713,7 @@ export function hydrateTimelineState(snapshot: TimelineSnapshot): TimelineState 
     usage: snapshot.usage ?? null,
     stepCount: snapshot.stepCount ?? 0,
     _provisionalToolCalls: new Map(),
+    resumeContext: null,
   }
 }
 
@@ -703,7 +721,7 @@ export function hydrateTimelineState(snapshot: TimelineSnapshot): TimelineState 
 // Resume reconciliation — align timeline with runtime snapshot truth
 // ---------------------------------------------------------------------------
 
-export interface ResumeContext {
+export interface ReconcileContext {
   snapshot: SessionSnapshot
   wasDowngraded: boolean
   interruptedDuring: string | null
@@ -721,7 +739,7 @@ export interface ResumeContext {
  */
 export function reconcileTimelineForResume(
   timelineSnapshot: TimelineSnapshot | null,
-  ctx: ResumeContext,
+  ctx: ReconcileContext,
 ): TimelineState {
   const { snapshot, wasDowngraded, interruptedDuring } = ctx
   const now = Date.now()
@@ -785,6 +803,13 @@ export function reconcileTimelineForResume(
     _nextId: nextId,
     isRunning: false,
     isIdle: true,
+    resumeContext: {
+      isResumed: true,
+      wasDowngraded,
+      interruptedDuring,
+      hasPendingQuestion: !!snapshot.pendingQuestion,
+      pendingInboundCount: snapshot.pendingInbound?.length ?? 0,
+    },
   }
 }
 

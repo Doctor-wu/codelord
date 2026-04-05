@@ -1,8 +1,8 @@
-# Codelord — 决策记录
+# Codelord — Decision Log
 
 > 这里只记录"为什么路线改了"。
 > 每条记录对应一次 roadmap 重写或增补，说明触发信号、改变了什么判断、以及注意力被推向了哪里。
-> 日常 TODO 和当前焦点不在这里——见 [Now.md](./Now.md)。
+> 日常 TODO 和当前焦点不在这里——见 [Sprint.md](./Sprint.md)。
 
 ---
 
@@ -57,3 +57,4 @@ M1X 的优先级进一步聚焦到 streaming operator feedback，而不是继续
 2. M1X 的 operator UX：recovery UX / queue visibility / progressive disclosure / composer polish
 3. M2 的 trace 解释闭环：把"为什么看不见 thought / 为什么 tool 突然出现"也变成可诊断事实
 4. 在 trace 与 streaming UX 足够可信之后，再推进 replay / compare / eval bootstrap
+strap

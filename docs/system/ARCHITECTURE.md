@@ -5,7 +5,7 @@
 This document is the stable source of truth for repository layering, dependency direction, module ownership, and system-wide source-of-truth rules.
 
 Use this document when the question is "where should this behavior live?".
-Do not use it for short-half-life priority ordering — that belongs in `Now.md`.
+Do not use it for short-half-life priority ordering — that belongs in `docs/planning/Sprint.md`.
 
 ## Repository Layers
 
@@ -99,5 +99,5 @@ If a renderer view or formatted string disagrees with the runtime or trace objec
 - New cross-layer concept → define ownership first, then add code.
 - New persistent state → specify source of truth and resume behavior.
 - New lifecycle event → update trace semantics and relevant module docs.
-- New temporary workaround in current-focus areas → record it in `ClosureLedger.md`.
-- New long-range architectural direction → update `RoadMap.md`; if it changes existing reasoning, record the why in `DecisionLog.md`.
+- New temporary workaround in current-focus areas → record it in `docs/planning/ClosureLedger.md`.
+- New long-range architectural direction → update `docs/planning/RoadMap.md`; if it changes existing reasoning, record the why in `docs/planning/DecisionLog.md`.

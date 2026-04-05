@@ -52,7 +52,7 @@ Must show that trace can answer one of these questions:
 
 ### Temporary-state work
 
-Must update `ClosureLedger.md` when:
+Must update `docs/planning/ClosureLedger.md` when:
 - a temporary mechanism is introduced
 - a temporary mechanism changes shape
 - a closure condition becomes clearer

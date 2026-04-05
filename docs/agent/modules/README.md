@@ -19,6 +19,6 @@ These docs are for fast orientation, boundary checks, and safe edit entrypoints.
 ## How To Use These Docs
 
 - Start from the closest module doc before editing a non-trivial area.
-- Use `ARCHITECTURE.md` for cross-module boundary questions.
-- Use `ClosureLedger.md` if the module is in a temporary or current-focus state.
+- Use `docs/system/ARCHITECTURE.md` for cross-module boundary questions.
+- Use `docs/planning/ClosureLedger.md` if the module is in a temporary or current-focus state.
 - Update the relevant module doc when ownership, invariants, or edit entrypoints change.

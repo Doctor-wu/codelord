@@ -4,7 +4,7 @@
 > 每条记录必须能回答"什么时候不再算临时"。
 > 体现 Roadmap Operating Principle：**Temporary-First Requires Explicit Closure**。
 >
-> 长期战略见 [RoadMap.md](./RoadMap.md)。当前焦点见 [Now.md](./Now.md)。
+> 长期战略见 [RoadMap.md](./RoadMap.md)。当前 sprint 见 [Sprint.md](./Sprint.md)。
 
 ---
 

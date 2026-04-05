@@ -4,6 +4,7 @@
 
 import { Box, Text } from 'ink'
 import type { TimelineState, TimelineItem, AssistantItem, ToolCallItem, ToolBatchItem, UserItem, QuestionItem, StatusItem } from './timeline-projection.js'
+import type { ResumeContext } from './timeline-projection.js'
 import { Header } from './Header.js'
 import { ToolCallCard } from './ToolCallCard.js'
 import { ToolBatchCard } from './ToolBatchCard.js'
@@ -24,14 +25,16 @@ interface AppProps {
   maxSteps: number
   inputActive?: boolean
   onInputSubmit?: (text: string) => void
+  onInterrupt?: () => void
   /** Messages queued during running */
   pendingQueue?: string[]
   /** Whether the agent is currently running */
   isRunning?: boolean
 }
 
-export function App({ state, version, provider, model, maxSteps, inputActive, onInputSubmit, pendingQueue, isRunning }: AppProps) {
+export function App({ state, version, provider, model, maxSteps, inputActive, onInputSubmit, onInterrupt, pendingQueue, isRunning }: AppProps) {
   const sessionMode = deriveSessionMode(state)
+  const queueCount = pendingQueue?.length ?? 0
 
   return (
     <Box flexDirection="column">
@@ -40,6 +43,8 @@ export function App({ state, version, provider, model, maxSteps, inputActive, on
         provider={provider}
         model={model}
         isRunning={state.isRunning}
+        sessionMode={sessionMode}
+        queueCount={queueCount}
       />
 
       {state.items.map((item, index) => (
@@ -50,6 +55,7 @@ export function App({ state, version, provider, model, maxSteps, inputActive, on
         <InputComposer
           isActive={!!inputActive}
           onSubmit={onInputSubmit}
+          onInterrupt={onInterrupt}
           mode={sessionMode}
           pendingQueue={pendingQueue ?? []}
           isRunning={!!isRunning}
@@ -231,6 +237,14 @@ function deriveSessionMode(state: TimelineState): SessionMode {
   if (lastItem?.type === 'status') {
     if ((lastItem as StatusItem).status === 'interrupted') return 'interrupted'
     if ((lastItem as StatusItem).status === 'error') return 'error'
+  }
+
+  // Resume context: if reconciliation tagged this as a resumed session,
+  // surface the appropriate mode even when timeline items look like idle
+  const rc = state.resumeContext
+  if (rc?.isResumed) {
+    if (rc.hasPendingQuestion) return 'waiting_answer'
+    if (rc.wasDowngraded) return 'interrupted'
   }
 
   return 'idle'

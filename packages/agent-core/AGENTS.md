@@ -5,13 +5,13 @@ Scope: `packages/agent-core/**`
 ## Read First
 
 - Root `AGENTS.md`
-- `ARCHITECTURE.md`
-- `DesignPrinciples.md`
+- `docs/system/ARCHITECTURE.md`
+- `docs/system/DesignPrinciples.md`
 - `docs/agent/modules/runtime.md`
 - `docs/agent/modules/tool-platform.md`
 - `docs/agent/modules/observability.md`
 
-If the task touches current-focus semantics, also read `Now.md` and `ClosureLedger.md`.
+If the task touches current-focus semantics, also read `docs/planning/Sprint.md` and `docs/planning/ClosureLedger.md`.
 
 ## What This Package Owns
 
@@ -40,5 +40,5 @@ If the task touches current-focus semantics, also read `Now.md` and `ClosureLedg
 - Runtime change → update `docs/agent/modules/runtime.md`
 - Tool/router/safety change → update `docs/agent/modules/tool-platform.md`
 - Event/trace/redaction change → update `docs/agent/modules/observability.md`
-- Cross-layer boundary change → update `ARCHITECTURE.md`
-- Temporary workaround in current-focus area → update `ClosureLedger.md`
+- Cross-layer boundary change → update `docs/system/ARCHITECTURE.md`
+- Temporary workaround in current-focus area → update `docs/planning/ClosureLedger.md`

@@ -74,6 +74,6 @@ It answers:
 
 ## Required Doc Follow-Through
 
-- Snapshot schema changed → update `ARCHITECTURE.md` and `docs/agent/modules/runtime.md`.
-- New temporary resume or undo workaround → update `ClosureLedger.md`.
-- New trace visibility metric or diagnostic persisted → update `EVALS.md` and `docs/agent/modules/observability.md`.
+- Snapshot schema changed → update `docs/system/ARCHITECTURE.md` and `docs/agent/modules/runtime.md`.
+- New temporary resume or undo workaround → update `docs/planning/ClosureLedger.md`.
+- New trace visibility metric or diagnostic persisted → update `docs/system/EVALS.md` and `docs/agent/modules/observability.md`.

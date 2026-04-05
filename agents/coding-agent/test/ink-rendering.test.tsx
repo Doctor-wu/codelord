@@ -6,6 +6,7 @@ import { classifyCommand, classifyToolName } from '../src/renderer/ink/classify.
 import { createInitialTimelineState } from '../src/renderer/ink/timeline-projection.js'
 import type { TimelineState } from '../src/renderer/ink/timeline-projection.js'
 import { createToolCallLifecycle } from '@agent/core'
+import { derivePhaseFeedback } from '../src/renderer/tool-display.js'
 
 // ---------------------------------------------------------------------------
 // App rendering (timeline-based)
@@ -168,5 +169,225 @@ describe('Idle state (REPL)', () => {
 
     expect(output).toContain('codelord')
     expect(output).toContain('gpt-5.4')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Header status reflects session mode after resume
+// ---------------------------------------------------------------------------
+
+describe('Header status reflects session mode', () => {
+  it('shows YOUR TURN in header when resumeContext has pending question', () => {
+    const state: TimelineState = {
+      ...createInitialTimelineState(true),
+      resumeContext: {
+        isResumed: true,
+        wasDowngraded: false,
+        interruptedDuring: null,
+        hasPendingQuestion: true,
+        pendingInboundCount: 0,
+      },
+      items: [{
+        type: 'question',
+        id: 'q-1',
+        question: 'Which DB?',
+        detail: null,
+        reasoning: null,
+        timestamp: Date.now(),
+      }],
+    }
+
+    const output = renderToString(
+      <App
+        state={state}
+        version="0.0.1"
+        provider="openai"
+        model="gpt-5.4"
+        maxSteps={10}
+      />,
+    )
+
+    expect(output).toContain('YOUR TURN')
+    expect(output).not.toContain('IDLE')
+  })
+
+  it('shows PAUSED in header when resumeContext has wasDowngraded', () => {
+    const state: TimelineState = {
+      ...createInitialTimelineState(true),
+      resumeContext: {
+        isResumed: true,
+        wasDowngraded: true,
+        interruptedDuring: 'STREAMING',
+        hasPendingQuestion: false,
+        pendingInboundCount: 0,
+      },
+      items: [{
+        type: 'status',
+        id: 'status-1',
+        status: 'interrupted',
+        message: 'Session interrupted during STREAMING',
+        timestamp: Date.now(),
+      }],
+    }
+
+    const output = renderToString(
+      <App
+        state={state}
+        version="0.0.1"
+        provider="openai"
+        model="gpt-5.4"
+        maxSteps={10}
+      />,
+    )
+
+    expect(output).toContain('PAUSED')
+    expect(output).not.toContain('IDLE')
+  })
+
+  it('shows IDLE for normal fresh session', () => {
+    const state = createInitialTimelineState(true)
+
+    const output = renderToString(
+      <App
+        state={state}
+        version="0.0.1"
+        provider="openai"
+        model="gpt-5.4"
+        maxSteps={10}
+      />,
+    )
+
+    expect(output).toContain('IDLE')
+    expect(output).not.toContain('YOUR TURN')
+    expect(output).not.toContain('PAUSED')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Derived phase feedback for built-in tools
+// ---------------------------------------------------------------------------
+
+describe('derivePhaseFeedback', () => {
+  it('returns tool-specific feedback for file_read in executing phase', () => {
+    expect(derivePhaseFeedback('file_read', 'executing', { file_path: '/src/foo.ts' }))
+      .toBe('reading …/src/foo.ts…')
+  })
+
+  it('returns tool-specific feedback for file_write', () => {
+    expect(derivePhaseFeedback('file_write', 'executing', { file_path: '/a/b/c.ts' }))
+      .toBe('writing …/b/c.ts…')
+  })
+
+  it('returns tool-specific feedback for file_edit', () => {
+    expect(derivePhaseFeedback('file_edit', 'executing', { file_path: 'short.ts' }))
+      .toBe('editing short.ts…')
+  })
+
+  it('returns search feedback with query', () => {
+    expect(derivePhaseFeedback('search', 'executing', { query: 'TODO' }))
+      .toBe('searching "TODO"…')
+  })
+
+  it('truncates long search queries', () => {
+    const long = 'a'.repeat(40)
+    const result = derivePhaseFeedback('search', 'executing', { query: long })!
+    expect(result.length).toBeLessThan(50)
+    expect(result).toContain('…')
+  })
+
+  it('returns ls feedback with path', () => {
+    expect(derivePhaseFeedback('ls', 'executing', { path: '/home/user/project' }))
+      .toBe('listing …/user/project…')
+  })
+
+  it('returns ls feedback with default path', () => {
+    expect(derivePhaseFeedback('ls', 'executing', {}))
+      .toBe('listing .…')
+  })
+
+  it('returns null for non-executing phase', () => {
+    expect(derivePhaseFeedback('file_read', 'generating', { file_path: '/foo.ts' }))
+      .toBeNull()
+  })
+
+  it('returns null for unknown tools', () => {
+    expect(derivePhaseFeedback('custom_tool', 'executing', {}))
+      .toBeNull()
+  })
+
+  it('falls back gracefully when file_path is missing', () => {
+    expect(derivePhaseFeedback('file_read', 'executing', {}))
+      .toBe('reading file…')
+  })
+})
+
+describe('Built-in tool card shows derived feedback when no stdout', () => {
+  it('shows tool-specific phase label instead of generic executing', () => {
+    const tc = createToolCallLifecycle({
+      id: 'tc-read',
+      toolName: 'file_read',
+      args: { file_path: '/src/index.ts' },
+      command: '/src/index.ts',
+    })
+    tc.phase = 'executing'
+    tc.executionStartedAt = Date.now()
+    // No stdout, no stderr
+
+    const state: TimelineState = {
+      ...createInitialTimelineState(),
+      items: [{
+        type: 'tool_call',
+        id: 'tc-read',
+        toolCall: tc,
+      }],
+    }
+
+    const output = renderToString(
+      <App
+        state={state}
+        version="0.0.1"
+        provider="openai"
+        model="gpt-5.4"
+        maxSteps={10}
+      />,
+    )
+
+    expect(output).toContain('reading')
+    expect(output).not.toContain('executing')
+  })
+
+  it('hides derived feedback once stdout appears', () => {
+    const tc = createToolCallLifecycle({
+      id: 'tc-read2',
+      toolName: 'file_read',
+      args: { file_path: '/src/index.ts' },
+      command: '/src/index.ts',
+    })
+    tc.phase = 'executing'
+    tc.executionStartedAt = Date.now()
+    tc.stdout = 'file contents here'
+
+    const state: TimelineState = {
+      ...createInitialTimelineState(),
+      items: [{
+        type: 'tool_call',
+        id: 'tc-read2',
+        toolCall: tc,
+      }],
+    }
+
+    const output = renderToString(
+      <App
+        state={state}
+        version="0.0.1"
+        provider="openai"
+        model="gpt-5.4"
+        maxSteps={10}
+      />,
+    )
+
+    // Should show actual stdout, not derived feedback
+    expect(output).toContain('file contents here')
+    expect(output).not.toContain('reading')
   })
 })

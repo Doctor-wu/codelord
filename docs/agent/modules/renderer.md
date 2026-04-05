@@ -46,6 +46,8 @@ Its job is to make control-plane truth visible, not to become the truth.
 - Provisional-to-stable tool handoff must preserve identity.
 - UI feedback must reflect real state transitions, not fake progress.
 - Generic assistant-level reasoning must not be mislabeled as tool-scoped rationale.
+- Built-in tools in active phase without stdout/stderr display derived phase feedback (e.g. `reading src/foo.ts…`) based on tool type and args. Real stdout/stderr/result always takes priority over derived feedback.
+- After resume, the Header and InputComposer reflect the reconciled session mode (`YOUR TURN` / `PAUSED` / queue count) derived from `TimelineState.resumeContext`, not just timeline item inspection. Resume context is populated by `reconcileTimelineForResume` from runtime snapshot truth.
 
 ## Common Edit Entry Points
 
@@ -64,6 +66,6 @@ Its job is to make control-plane truth visible, not to become the truth.
 
 ## Required Doc Follow-Through
 
-- Current operator-feedback workaround added or retired → update `ClosureLedger.md`.
-- Operator-visibility proof standard changed → update `EVALS.md`.
-- Cross-layer rendering semantics changed → update `ARCHITECTURE.md` and `docs/agent/modules/observability.md`.
+- Current operator-feedback workaround added or retired → update `docs/planning/ClosureLedger.md`.
+- Operator-visibility proof standard changed → update `docs/system/EVALS.md`.
+- Cross-layer rendering semantics changed → update `docs/system/ARCHITECTURE.md` and `docs/agent/modules/observability.md`.

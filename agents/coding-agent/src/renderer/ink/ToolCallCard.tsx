@@ -9,7 +9,7 @@ import type { ToolCallLifecycle } from '@agent/core'
 import { classifyCommand, classifyToolName } from './classify.js'
 import { STEP_COLORS, META_COLOR, GLYPH, LANE } from './theme.js'
 import type { StepCategory } from './theme.js'
-import { formatToolDisplayName, extractToolCommand } from '../tool-display.js'
+import { formatToolDisplayName, extractToolCommand, derivePhaseFeedback } from '../tool-display.js'
 import { normalizeInline, getDisplayWidth, formatToolResultLines, sanitizeOperatorHint } from './summarize.js'
 
 interface ToolCallCardProps {
@@ -185,8 +185,11 @@ function getPhaseLabel(tc: ToolCallLifecycle): string | null {
     case 'generating': return 'building…'
     case 'routed': return 'routed'
     case 'checked': return 'checked'
-    case 'executing':
-      return (!tc.stdout && !tc.stderr) ? 'executing…' : null
+    case 'executing': {
+      if (tc.stdout || tc.stderr) return null
+      // Derive tool-specific feedback for built-in tools without output yet
+      return derivePhaseFeedback(tc.toolName, tc.phase, tc.args) ?? 'executing…'
+    }
     case 'blocked': return 'blocked'
     default: return null
   }

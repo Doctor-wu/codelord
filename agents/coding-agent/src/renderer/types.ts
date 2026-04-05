@@ -30,6 +30,8 @@ export interface InteractiveRenderer extends Renderer {
   setRunning(running: boolean, runtimeQueue?: RuntimeQueueInfo): void
   /** Set the callback for queue submissions during running */
   setQueueTarget(enqueue: (text: string) => void): void
+  /** Set the callback for Escape-key interrupt */
+  setInterruptHandler(handler: () => void): void
   /** Capture current timeline state for persistence */
   captureTimelineSnapshot(): TimelineSnapshot
   /** Restore timeline state from a persisted snapshot */

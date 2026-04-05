@@ -55,5 +55,5 @@ It answers:
 
 - Do not wire CLI-specific behavior into config loading.
 - Do not pull auth or provider session state into `packages/config`.
-- If a new field affects runtime behavior, also update `ARCHITECTURE.md` or the relevant module doc.
-- If a new field changes evidence or budget policy, update `EVALS.md`.
+- If a new field affects runtime behavior, also update `docs/system/ARCHITECTURE.md` or the relevant module doc.
+- If a new field changes evidence or budget policy, update `docs/system/EVALS.md`.

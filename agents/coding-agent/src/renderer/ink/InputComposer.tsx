@@ -12,6 +12,7 @@ export type SessionMode = 'idle' | 'running' | 'waiting_answer' | 'interrupted' 
 interface InputComposerProps {
   isActive: boolean
   onSubmit: (text: string) => void
+  onInterrupt?: () => void
   mode?: SessionMode
   /** Messages queued during running */
   pendingQueue?: string[]
@@ -22,6 +23,7 @@ interface InputComposerProps {
 export function InputComposer({
   isActive,
   onSubmit,
+  onInterrupt,
   mode = 'idle',
   pendingQueue = [],
   isRunning = false,
@@ -31,6 +33,11 @@ export function InputComposer({
 
   useInput((input, key) => {
     if (!isActive) return
+
+    if (key.escape) {
+      onInterrupt?.()
+      return
+    }
 
     if (key.return) {
       const submitted = value
@@ -70,8 +77,8 @@ export function InputComposer({
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      {/* ── Status strip (only when there's something to show) ── */}
-      {mode !== 'idle' && <StatusStrip mode={mode} queueCount={queueCount} />}
+      {/* ── Status strip (when there's something to show) ── */}
+      {(mode !== 'idle' || queueCount > 0) && <StatusStrip mode={mode} queueCount={queueCount} />}
 
       {/* ── Queue preview (when messages are pending) ── */}
       {queueCount > 0 && (
@@ -122,7 +129,7 @@ function StatusStrip({ mode, queueCount }: { mode: SessionMode; queueCount: numb
           {queueCount > 0 && (
             <Text color={LANE.user}> {GLYPH.thinRule} {queueCount} queued</Text>
           )}
-          <Text dimColor>  {GLYPH.thinRule}  Enter to queue · Ctrl+C to interrupt</Text>
+          <Text dimColor>  {GLYPH.thinRule}  Enter to queue · Esc to interrupt</Text>
         </Box>
       )
     case 'waiting_answer':
@@ -148,6 +155,14 @@ function StatusStrip({ mode, queueCount }: { mode: SessionMode; queueCount: numb
       )
     case 'idle':
     default:
+      if (queueCount > 0) {
+        return (
+          <Box>
+            <Text color={LANE.user}>{GLYPH.settled} {queueCount} queued</Text>
+            <Text dimColor>  {GLYPH.thinRule}  will be sent on next run</Text>
+          </Box>
+        )
+      }
       return null
   }
 }

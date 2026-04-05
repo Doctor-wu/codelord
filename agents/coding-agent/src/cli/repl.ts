@@ -122,6 +122,12 @@ export async function startRepl(options: ReplOptions): Promise<void> {
         usage: reconciledTimeline.usage,
         stepCount: reconciledTimeline.stepCount,
       })
+
+      // Push queue info to renderer immediately so pending queue is visible on resume
+      renderer.setRunning(false, {
+        pendingInboundCount: runtime.pendingInboundCount,
+        pendingInboundPreviews: runtime.pendingInboundPreviews,
+      })
     }
   }
 
@@ -162,6 +168,15 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     }
   }
 
+  // Escape key interrupt — wired through Ink InputComposer
+  renderer.setInterruptHandler(() => {
+    if (running) {
+      activeRecorder?.recordInterruptRequest()
+      runtime.requestInterrupt()
+    }
+  })
+
+  // Ctrl+C fallback — graceful exit when idle, interrupt when running
   process.on('SIGINT', () => {
     if (running) {
       activeRecorder?.recordInterruptRequest()

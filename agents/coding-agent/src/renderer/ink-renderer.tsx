@@ -147,6 +147,7 @@ class InputBridge {
   private _isRunning = false
   private _resolve: ((value: string | null) => void) | null = null
   private _queueTarget: ((text: string) => void) | null = null
+  private _interruptHandler: (() => void) | null = null
   private _listeners: Set<(active: boolean) => void> = new Set()
 
   // Runtime queue info (read-only projection for UI)
@@ -175,6 +176,10 @@ class InputBridge {
     this._queueTarget = enqueue
   }
 
+  setInterruptHandler(handler: () => void): void {
+    this._interruptHandler = handler
+  }
+
   subscribe(listener: (active: boolean) => void): () => void {
     this._listeners.add(listener)
     return () => this._listeners.delete(listener)
@@ -201,6 +206,11 @@ class InputBridge {
       this._resolve = null
       resolve(text)
     }
+  }
+
+  /** Called by Ink InputComposer when user presses Escape */
+  interrupt(): void {
+    this._interruptHandler?.()
   }
 
   /** Called by REPL to wait for next input */
@@ -261,6 +271,10 @@ function Bridge({ store, inputBridge, version, provider, model, maxSteps }: Brid
     ? (text: string) => inputBridge.submit(text)
     : undefined
 
+  const handleInterrupt = inputBridge
+    ? () => inputBridge.interrupt()
+    : undefined
+
   // Build pending queue from runtime queue info
   const pendingQueue = runtimeQueue?.pendingInboundPreviews ?? []
 
@@ -273,6 +287,7 @@ function Bridge({ store, inputBridge, version, provider, model, maxSteps }: Brid
       maxSteps={maxSteps}
       inputActive={inputActive}
       onInputSubmit={handleSubmit}
+      onInterrupt={handleInterrupt}
       pendingQueue={pendingQueue}
       isRunning={isRunning}
     />
@@ -312,6 +327,7 @@ export class InkRenderer implements InteractiveRenderer {
         model={config.model}
         maxSteps={config.maxSteps}
       />,
+      { exitOnCtrlC: false },
     )
 
     if (this.inputBridge) {
@@ -346,6 +362,12 @@ export class InkRenderer implements InteractiveRenderer {
   setQueueTarget(enqueue: (text: string) => void): void {
     if (this.inputBridge) {
       this.inputBridge.setQueueTarget(enqueue)
+    }
+  }
+
+  setInterruptHandler(handler: () => void): void {
+    if (this.inputBridge) {
+      this.inputBridge.setInterruptHandler(handler)
     }
   }
 

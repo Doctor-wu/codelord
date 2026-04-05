@@ -186,7 +186,11 @@ describe('Interrupted display deduplication', () => {
     })
     const output = renderApp(state)
     const matches = output.match(/PAUSED/g)
-    expect(matches).toHaveLength(1)
+    // PAUSED appears in both Header (session mode) and timeline StatusItem — both are correct
+    expect(matches).toHaveLength(2)
+    // But the timeline status item itself should not be duplicated
+    const statusItems = state.items.filter(i => i.type === 'status')
+    expect(statusItems).toHaveLength(1)
   })
 })
 
@@ -500,7 +504,7 @@ describe('Session mode in composer', () => {
         inputActive={false} onInputSubmit={() => {}} />,
     )
     expect(output).toContain('working')
-    expect(output).toContain('Ctrl+C')
+    expect(output).toContain('Esc to interrupt')
   })
 })
 

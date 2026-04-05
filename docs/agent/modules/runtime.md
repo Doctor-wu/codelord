@@ -69,7 +69,7 @@ These need extra care and usually require doc updates:
 
 ## Required Doc Follow-Through
 
-- Runtime semantics changed → update `ARCHITECTURE.md`.
-- Current-focus control behavior changed → update `Now.md`.
-- Temporary runtime workaround introduced → update `ClosureLedger.md`.
+- Runtime semantics changed → update `docs/system/ARCHITECTURE.md`.
+- Current-focus control behavior changed → update `docs/planning/Sprint.md`.
+- Temporary runtime workaround introduced → update `docs/planning/ClosureLedger.md`.
 - Trace-visible runtime behavior changed → update `docs/agent/modules/observability.md`.

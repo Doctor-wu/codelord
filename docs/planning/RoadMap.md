@@ -120,7 +120,7 @@ M8   安全加固            ──→ 生产级安全体系
 M9   多体协作            ──→ Multi-Agent
 ```
 
-> 当前阶段焦点与优先顺序见 [Now.md](./Now.md)
+> 当前阶段焦点与优先顺序见 [Sprint.md](./Sprint.md)
 
 ## ~~M0 — 骨架~~ ✅ 已完成
 
@@ -312,7 +312,7 @@ M9   多体协作            ──→ Multi-Agent
 
 ### Streaming UX 能力定义
 
-> 当前阶段的推进状态见 [Now.md](./Now.md)；临时方案的收口台账见 [ClosureLedger.md](./ClosureLedger.md)。
+> 当前阶段的推进状态见 [Sprint.md](./Sprint.md)；临时方案的收口台账见 [ClosureLedger.md](./ClosureLedger.md)。
 
 - [x] 显式开启支持型 provider/model 的 reasoning summary 路径，验证 `thinking_*` 能稳定进入 event spine
 - [x] 当 provider 没有 `thinking_*` 时，reasoning lane 仍显示 derived live proxy：`thinking / deciding / acting / blocked` + 下一动作意图
@@ -435,7 +435,7 @@ M9   多体协作            ──→ Multi-Agent
 - [ ] 提供 trace-native headless 输出 / replay 视图，替代 `PlainTextRenderer` 作为 eval 与调试消费面
 - [ ] `trace check` 继续从"查结构"推进到"查 control-plane handoff 与 event propagation anomaly"
 
-> 当前阶段 trace 相关的推进焦点见 [Now.md](./Now.md)；`visible_tool_latency` 等临时缺口见 [ClosureLedger.md](./ClosureLedger.md)。
+> 当前阶段 trace 相关的推进焦点见 [Sprint.md](./Sprint.md)；`visible_tool_latency` 等临时缺口见 [ClosureLedger.md](./ClosureLedger.md)。
 
 > **🧠 你不知道你不知道的：**
 >
@@ -943,4 +943,4 @@ M9  多体协作     ──→ 🤝 真正具备团队级分工能力
 
 *这份 roadmap 会随着 dogfooding、eval 数据和设计认知升级而持续重写。目标不是"按计划完成"，而是"用数据和体验把真正有价值的路线收敛出来"。*
 
-*历次路线重写的决策记录见 [DecisionLog.md](./DecisionLog.md)。当前阶段焦点见 [Now.md](./Now.md)。临时方案收口台账见 [ClosureLedger.md](./ClosureLedger.md)。*
+*历次路线重写的决策记录见 [DecisionLog.md](./DecisionLog.md)。当前阶段焦点见 [Sprint.md](./Sprint.md)。临时方案收口台账见 [ClosureLedger.md](./ClosureLedger.md)。*
