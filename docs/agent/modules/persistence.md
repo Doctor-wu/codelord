@@ -75,5 +75,5 @@ It answers:
 ## Required Doc Follow-Through
 
 - Snapshot schema changed → update `docs/system/ARCHITECTURE.md` and `docs/agent/modules/runtime.md`.
-- New temporary resume or undo workaround → update `docs/planning/ClosureLedger.md`.
+- If a resume / undo compromise is truly unavoidable, write its target state and remaining gap directly into the owning `docs/planning/RoadMap.md` section and `docs/planning/Sprint.md`.
 - New trace visibility metric or diagnostic persisted → update `docs/system/EVALS.md` and `docs/agent/modules/observability.md`.

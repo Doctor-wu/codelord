@@ -71,5 +71,5 @@ These need extra care and usually require doc updates:
 
 - Runtime semantics changed → update `docs/system/ARCHITECTURE.md`.
 - Current-focus control behavior changed → update `docs/planning/Sprint.md`.
-- Temporary runtime workaround introduced → update `docs/planning/ClosureLedger.md`.
+- If a runtime compromise is truly unavoidable, write its target state and remaining gap directly into the owning `docs/planning/RoadMap.md` section and `docs/planning/Sprint.md`.
 - Trace-visible runtime behavior changed → update `docs/agent/modules/observability.md`.

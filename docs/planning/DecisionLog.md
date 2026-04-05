@@ -48,7 +48,7 @@
 
 ### 影响
 
-M1X 的优先级进一步聚焦到 streaming operator feedback，而不是继续在 event spine 结构层打转。Reasoning v2 的临时方案需要显式收口（见 [ClosureLedger.md](./ClosureLedger.md)）。
+M1X 的优先级进一步聚焦到 streaming operator feedback，而不是继续在 event spine 结构层打转。Reasoning v2 的未收口项已经直接并回 roadmap 主线，不再单独拆成 closure ledger。
 
 ### 结果
 

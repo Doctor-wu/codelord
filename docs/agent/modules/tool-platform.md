@@ -74,5 +74,5 @@ The product shell then assembles these into a `ToolKernel`.
 ## Required Doc Follow-Through
 
 - Tool ownership or layering changed → update `docs/system/ARCHITECTURE.md`.
-- Current router/safety workaround added → update `docs/planning/ClosureLedger.md` if temporary.
+- If a router / safety compromise is truly unavoidable, write its target state and remaining gap directly into the owning `docs/planning/RoadMap.md` section and `docs/planning/Sprint.md`.
 - Evidence claims about better routing or visibility changed → update `docs/system/EVALS.md`.

@@ -20,5 +20,5 @@ These docs are for fast orientation, boundary checks, and safe edit entrypoints.
 
 - Start from the closest module doc before editing a non-trivial area.
 - Use `docs/system/ARCHITECTURE.md` for cross-module boundary questions.
-- Use `docs/planning/ClosureLedger.md` if the module is in a temporary or current-focus state.
+- For current-focus work, use `docs/planning/Sprint.md` plus the owning section in `docs/planning/RoadMap.md`.
 - Update the relevant module doc when ownership, invariants, or edit entrypoints change.

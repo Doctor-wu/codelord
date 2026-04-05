@@ -66,6 +66,6 @@ Its job is to make control-plane truth visible, not to become the truth.
 
 ## Required Doc Follow-Through
 
-- Current operator-feedback workaround added or retired → update `docs/planning/ClosureLedger.md`.
+- If an operator-feedback compromise is truly unavoidable, write its target state and remaining gap directly into the owning `docs/planning/RoadMap.md` section and `docs/planning/Sprint.md`.
 - Operator-visibility proof standard changed → update `docs/system/EVALS.md`.
 - Cross-layer rendering semantics changed → update `docs/system/ARCHITECTURE.md` and `docs/agent/modules/observability.md`.

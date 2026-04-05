@@ -1,60 +1,60 @@
 # Codelord
 
-Codelord is a production-oriented coding agent monorepo.
-It is organized as a reusable engine plus a concrete product shell, not as one giant app.
+Codelord 是一个面向生产环境的 coding agent monorepo。
+它被组织为可复用 engine 加具体 product shell 的结构，而非一个巨型应用。
 
-## Workspace Layout
+## 工作区布局
 
-| Path | Role |
+| 路径 | 角色 |
 | --- | --- |
-| `packages/config` | Config schema, defaults, validation, layered loading |
-| `packages/agent-core` | Runtime, tools, event spine, trace schema, safety, router |
-| `agents/coding-agent` | `codelord` CLI, REPL, Ink renderer, persistence, auth |
-| `docs/planning` | Owner-facing roadmap, sprint, closure ledger, decision log |
-| `docs/system` | Stable architecture, design principles, eval rules |
-| `docs/agent/modules` | Agent-facing module summaries |
+| `packages/config` | Config schema、默认值、校验、分层加载 |
+| `packages/agent-core` | Runtime、tools、event spine、trace schema、safety、router |
+| `agents/coding-agent` | `codelord` CLI、REPL、Ink renderer、persistence、auth |
+| `docs/planning` | 面向 owner 的 roadmap、sprint、closure ledger、decision log |
+| `docs/system` | 稳定的架构、设计原则、eval 规则 |
+| `docs/agent/modules` | 面向 agent 的模块摘要 |
 
-## Common Commands
+## 常用命令
 
-- Install: `pnpm install`
-- Build all packages: `pnpm build`
-- Typecheck: `pnpm typecheck`
-- Run tests: `pnpm test`
+- 安装：`pnpm install`
+- 全量构建：`pnpm build`
+- 类型检查：`pnpm typecheck`
+- 运行测试：`pnpm test`
 
-## Doc Entry Points
+## 文档入口
 
-### For Humans
+### 面向人类
 
-- Current battle: `docs/planning/Sprint.md`
-- Long-range direction: `docs/planning/RoadMap.md`
-- Stable structure: `docs/system/ARCHITECTURE.md`
-- Temporary-state debt: `docs/planning/ClosureLedger.md`
+- 当前战役：`docs/planning/Sprint.md`
+- 长期方向：`docs/planning/RoadMap.md`
+- 稳定结构：`docs/system/ARCHITECTURE.md`
+- 当前产品化缺口：`docs/planning/Sprint.md` + `docs/planning/RoadMap.md` 中对应章节
 
-### For Agents
+### 面向 Agent
 
-- Entry rules: `AGENTS.md`
-- Stable boundaries: `docs/system/ARCHITECTURE.md`
-- Design constraints: `docs/system/DesignPrinciples.md`
-- Evidence bar: `docs/system/EVALS.md`
-- Module summaries: `docs/agent/modules/README.md`
+- 入口规则：`AGENTS.md`
+- 稳定边界：`docs/system/ARCHITECTURE.md`
+- 设计约束：`docs/system/DesignPrinciples.md`
+- 证据标准：`docs/system/EVALS.md`
+- 模块摘要：`docs/agent/modules/README.md`
 
-## Planning Model
+## 规划模型
 
-Codelord uses a sprint loop, not a static status page.
+Codelord 使用 sprint 循环，而非静态状态页。
 
-1. `docs/planning/RoadMap.md` holds the long-range route and milestone pool.
-2. `docs/planning/Sprint.md` holds the current active sprint only.
-3. When a sprint closes, update the roadmap, archive the sprint, and load the next sprint from the roadmap.
+1. `docs/planning/RoadMap.md` 持有长期路线和里程碑池。
+2. `docs/planning/Sprint.md` 仅持有当前活跃 sprint。
+3. 当一个 sprint 关闭时，更新 roadmap，归档该 sprint，然后从 roadmap 加载下一个 sprint。
 
-## Product Posture
+## 产品姿态
 
-Codelord is optimized for:
-- production-first layering
-- operator trust over demo polish
-- eval-first claims
-- rewritable roadmap, stable architecture
+Codelord 优化方向：
+- 生产优先的分层
+- operator 信任优先于 demo 光鲜度
+- eval-first 的声明
+- 可重写的 roadmap，稳定的架构
 
-That means:
-- current execution lives in `docs/planning/Sprint.md`
-- long-range intent lives in `docs/planning/RoadMap.md`
-- temporary solutions must carry explicit closure conditions in `docs/planning/ClosureLedger.md`
+这意味着：
+- 当前执行活在 `docs/planning/Sprint.md`
+- 长期意图活在 `docs/planning/RoadMap.md`
+- 未解决的产品化缺口直接写入 `docs/planning/RoadMap.md` 对应章节和活跃的 `docs/planning/Sprint.md`

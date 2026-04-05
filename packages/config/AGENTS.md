@@ -1,31 +1,31 @@
-# Config Package Rules
+# Config 包规则
 
-Scope: `packages/config/**`
+作用域：`packages/config/**`
 
-## Read First
+## 先读
 
-- Root `AGENTS.md`
+- 根 `AGENTS.md`
 - `docs/system/ARCHITECTURE.md`
 - `docs/agent/modules/config.md`
 
-## What This Package Owns
+## 本包职责
 
 - config schema
-- defaults
-- layered loading
-- validation
-- TOML parsing
+- 默认值
+- 分层加载
+- 校验
+- TOML 解析
 
-## What This Package Must Not Own
+## 本包不应拥有
 
-- OAuth flow
+- OAuth 流程
 - CLI UX
-- runtime state
-- renderer behavior
+- runtime 状态
+- renderer 行为
 
-## Local Rules
+## 局部规则
 
-- Keep precedence explicit: defaults → TOML → env → CLI.
-- Keep merge behavior field-level unless there is an explicit design change.
-- Do not let config loading become the owner of provider login flow.
-- If a field changes evidence or budget policy, update `docs/system/EVALS.md`.
+- 保持优先级显式：defaults → TOML → env → CLI。
+- 保持合并行为为字段级，除非有显式的设计变更。
+- 不要让 config 加载成为 provider 登录流程的 owner。
+- 如果某个字段变更了证据或 budget 策略，更新 `docs/system/EVALS.md`。

@@ -71,6 +71,6 @@ Use this module when the question is "what happened?" or "why did the operator s
 ## Required Doc Follow-Through
 
 - Trace or event semantics changed → update `docs/system/ARCHITECTURE.md` and this file.
-- Current observability gap or workaround added → update `docs/planning/ClosureLedger.md`.
+- If an observability compromise is truly unavoidable, write its target state and remaining gap directly into the owning `docs/planning/RoadMap.md` section and `docs/planning/Sprint.md`.
 - Current proof standard changed → update `docs/system/EVALS.md`.
 - Current focus shifted because of trace findings → update `docs/planning/DecisionLog.md` or `docs/planning/Sprint.md` as appropriate.
