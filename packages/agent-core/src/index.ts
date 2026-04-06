@@ -12,6 +12,7 @@ export type {
 
 export { AgentRuntime } from './runtime.js'
 export type {
+  ReasoningLevel,
   RuntimeState,
   RuntimeOptions,
   RunOutcome,

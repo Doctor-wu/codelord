@@ -52,6 +52,7 @@ function readEnvOverrides(env: Record<string, string | undefined>): DeepPartial<
   if (env.CODELORD_MODEL) overrides.model = env.CODELORD_MODEL
   if (env.CODELORD_API_KEY) overrides.apiKey = env.CODELORD_API_KEY
   if (env.CODELORD_MAX_STEPS) overrides.maxSteps = Number(env.CODELORD_MAX_STEPS)
+  if (env.CODELORD_REASONING_LEVEL) overrides.reasoningLevel = env.CODELORD_REASONING_LEVEL as CodelordConfig['reasoningLevel']
 
   return overrides
 }

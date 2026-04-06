@@ -11,6 +11,8 @@ export interface BashConfig {
   maxOutput: number
 }
 
+export type ReasoningLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+
 export interface CodelordConfig {
   /** pi-ai provider name, e.g. "anthropic", "openai", "openai-codex". */
   provider: string
@@ -20,6 +22,8 @@ export interface CodelordConfig {
   apiKey: string
   /** Max steps per agent run. */
   maxSteps: number
+  /** Reasoning level for models that support it. */
+  reasoningLevel: ReasoningLevel
   /** Bash tool configuration. */
   bash: BashConfig
 }
@@ -29,6 +33,7 @@ export const DEFAULT_CONFIG: CodelordConfig = {
   model: 'gpt-5.4',
   apiKey: '',
   maxSteps: 100,
+  reasoningLevel: 'high',
   bash: {
     timeout: 30_000,
     maxOutput: 10_000,

@@ -94,6 +94,8 @@ export interface PartialAssistant {
 // Runtime options (superset of what runAgent used to take)
 // ---------------------------------------------------------------------------
 
+export type ReasoningLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+
 export interface RuntimeOptions<TApi extends Api = Api> {
   model: Model<TApi>
   systemPrompt: string
@@ -101,6 +103,7 @@ export interface RuntimeOptions<TApi extends Api = Api> {
   toolHandlers: Map<string, ToolHandler>
   apiKey: string
   maxSteps?: number
+  reasoningLevel?: ReasoningLevel
   streamOptions?: Omit<SimpleStreamOptions, 'apiKey'>
   onEvent?: (event: AgentEvent) => void
   onLifecycleEvent?: (event: LifecycleEvent) => void
@@ -154,6 +157,9 @@ export class AgentRuntime<TApi extends Api = Api> {
   private readonly _cacheRetention: CacheRetention | undefined
   private readonly emitProviderStream: ((event: ProviderStreamTraceEvent) => void) | undefined
 
+  // --- Reasoning level (mutable at runtime) ---
+  private _reasoningLevel: ReasoningLevel
+
   // --- Usage telemetry (observability side-channel) ---
   private _usageAggregate: UsageAggregate = createUsageAggregate()
 
@@ -178,6 +184,7 @@ export class AgentRuntime<TApi extends Api = Api> {
     this._sessionId = options.sessionId
     this._cacheRetention = options.cacheRetention
     this.emitProviderStream = options.onProviderStreamEvent
+    this._reasoningLevel = options.reasoningLevel ?? 'high'
   }
 
   // --- Public accessors ---
@@ -208,6 +215,10 @@ export class AgentRuntime<TApi extends Api = Api> {
   get safetyRecords(): readonly ToolSafetyDecision[] { return this._safetyRecords }
   /** Cumulative usage/cost telemetry for this session */
   get usageAggregate(): UsageAggregate { return this._usageAggregate }
+  /** Current reasoning level */
+  get reasoningLevel(): ReasoningLevel { return this._reasoningLevel }
+  /** Update reasoning level at runtime (takes effect on next LLM call) */
+  setReasoningLevel(level: ReasoningLevel): void { this._reasoningLevel = level }
 
   // --- Snapshot export / import ---
 
@@ -508,9 +519,9 @@ export class AgentRuntime<TApi extends Api = Api> {
       }
 
       const streamStartTime = Date.now()
-      // Enable reasoning summary for models that support it (conservative level)
-      const reasoningOpt = (this.model as { reasoning?: boolean }).reasoning
-        ? { reasoning: 'high' as const }
+      // Enable reasoning for models that support it, controlled by reasoningLevel
+      const reasoningOpt = (this.model as { reasoning?: boolean }).reasoning && this._reasoningLevel !== 'off'
+        ? { reasoning: this._reasoningLevel }
         : {}
       const eventStream = streamSimple(this.model, context, {
         ...this.streamOptions,

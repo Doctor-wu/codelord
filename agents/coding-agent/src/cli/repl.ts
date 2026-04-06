@@ -1,6 +1,6 @@
 import type { Api, Model } from '@mariozechner/pi-ai'
 import { AgentRuntime } from '@agent/core'
-import type { AgentEvent, LifecycleEvent } from '@agent/core'
+import type { AgentEvent, LifecycleEvent, ReasoningLevel } from '@agent/core'
 import type { CodelordConfig } from '@agent/config'
 import { createToolKernel } from './tool-kernel.js'
 import { buildSystemPrompt } from './system-prompt.js'
@@ -91,6 +91,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     toolHandlers: wrappedHandlers,
     apiKey,
     maxSteps: config.maxSteps,
+    reasoningLevel: config.reasoningLevel,
     onEvent: (event: AgentEvent) => {
       renderer.onEvent(event)
       activeRecorder?.onAgentEvent(event)
@@ -262,6 +263,36 @@ export async function startRepl(options: ReplOptions): Promise<void> {
         continue
       }
       handleUndo()
+      continue
+    }
+
+    // --- /reasoning command ---
+    if (trimmed === '/reasoning' || trimmed.startsWith('/reasoning ')) {
+      const VALID_LEVELS: ReasoningLevel[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
+      const arg = trimmed.slice('/reasoning'.length).trim()
+      if (!arg) {
+        renderer.onLifecycleEvent?.({
+          type: 'session_done',
+          success: true,
+          text: `Reasoning level: ${runtime.reasoningLevel}`,
+          timestamp: Date.now(),
+        })
+      } else if (VALID_LEVELS.includes(arg as ReasoningLevel)) {
+        runtime.setReasoningLevel(arg as ReasoningLevel)
+        renderer.onLifecycleEvent?.({
+          type: 'session_done',
+          success: true,
+          text: `Reasoning level → ${arg}`,
+          timestamp: Date.now(),
+        })
+      } else {
+        renderer.onLifecycleEvent?.({
+          type: 'session_done',
+          success: false,
+          error: `Invalid reasoning level "${arg}". Valid: ${VALID_LEVELS.join(', ')}`,
+          timestamp: Date.now(),
+        })
+      }
       continue
     }
 
