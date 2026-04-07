@@ -2,7 +2,8 @@
 // TimelineStore — event → state bridge (pure logic, no React)
 // ---------------------------------------------------------------------------
 
-import type { AgentEvent, LifecycleEvent } from '@agent/core'
+import type { AgentEvent, LifecycleEvent, ReasoningLevel } from '@agent/core'
+import { resolveReasoningVisibility } from '@agent/core'
 import type { TimelineState } from './timeline-projection.js'
 import {
   createInitialTimelineState,
@@ -25,10 +26,14 @@ export class TimelineStore {
   private _deltaFlushTimer: ReturnType<typeof setTimeout> | null = null
   private _pendingDeltaState: TimelineState | null = null
   private static readonly DELTA_THROTTLE_MS = 67 // ~15Hz
+  private readonly _reasoningLevel: ReasoningLevel
 
-  constructor(idle = false) {
+  constructor(idle = false, reasoningLevel: ReasoningLevel = 'high') {
     this.state = createInitialTimelineState(idle)
+    this._reasoningLevel = reasoningLevel
   }
+
+  get reasoningLevel(): ReasoningLevel { return this._reasoningLevel }
 
   getState(): TimelineState { return this.state }
 
@@ -110,6 +115,11 @@ export class TimelineStore {
       this._deltaFlushTimer = null
     }
     this.state = reduceLifecycleEvent(this.state, event)
+    // Suppress liveProxy when visibility policy says no
+    const vis = resolveReasoningVisibility(this._reasoningLevel)
+    if (!vis.showThoughtViewport && !vis.showReasoningSummary) {
+      this.state = suppressLiveProxy(this.state)
+    }
     this.notify()
   }
 
@@ -119,4 +129,23 @@ export class TimelineStore {
     this.state = hydrateTimelineState(snapshot)
     this.notify()
   }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+import type { AssistantItem } from './timeline-projection.js'
+
+/** Clear liveProxy on the last streaming assistant item (used when visibility is suppressed) */
+function suppressLiveProxy(state: TimelineState): TimelineState {
+  const items = [...state.items]
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i]!
+    if (item.type === 'assistant' && (item as AssistantItem).liveProxy) {
+      items[i] = { ...(item as AssistantItem), liveProxy: null }
+      return { ...state, items }
+    }
+  }
+  return state
 }

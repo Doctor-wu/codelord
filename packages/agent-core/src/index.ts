@@ -23,6 +23,9 @@ export type {
   PartialAssistant,
 } from './runtime.js'
 
+export { ReasoningManager, resolveReasoningVisibility, sanitizeDisplayReason } from './reasoning-manager.js'
+export type { ReasoningVisibility } from './reasoning-manager.js'
+
 export { ToolRouter } from './tool-router.js'
 export type { ToolRouteDecision } from './tool-router.js'
 

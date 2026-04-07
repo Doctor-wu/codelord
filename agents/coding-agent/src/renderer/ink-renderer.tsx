@@ -5,7 +5,7 @@
 import React from 'react'
 import { render } from 'ink'
 import type { Instance } from 'ink'
-import type { AgentEvent, LifecycleEvent } from '@agent/core'
+import type { AgentEvent, LifecycleEvent, ReasoningLevel } from '@agent/core'
 import type { InteractiveRenderer, RuntimeQueueInfo } from './types.js'
 import { App } from './ink/App.js'
 import { TimelineStore } from './ink/timeline-store.js'
@@ -35,7 +35,7 @@ export class InkRenderer implements InteractiveRenderer {
 
   constructor(config: InkRendererConfig) {
     this.config = config
-    this.store = new TimelineStore(config.idle)
+    this.store = new TimelineStore(config.idle, (config.reasoningLevel ?? 'high') as ReasoningLevel)
     this.inputBridge = config.interactive ? new InputBridge() : null
     this._reasoningLevel = config.reasoningLevel ?? 'high'
 

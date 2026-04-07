@@ -27,7 +27,7 @@ import type { ProviderStreamTraceEvent } from './trace.js'
 import { MessageManager } from './message-manager.js'
 import { UsageTracker } from './usage-tracker.js'
 import { InterruptController } from './interrupt-controller.js'
-import { ReasoningManager } from './reasoning-manager.js'
+import { ReasoningManager, sanitizeDisplayReason } from './reasoning-manager.js'
 import type { ReasoningLevel } from './reasoning-manager.js'
 import type { ContextWindowConfig } from './context-window.js'
 import { DEFAULT_CONTEXT_WINDOW, estimateTokens, truncateMessages } from './context-window.js'
@@ -582,6 +582,11 @@ export class AgentRuntime<TApi extends Api = Api> {
             command: extractCommandForDisplay(tc.name, tc.arguments),
           })
           this.emitLifecycle({ type: 'tool_call_created', toolCall: { ...lifecycle } })
+
+          // Project reasoning intent to tool displayReason
+          if (this.reasoningMgr.current?.intent) {
+            lifecycle.displayReason = sanitizeDisplayReason(this.reasoningMgr.current.intent)
+          }
 
           const decision = this.router.route(tc.name, tc.arguments)
           if (decision.wasRouted) {
