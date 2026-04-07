@@ -463,12 +463,36 @@ M9   多体协作            ──→ Multi-Agent
 - [x] cost tracking 已区分 cached vs uncached input token 基线
 - [ ] skill fragments 的 cacheability 随 M5 进入主线后继续完善
 
-### Trace 全局研究与立场
+### Trace 全局研究与立场 ✅
 
-- [ ] 对 trace 做整题研究，而不是只研究 `visible_tool_latency`、`operator action`、`queue lifecycle` 这类局部诊断项
-- [ ] 研究领先系统里实时操作台、持久化 trace 账本、回放、评测、审计之间的关系
-- [ ] 明确 codelord 的 trace 北极星、first-class facts、消费面优先级，以及哪些消费面当前明确不做
-- [ ] 输出 trace 立场说明，再决定后续 `visible_tool_latency`、`operator action`、`queue lifecycle` 的实现顺序
+> 完整立场说明见 [docs/planning/research/trace-position.md](../research/trace-position.md)
+
+- [x] 对 trace 做整题研究，而不是只研究 `visible_tool_latency`、`operator action`、`queue lifecycle` 这类局部诊断项
+- [x] 研究领先系统里实时操作台、持久化 trace 账本、回放、评测、审计之间的关系
+- [x] 明确 codelord 的 trace 北极星、first-class facts、消费面优先级，以及哪些消费面当前明确不做
+- [x] 输出 trace 立场说明，再决定后续实现顺序
+
+**核心研究结论：**
+
+**北极星：** Trace 的存在是为了让 operator 能在 5 秒内定位"问题出在哪一层"。
+
+**三层模型：** Trace 必须分层记录，而不是把所有事件打平到一个列表里。
+- **Layer 0 — Provider 层：** 记录 provider 返回了什么原始事件（当前最大的诊断盲区）
+- **Layer 1 — Agent Core 层：** 记录 runtime 如何处理 provider 输出、如何调度执行（codelord 独有，行业空白）
+- **Layer 2 — User 层：** 记录 operator 做了什么、这些动作如何改变了执行轨迹
+
+**跨层串联：** 同一个 tool call 在不同层的记录之间必须有稳定 identity。跨层对比是 trace 的核心诊断模式。
+
+**Trace / Hooks / UI 的关系：** 三者是 event spine 的平级消费者，不存在谁建在谁之上的关系。Trace 消费全量事件写入持久化账本；Hooks 只暴露外部需要的切面；Ink UI 消费实时投影。
+
+**明确不做项：** OTEL 导出（当前）、Replay 实现（当前）、streaming 中间态持久化、trace check 当前形态、跨 session 聚合分析。
+
+**基于立场的实现顺序：**
+1. 补齐 Provider 层记录（当前最大的诊断盲区）
+2. 为 tool call 建立跨层稳定 identity
+3. User action 进入一等事实
+4. 定义持久化账本的 schema v2（基于三层模型）
+5. 重构 trace CLI（支持分层查看和跨层对比）
 
 ### TUI / Trace 可视化
 
@@ -480,9 +504,13 @@ M9   多体协作            ──→ Multi-Agent
 - [x] `trace show/check` 已补出首批 streaming UX 诊断事实：`thinking_absent` / `partial_to_lifecycle_gap_large` / `toolcall_delta_density_high`
 - [x] 已用 synthetic fixtures 建立 streaming UX regression gate：覆盖"有 reasoning 但可能冻结"和"无 thought + 高密 toolcall_delta"两类 signature
 - [ ] 提供 trace-native headless 输出 / replay 视图，替代 `PlainTextRenderer` 作为 eval 与调试消费面
-- [ ] `trace check` 继续从"查结构"推进到"查 control-plane handoff 与 event propagation anomaly"
+- [ ] `trace check` 暂停当前形态（查结构 + streaming UX 诊断）；待三层模型和一等事实稳定后，重新设计为"检查三层完整性和跨层一致性"
+- [ ] 补齐 Provider 层记录：让 trace 能看到 provider 吐出了什么原始事件（trace 立场实现顺序 #1，当前最大诊断盲区）
+- [ ] 为 tool call 建立跨层稳定 identity：从 provider 意图到 execution 结果用同一个 id 串联（trace 立场实现顺序 #2）
+- [ ] user input / operator action 成为一等 trace 事实：trace 不只解释模型行为，也能解释产品行为（trace 立场实现顺序 #3）
+- [ ] 定义持久化账本的 schema v2：基于三层模型重新设计 trace 的存储结构（trace 立场实现顺序 #4）
+- [ ] 重构 trace CLI：`trace show` 支持分层查看和跨层对比（trace 立场实现顺序 #5）
 - [ ] `visible_tool_latency` 成为一等诊断事实：不是只看 raw→lifecycle gap，而是回答“operator 何时真正看见 tool”
-- [ ] user input / operator action 成为一等 trace 事实：trace 不只解释模型行为，也能解释产品行为
 - [ ] queue message lifecycle 完整建模：创建 → 排队 → 注入 → 消费 → 确认 全链路可追踪
 
 > 当前阶段 trace 相关的推进焦点见 [Sprint.md](./Sprint.md)。当前仍未产品化收口的 trace 缺口，直接写在 M2 主线里。
