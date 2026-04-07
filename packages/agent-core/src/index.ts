@@ -84,3 +84,9 @@ export type {
 
 export { checkTrace, formatCheckResult, normalizeTrace } from './trace-check.js'
 export type { CheckResult, CheckIssue, CheckSeverity } from './trace-check.js'
+
+export { estimateTokens, estimateMessageTokens, truncateMessages, DEFAULT_CONTEXT_WINDOW } from './context-window.js'
+export type { ContextWindowConfig, TruncationResult } from './context-window.js'
+
+export { ToolStatsTracker } from './tool-stats.js'
+export type { ToolCallStats, RouteHitStats } from './tool-stats.js'

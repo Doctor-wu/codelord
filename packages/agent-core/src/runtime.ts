@@ -29,6 +29,9 @@ import { UsageTracker } from './usage-tracker.js'
 import { InterruptController } from './interrupt-controller.js'
 import { ReasoningManager } from './reasoning-manager.js'
 import type { ReasoningLevel } from './reasoning-manager.js'
+import type { ContextWindowConfig } from './context-window.js'
+import { DEFAULT_CONTEXT_WINDOW, estimateTokens, truncateMessages } from './context-window.js'
+import { ToolStatsTracker } from './tool-stats.js'
 
 // Re-export ReasoningLevel so external consumers don't break
 export type { ReasoningLevel } from './reasoning-manager.js'
@@ -98,6 +101,7 @@ export interface RuntimeOptions<TApi extends Api = Api> {
   sessionId?: string
   cacheRetention?: CacheRetention
   onProviderStreamEvent?: (event: ProviderStreamTraceEvent) => void
+  contextWindow?: ContextWindowConfig
 }
 
 // ---------------------------------------------------------------------------
@@ -109,6 +113,7 @@ export class AgentRuntime<TApi extends Api = Api> {
   private readonly msgMgr = new MessageManager()
   private readonly usageTracker = new UsageTracker()
   private readonly interruptCtrl = new InterruptController()
+  private readonly toolStatsTracker = new ToolStatsTracker()
   private readonly reasoningMgr: ReasoningManager
 
   // --- Session state (survives across run() bursts) ---
@@ -138,6 +143,7 @@ export class AgentRuntime<TApi extends Api = Api> {
   private readonly _sessionId: string | undefined
   private readonly _cacheRetention: CacheRetention | undefined
   private readonly emitProviderStream: ((event: ProviderStreamTraceEvent) => void) | undefined
+  private readonly contextWindowConfig: ContextWindowConfig
 
   // --- Observability side-channels ---
   private readonly _routeRecords: ToolRouteDecision[] = []
@@ -158,6 +164,7 @@ export class AgentRuntime<TApi extends Api = Api> {
     this._sessionId = options.sessionId
     this._cacheRetention = options.cacheRetention
     this.emitProviderStream = options.onProviderStreamEvent
+    this.contextWindowConfig = options.contextWindow ?? DEFAULT_CONTEXT_WINDOW
     this.reasoningMgr = new ReasoningManager(options.reasoningLevel ?? 'high')
   }
 
@@ -179,6 +186,7 @@ export class AgentRuntime<TApi extends Api = Api> {
   get routeRecords(): readonly ToolRouteDecision[] { return this._routeRecords }
   get safetyRecords(): readonly ToolSafetyDecision[] { return this._safetyRecords }
   get usageAggregate(): UsageAggregate { return this.usageTracker.aggregate }
+  get toolStats(): ToolStatsTracker { return this.toolStatsTracker }
   get reasoningLevel(): ReasoningLevel { return this.reasoningMgr.level }
   setReasoningLevel(level: ReasoningLevel): void { this.reasoningMgr.setLevel(level) }
 
@@ -207,6 +215,7 @@ export class AgentRuntime<TApi extends Api = Api> {
       sessionStepCount: this._sessionStepCount,
       checkpoints: meta.checkpoints ?? [],
       usageAggregate: this.usageTracker.exportSnapshot(),
+      toolStats: this.toolStatsTracker.exportSnapshot(),
     }
   }
 
@@ -224,6 +233,9 @@ export class AgentRuntime<TApi extends Api = Api> {
     this._sessionStepCount = snapshot.sessionStepCount
     if (snapshot.usageAggregate) {
       this.usageTracker.hydrateFromSnapshot(snapshot.usageAggregate)
+    }
+    if (snapshot.toolStats) {
+      this.toolStatsTracker.hydrateFromSnapshot(snapshot.toolStats)
     }
     this._state = state
     return { wasDowngraded, interruptedDuring }
@@ -368,10 +380,30 @@ export class AgentRuntime<TApi extends Api = Api> {
 
       const signal = this.interruptCtrl.createAbortSignal()
 
+      // --- Context window truncation (only affects LLM copy, not this.messages) ---
+      const allTools = [...this.tools, askUserQuestionTool]
+      const systemPromptTokens = estimateTokens(this.systemPrompt)
+      const toolsTokens = estimateTokens(JSON.stringify(allTools))
+      const truncation = truncateMessages(
+        this.messages,
+        systemPromptTokens,
+        toolsTokens,
+        this.contextWindowConfig,
+      )
+      if (truncation.wasTruncated) {
+        this.emitLifecycle({
+          type: 'context_truncated',
+          droppedCount: truncation.droppedCount,
+          droppedTokens: truncation.droppedTokens,
+          budget: truncation.budget,
+          timestamp: Date.now(),
+        })
+      }
+
       const context: Context = {
         systemPrompt: this.systemPrompt,
-        messages: this.messages,
-        tools: [...this.tools, askUserQuestionTool],
+        messages: truncation.messages,
+        tools: allTools,
       }
 
       const streamStartTime = Date.now()
@@ -617,6 +649,12 @@ export class AgentRuntime<TApi extends Api = Api> {
             lifecycle.isError = isError
             lifecycle.completedAt = Date.now()
             this.emitLifecycle({ type: 'tool_call_completed', toolCall: { ...lifecycle } })
+          }
+
+          // Record tool stats
+          this.toolStatsTracker.recordToolCall(execToolName, isError, resultText)
+          if (decision.wasRouted && decision.ruleId) {
+            this.toolStatsTracker.recordRouteHit(decision.ruleId, isError)
           }
 
           this.emit({ type: 'tool_result', toolName: execToolName, result: resultText, isError })

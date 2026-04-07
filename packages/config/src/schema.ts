@@ -26,6 +26,11 @@ export interface CodelordConfig {
   reasoningLevel: ReasoningLevel
   /** Bash tool configuration. */
   bash: BashConfig
+  /** Context window management. */
+  contextWindow?: {
+    maxTokens?: number
+    reservedOutputTokens?: number
+  }
 }
 
 export const DEFAULT_CONFIG: CodelordConfig = {

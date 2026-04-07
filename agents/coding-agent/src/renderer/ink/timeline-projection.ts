@@ -260,6 +260,7 @@ export function reduceLifecycleEvent(state: TimelineState, event: LifecycleEvent
     case 'question_answered':
     case 'interrupt_requested':
     case 'interrupt_observed':
+    case 'context_truncated':
       return state
   }
 }

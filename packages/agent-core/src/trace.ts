@@ -76,6 +76,10 @@ export interface LifecycleTraceEvent extends LedgerEventBase {
   observedAt: number | null
   /** For interrupt_observed: latency between request and observation */
   latencyMs: number | null
+  /** For context_truncated */
+  droppedCount: number | null
+  /** For context_truncated */
+  droppedTokens: number | null
 }
 
 // ---------------------------------------------------------------------------
@@ -129,6 +133,8 @@ export interface TraceRunV2 {
   steps: TraceStepV2[]
   /** Events that occurred outside any step (run-level) */
   runEvents: TraceEventEntry[]
+  /** Tool call success/failure stats for this run */
+  toolStats?: { tools: Record<string, { attempts: number; successes: number; failures: number; errorCodes: Record<string, number> }>; routes: Record<string, { hits: number; successes: number; failures: number }> }
 }
 
 // ---------------------------------------------------------------------------

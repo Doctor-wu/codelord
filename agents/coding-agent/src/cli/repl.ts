@@ -2,6 +2,8 @@ import type { Api, Model } from '@mariozechner/pi-ai'
 import { AgentRuntime } from '@agent/core'
 import type { AgentEvent, LifecycleEvent, ReasoningLevel } from '@agent/core'
 import type { CodelordConfig } from '@agent/config'
+import { estimateTokens, DEFAULT_CONTEXT_WINDOW } from '@agent/core'
+import type { ContextWindowConfig } from '@agent/core'
 import { createToolKernel } from './tool-kernel.js'
 import { buildSystemPrompt } from './system-prompt.js'
 import { createRenderer } from './run.js'
@@ -30,6 +32,17 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   const cwd = process.cwd()
   const { tools, toolHandlers, contracts, router, safetyPolicy } = createToolKernel({ cwd, config })
   const systemPrompt = buildSystemPrompt({ cwd, contracts })
+
+  // Context window config
+  const contextWindowConfig: ContextWindowConfig = {
+    maxTokens: config.contextWindow?.maxTokens ?? DEFAULT_CONTEXT_WINDOW.maxTokens,
+    reservedOutputTokens: config.contextWindow?.reservedOutputTokens ?? DEFAULT_CONTEXT_WINDOW.reservedOutputTokens,
+  }
+
+  // System prompt token baseline
+  const spTokens = estimateTokens(systemPrompt)
+  const spPct = ((spTokens / contextWindowConfig.maxTokens) * 100).toFixed(1)
+  process.stderr.write(`System prompt: ~${spTokens} tokens (${spPct}% of ${contextWindowConfig.maxTokens})\n`)
 
   const renderer = createRenderer(config)
   const store = new SessionStore()
@@ -102,6 +115,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     router,
     safetyPolicy,
     sessionId,
+    contextWindow: contextWindowConfig,
   })
 
   // If resuming, hydrate runtime state and reconcile timeline
@@ -349,7 +363,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     }
 
     // Finalize and persist trace
-    try { traceStore.save(activeRecorder.finalize(outcome)) } catch { /* best effort */ }
+    try { traceStore.save(activeRecorder.finalize(outcome, { toolStats: runtime.toolStats.exportSnapshot() })) } catch { /* best effort */ }
     activeRecorder = null
 
     saveSession()
@@ -376,7 +390,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
           timestamp: Date.now(),
         })
       }
-      try { traceStore.save(activeRecorder.finalize(rerunOutcome)) } catch { /* best effort */ }
+      try { traceStore.save(activeRecorder.finalize(rerunOutcome, { toolStats: runtime.toolStats.exportSnapshot() })) } catch { /* best effort */ }
       activeRecorder = null
       saveSession()
     }

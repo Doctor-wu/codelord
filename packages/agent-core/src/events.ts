@@ -217,6 +217,8 @@ export type LifecycleEvent =
   // --- Interrupt chain ---
   | { type: 'interrupt_requested'; source: 'sigint' | 'api'; timestamp: number }
   | { type: 'interrupt_observed'; requestedAt: number; observedAt: number; source: 'sigint' | 'api'; latencyMs: number; timestamp: number }
+  // --- Context window ---
+  | { type: 'context_truncated'; droppedCount: number; droppedTokens: number; budget: { total: number; systemPrompt: number; tools: number; reserved: number; availableForMessages: number; messagesBeforeTruncation: number; messagesAfterTruncation: number }; timestamp: number }
 
 // ---------------------------------------------------------------------------
 // QuestionDetail — full question metadata for UI rendering

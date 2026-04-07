@@ -74,6 +74,8 @@ export class TraceRecorder {
       requestedAt: null,
       observedAt: null,
       latencyMs: null,
+      droppedCount: null,
+      droppedTokens: null,
     }
 
     if (this.currentStep) {
@@ -219,6 +221,8 @@ export class TraceRecorder {
       requestedAt: null,
       observedAt: null,
       latencyMs: null,
+      droppedCount: null,
+      droppedTokens: null,
     }
 
     switch (event.type) {
@@ -269,6 +273,10 @@ export class TraceRecorder {
         le.observedAt = event.observedAt
         le.latencyMs = event.latencyMs
         break
+      case 'context_truncated':
+        le.droppedCount = event.droppedCount
+        le.droppedTokens = event.droppedTokens
+        break
     }
 
     if (this.currentStep) {
@@ -287,7 +295,7 @@ export class TraceRecorder {
 
   // --- Finalize ---
 
-  finalize(outcome: RunOutcome): TraceRunV2 {
+  finalize(outcome: RunOutcome, opts?: { toolStats?: TraceRunV2['toolStats'] }): TraceRunV2 {
     if (this.currentStep) {
       this.currentStep.endedAt = Date.now()
       this.steps.push(this.currentStep)
@@ -322,6 +330,7 @@ export class TraceRecorder {
       },
       steps: this.steps,
       runEvents: this.runEvents,
+      ...(opts?.toolStats ? { toolStats: opts.toolStats } : {}),
     }
   }
 
@@ -381,6 +390,8 @@ export class TraceRecorder {
       requestedAt: this.interruptRequestedAt,
       observedAt: now,
       latencyMs: this.interruptRequestedAt ? now - this.interruptRequestedAt : null,
+      droppedCount: null,
+      droppedTokens: null,
     }
 
     if (this.currentStep) {

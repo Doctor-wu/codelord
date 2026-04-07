@@ -9,6 +9,7 @@ import type { ToolRouteDecision } from './tool-router.js'
 import type { ToolSafetyDecision } from './tool-safety.js'
 import type { CheckpointRecord } from './checkpoint.js'
 import type { UsageAggregate } from './events.js'
+import type { ToolCallStats, RouteHitStats } from './tool-stats.js'
 
 // ---------------------------------------------------------------------------
 // Core snapshot — everything needed to resume a session
@@ -66,6 +67,9 @@ export interface SessionSnapshot {
 
   // --- Usage telemetry ---
   usageAggregate: UsageAggregate
+
+  // --- Tool stats ---
+  toolStats?: { tools: Record<string, ToolCallStats>; routes: Record<string, RouteHitStats> }
 }
 
 // ---------------------------------------------------------------------------
