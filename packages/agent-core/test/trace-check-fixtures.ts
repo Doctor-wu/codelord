@@ -2,7 +2,7 @@
 // Synthetic trace fixtures for auditor regression testing
 // ---------------------------------------------------------------------------
 
-import type { TraceRunV2, TraceStepV2, LifecycleTraceEvent, ProviderStreamTraceEvent, AgentTraceEvent } from '../src/trace.js'
+import type { TraceRunV2, TraceStepV2, TraceEventEntry, LifecycleTraceEvent, ProviderStreamTraceEvent, AgentTraceEvent } from '../src/trace.js'
 
 // ---------------------------------------------------------------------------
 // Base builders
@@ -19,13 +19,13 @@ function makeRun(steps: TraceStepV2[], runLE: LifecycleTraceEvent[] = [], overri
     version: 2, runId: 'run-fixture', sessionId: 'sess-1', workspaceRoot: '/tmp', workspaceSlug: 'test', workspaceId: 'abc123', cwd: '/tmp', provider: 'test', model: 'test', systemPromptHash: 'hash', startedAt: BASE_TIME, endedAt: BASE_TIME + 5000, outcome: { type: 'success' },
     usageSummary: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, llmCalls: 0 },
     redactionSummary: [], eventCounts: { providerStream: 0, agentEvents: 0, lifecycleEvents: 0 }, steps,
-    runLifecycleEvents: runLE,
+    runEvents: runLE,
     ...overrides,
   }
 }
 
 function makeStep(step: number, overrides?: Partial<TraceStepV2>): TraceStepV2 {
-  return { step, turnId: `a${step}`, startedAt: BASE_TIME + step * 100, endedAt: BASE_TIME + step * 100 + 50, ledgers: { providerStream: [], agentEvents: [], lifecycleEvents: [] }, ...overrides }
+  return { step, turnId: `a${step}`, startedAt: BASE_TIME + step * 100, endedAt: BASE_TIME + step * 100 + 50, events: [], ...overrides }
 }
 
 function LE(seq: number, type: string, extra: Partial<LifecycleTraceEvent> = {}): LifecycleTraceEvent {
@@ -60,9 +60,9 @@ function PE(seq: number, type: string, extra: Partial<ProviderStreamTraceEvent> 
 export function cleanRun(): TraceRunV2 {
   resetSeq()
   const step = makeStep(1)
-  step.ledgers.providerStream.push(PE(nextSeq(), 'text_start'), PE(nextSeq(), 'text_delta'), PE(nextSeq(), 'text_end'), PE(nextSeq(), 'done', { stopReason: 'stop' }))
-  step.ledgers.agentEvents.push(AE(nextSeq(), 'text_delta'), AE(nextSeq(), 'text_end'))
-  step.ledgers.lifecycleEvents.push(LE(nextSeq(), 'assistant_turn_start'), LE(nextSeq(), 'usage_updated'), LE(nextSeq(), 'assistant_turn_end'))
+  step.events.push(PE(nextSeq(), 'text_start'), PE(nextSeq(), 'text_delta'), PE(nextSeq(), 'text_end'), PE(nextSeq(), 'done', { stopReason: 'stop' }))
+  step.events.push(AE(nextSeq(), 'text_delta'), AE(nextSeq(), 'text_end'))
+  step.events.push(LE(nextSeq(), 'assistant_turn_start'), LE(nextSeq(), 'usage_updated'), LE(nextSeq(), 'assistant_turn_end'))
   const runLE = [LE(nextSeq(), 'session_done', { step: 0 as any, timestamp: BASE_TIME + 5000 })]
   return makeRun([step], runLE)
 }
@@ -74,9 +74,9 @@ export function cleanRun(): TraceRunV2 {
 export function cleanInterruptedRun(): TraceRunV2 {
   resetSeq()
   const step = makeStep(1)
-  step.ledgers.providerStream.push(PE(nextSeq(), 'text_start'), PE(nextSeq(), 'text_delta'))
-  step.ledgers.agentEvents.push(AE(nextSeq(), 'text_delta'))
-  step.ledgers.lifecycleEvents.push(
+  step.events.push(PE(nextSeq(), 'text_start'), PE(nextSeq(), 'text_delta'))
+  step.events.push(AE(nextSeq(), 'text_delta'))
+  step.events.push(
     LE(nextSeq(), 'assistant_turn_start'),
     LE(nextSeq(), 'interrupt_requested', { interruptSource: 'sigint' }),
     LE(nextSeq(), 'interrupt_observed', { interruptSource: 'sigint', requestedAt: BASE_TIME + 50, observedAt: BASE_TIME + 60, latencyMs: 10 }),
@@ -93,7 +93,7 @@ export function cleanInterruptedRun(): TraceRunV2 {
 export function interruptRequestedWithoutObserved(): TraceRunV2 {
   resetSeq()
   const step = makeStep(1)
-  step.ledgers.lifecycleEvents.push(
+  step.events.push(
     LE(nextSeq(), 'assistant_turn_start'),
     LE(nextSeq(), 'interrupt_requested', { interruptSource: 'sigint' }),
     LE(nextSeq(), 'assistant_turn_end'),
@@ -108,7 +108,7 @@ export function interruptRequestedWithoutObserved(): TraceRunV2 {
 export function interruptObservedWithoutRequest(): TraceRunV2 {
   resetSeq()
   const step = makeStep(1)
-  step.ledgers.lifecycleEvents.push(
+  step.events.push(
     LE(nextSeq(), 'assistant_turn_start'),
     LE(nextSeq(), 'interrupt_observed', { interruptSource: 'sigint', requestedAt: BASE_TIME + 50, observedAt: BASE_TIME + 60, latencyMs: 10 }),
     LE(nextSeq(), 'blocked_enter', { reason: 'interrupted' }),
@@ -124,7 +124,7 @@ export function interruptObservedWithoutRequest(): TraceRunV2 {
 export function runLevelSeqDisorder(): TraceRunV2 {
   resetSeq()
   const step = makeStep(1)
-  step.ledgers.lifecycleEvents.push(LE(10, 'assistant_turn_start'), LE(20, 'assistant_turn_end'))
+  step.events.push(LE(10, 'assistant_turn_start'), LE(20, 'assistant_turn_end'))
   // Run-level event with seq=20 — duplicate of step event, creating non-monotonic when merged
   const runLE = [LE(20, 'session_done', { step: 0 as any, timestamp: BASE_TIME + 5000 })]
   return makeRun([step], runLE)
@@ -137,7 +137,7 @@ export function runLevelSeqDisorder(): TraceRunV2 {
 export function runLevelTimeReversal(): TraceRunV2 {
   resetSeq()
   const step = makeStep(1)
-  step.ledgers.lifecycleEvents.push(
+  step.events.push(
     LE(1, 'assistant_turn_start', { timestamp: BASE_TIME + 500 }),
     LE(2, 'assistant_turn_end', { timestamp: BASE_TIME + 600 }),
   )
@@ -152,7 +152,7 @@ export function runLevelTimeReversal(): TraceRunV2 {
 export function sessionDoneTooEarly(): TraceRunV2 {
   resetSeq()
   const step = makeStep(1, { startedAt: BASE_TIME + 100, endedAt: BASE_TIME + 500 })
-  step.ledgers.lifecycleEvents.push(LE(nextSeq(), 'assistant_turn_start'), LE(nextSeq(), 'assistant_turn_end'))
+  step.events.push(LE(nextSeq(), 'assistant_turn_start'), LE(nextSeq(), 'assistant_turn_end'))
   const runLE = [LE(nextSeq(), 'session_done', { step: 0 as any, timestamp: BASE_TIME + 200 })]
   return makeRun([step], runLE)
 }
@@ -164,7 +164,7 @@ export function sessionDoneTooEarly(): TraceRunV2 {
 export function questionAnsweredWithoutWaiting(): TraceRunV2 {
   resetSeq()
   const step = makeStep(1)
-  step.ledgers.lifecycleEvents.push(
+  step.events.push(
     LE(nextSeq(), 'assistant_turn_start'),
     LE(nextSeq(), 'question_answered', { question: 'Which DB?' }),
     LE(nextSeq(), 'assistant_turn_end'),
@@ -179,7 +179,7 @@ export function questionAnsweredWithoutWaiting(): TraceRunV2 {
 export function queueDrainedCountMismatch(): TraceRunV2 {
   resetSeq()
   const step = makeStep(1)
-  step.ledgers.lifecycleEvents.push(
+  step.events.push(
     LE(nextSeq(), 'assistant_turn_start'),
     LE(nextSeq(), 'queue_drained', { count: 5, messageCount: 3 }),
     LE(nextSeq(), 'assistant_turn_end'),
@@ -194,8 +194,8 @@ export function queueDrainedCountMismatch(): TraceRunV2 {
 export function toolChainMismatch(): TraceRunV2 {
   resetSeq()
   const step = makeStep(1)
-  step.ledgers.providerStream.push(PE(nextSeq(), 'toolcall_end', { toolCallId: 'tc-orphan', toolName: 'bash' }))
-  step.ledgers.lifecycleEvents.push(LE(nextSeq(), 'assistant_turn_start'), LE(nextSeq(), 'assistant_turn_end'))
+  step.events.push(PE(nextSeq(), 'toolcall_end', { toolCallId: 'tc-orphan', toolName: 'bash' }))
+  step.events.push(LE(nextSeq(), 'assistant_turn_start'), LE(nextSeq(), 'assistant_turn_end'))
   return makeRun([step])
 }
 
@@ -206,7 +206,7 @@ export function toolChainMismatch(): TraceRunV2 {
 export function interruptRequestAfterObserved(): TraceRunV2 {
   resetSeq()
   const step = makeStep(1)
-  step.ledgers.lifecycleEvents.push(
+  step.events.push(
     LE(nextSeq(), 'assistant_turn_start'),
     LE(nextSeq(), 'interrupt_observed', { interruptSource: 'sigint', requestedAt: BASE_TIME + 50, observedAt: BASE_TIME + 60, latencyMs: 10 }),
     LE(nextSeq(), 'interrupt_requested', { interruptSource: 'sigint' }),
@@ -223,7 +223,7 @@ export function interruptRequestAfterObserved(): TraceRunV2 {
 export function interruptObservedWithoutBlocked(): TraceRunV2 {
   resetSeq()
   const step = makeStep(1)
-  step.ledgers.lifecycleEvents.push(
+  step.events.push(
     LE(nextSeq(), 'assistant_turn_start'),
     LE(nextSeq(), 'interrupt_requested', { interruptSource: 'sigint' }),
     LE(nextSeq(), 'interrupt_observed', { interruptSource: 'sigint', requestedAt: BASE_TIME + 50, observedAt: BASE_TIME + 60, latencyMs: 10 }),
@@ -244,7 +244,7 @@ export function reasoningStreamPresent(): TraceRunV2 {
   resetSeq()
   const step = makeStep(1)
   // Stable thinking stream
-  step.ledgers.providerStream.push(
+  step.events.push(
     PE(nextSeq(), 'thinking_start'),
     PE(nextSeq(), 'thinking_delta', { deltaPreview: 'Let me analyze...' }),
     PE(nextSeq(), 'thinking_delta', { deltaPreview: 'I should read the file first.' }),
@@ -255,10 +255,10 @@ export function reasoningStreamPresent(): TraceRunV2 {
     PE(nextSeq(), 'toolcall_end', { toolCallId: 'tc-1', toolName: 'read_file' }),
     PE(nextSeq(), 'done', { stopReason: 'tool_use' }),
   )
-  step.ledgers.agentEvents.push(
+  step.events.push(
     AE(nextSeq(), 'toolcall_end', { toolCallId: 'tc-1', toolName: 'read_file' }),
   )
-  step.ledgers.lifecycleEvents.push(
+  step.events.push(
     LE(nextSeq(), 'assistant_turn_start'),
     LE(nextSeq(), 'tool_call_created', { toolCallId: 'tc-1', toolName: 'read_file', phase: 'generating' }),
     LE(nextSeq(), 'tool_call_completed', { toolCallId: 'tc-1', toolName: 'read_file', phase: 'completed' }),
@@ -277,24 +277,24 @@ export function noThoughtHighDensityToolcallDelta(): TraceRunV2 {
   // No thinking_* events at all.
   // toolcall_start at t=BASE_TIME+10, then 40 rapid toolcall_delta in 200ms
   const tcStartSeq = nextSeq()
-  step.ledgers.providerStream.push(
+  step.events.push(
     PE(tcStartSeq, 'toolcall_start', { toolCallId: 'tc-1', toolName: 'file_write', timestamp: BASE_TIME + 10 }),
   )
   // 40 deltas in 200ms → 5ms apart → 200 Hz
   for (let i = 0; i < 40; i++) {
-    step.ledgers.providerStream.push(
+    step.events.push(
       PE(nextSeq(), 'toolcall_delta', { toolCallId: 'tc-1', argsPreview: `chunk-${i}`, timestamp: BASE_TIME + 15 + i * 5 }),
     )
   }
-  step.ledgers.providerStream.push(
+  step.events.push(
     PE(nextSeq(), 'toolcall_end', { toolCallId: 'tc-1', toolName: 'file_write', timestamp: BASE_TIME + 250 }),
     PE(nextSeq(), 'done', { stopReason: 'tool_use', timestamp: BASE_TIME + 260 }),
   )
-  step.ledgers.agentEvents.push(
+  step.events.push(
     AE(nextSeq(), 'toolcall_end', { toolCallId: 'tc-1', toolName: 'file_write' }),
   )
   // lifecycle tool_call_created arrives much later than the first raw partial
-  step.ledgers.lifecycleEvents.push(
+  step.events.push(
     LE(nextSeq(), 'assistant_turn_start', { timestamp: BASE_TIME + 5 }),
     LE(nextSeq(), 'tool_call_created', { toolCallId: 'tc-1', toolName: 'file_write', phase: 'generating', timestamp: BASE_TIME + 800 }),
     LE(nextSeq(), 'tool_call_completed', { toolCallId: 'tc-1', toolName: 'file_write', phase: 'completed', timestamp: BASE_TIME + 900 }),
@@ -309,10 +309,10 @@ export function noThoughtHighDensityToolcallDelta(): TraceRunV2 {
 
 export function crossStepSeqDisorder(): TraceRunV2 {
   const step1 = makeStep(1)
-  step1.ledgers.lifecycleEvents.push(LE(10, 'assistant_turn_start'), LE(20, 'assistant_turn_end'))
+  step1.events.push(LE(10, 'assistant_turn_start'), LE(20, 'assistant_turn_end'))
   const step2 = makeStep(2, { startedAt: BASE_TIME + 300, endedAt: BASE_TIME + 400 })
   // Step 2 reuses seq=20 from step 1 — duplicate seq across steps
-  step2.ledgers.lifecycleEvents.push(
+  step2.events.push(
     LE(20, 'assistant_turn_start', { step: 2, turnId: 'a2' }),
     LE(25, 'assistant_turn_end', { step: 2, turnId: 'a2' }),
   )

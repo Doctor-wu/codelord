@@ -79,14 +79,11 @@ export interface LifecycleTraceEvent extends LedgerEventBase {
 }
 
 // ---------------------------------------------------------------------------
-// Step ledgers
+// Unified event entry — union of all trace event types
 // ---------------------------------------------------------------------------
 
-export interface TraceStepLedgers {
-  providerStream: ProviderStreamTraceEvent[]
-  agentEvents: AgentTraceEvent[]
-  lifecycleEvents: LifecycleTraceEvent[]
-}
+/** Union of all trace event types */
+export type TraceEventEntry = ProviderStreamTraceEvent | AgentTraceEvent | LifecycleTraceEvent
 
 // ---------------------------------------------------------------------------
 // TraceStepV2
@@ -97,7 +94,7 @@ export interface TraceStepV2 {
   turnId: string | null
   startedAt: number
   endedAt: number | null
-  ledgers: TraceStepLedgers
+  events: TraceEventEntry[]
 }
 
 // ---------------------------------------------------------------------------
@@ -130,8 +127,8 @@ export interface TraceRunV2 {
   redactionSummary: RedactionHit[]
   eventCounts: { providerStream: number; agentEvents: number; lifecycleEvents: number }
   steps: TraceStepV2[]
-  /** Lifecycle events that occurred outside any assistant turn / step */
-  runLifecycleEvents: LifecycleTraceEvent[]
+  /** Events that occurred outside any step (run-level) */
+  runEvents: TraceEventEntry[]
 }
 
 // ---------------------------------------------------------------------------

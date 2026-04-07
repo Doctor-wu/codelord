@@ -78,7 +78,7 @@ export type { RedactionHit, RedactionResult } from './redact.js'
 export type {
   TraceRun, TraceStep, TraceEvent,
   TraceLLMCall, TraceToolExecution, TraceQueueMessage, TraceAskUser, TraceUserInterrupt,
-  TraceRunV2, TraceStepV2, TraceStepLedgers,
+  TraceRunV2, TraceStepV2, TraceEventEntry,
   ProviderStreamTraceEvent, AgentTraceEvent, LifecycleTraceEvent,
 } from './trace.js'
 

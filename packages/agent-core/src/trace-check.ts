@@ -2,7 +2,7 @@
 // Trace Check — structural and semantic validation of a trace run
 // ---------------------------------------------------------------------------
 
-import type { TraceRunV2, TraceStepV2, LifecycleTraceEvent, ProviderStreamTraceEvent, AgentTraceEvent } from './trace.js'
+import type { TraceRunV2, TraceStepV2, TraceEventEntry, LifecycleTraceEvent, ProviderStreamTraceEvent, AgentTraceEvent } from './trace.js'
 
 // ---------------------------------------------------------------------------
 // Check result types
@@ -30,26 +30,80 @@ export interface CheckResult {
 }
 
 // ---------------------------------------------------------------------------
+// Step event helpers — filter by source from unified events array
+// ---------------------------------------------------------------------------
+
+function stepProviderEvents(step: TraceStepV2): ProviderStreamTraceEvent[] {
+  return step.events.filter((e): e is ProviderStreamTraceEvent => e.source === 'provider_stream')
+}
+
+function stepAgentEvents(step: TraceStepV2): AgentTraceEvent[] {
+  return step.events.filter((e): e is AgentTraceEvent => e.source === 'agent_event')
+}
+
+function stepLifecycleEvents(step: TraceStepV2): LifecycleTraceEvent[] {
+  return step.events.filter((e): e is LifecycleTraceEvent => e.source === 'lifecycle_event')
+}
+
+function runLifecycleEvents(trace: TraceRunV2): LifecycleTraceEvent[] {
+  return (trace.runEvents ?? []).filter((e): e is LifecycleTraceEvent => e.source === 'lifecycle_event')
+}
+
+// ---------------------------------------------------------------------------
 // Normalize — backfill missing seq for old traces
 // ---------------------------------------------------------------------------
 
 /**
  * Normalize a trace for check/show: backfill missing `seq` with index-based
- * values so downstream code never sees undefined. Returns a shallow copy.
+ * values so downstream code never sees undefined. Also converts old ledgers
+ * format to unified events array for backward compatibility. Returns a shallow copy.
  */
 export function normalizeTrace(trace: TraceRunV2): TraceRunV2 {
   let globalSeq = 0
+
+  function backfillLifecycle(e: any): LifecycleTraceEvent {
+    return { ...e, seq: e.seq ?? ++globalSeq, count: e.count ?? null, messageCount: e.messageCount ?? null, interruptSource: e.interruptSource ?? null, requestedAt: e.requestedAt ?? null, observedAt: e.observedAt ?? null, latencyMs: e.latencyMs ?? null }
+  }
+
   const steps = trace.steps.map(step => {
-    const ps = step.ledgers.providerStream.map(e => ({ ...e, seq: e.seq ?? ++globalSeq }))
-    const ae = step.ledgers.agentEvents.map(e => ({ ...e, seq: e.seq ?? ++globalSeq }))
-    const le = step.ledgers.lifecycleEvents.map(e => ({ ...e, seq: e.seq ?? ++globalSeq, count: (e as any).count ?? null, messageCount: (e as any).messageCount ?? null, interruptSource: (e as any).interruptSource ?? null, requestedAt: (e as any).requestedAt ?? null, observedAt: (e as any).observedAt ?? null, latencyMs: (e as any).latencyMs ?? null }))
-    for (const e of [...ps, ...ae, ...le]) {
-      if (e.seq > globalSeq) globalSeq = e.seq
+    // Backward compat: old traces have `ledgers`, new traces have `events`
+    const oldLedgers = (step as any).ledgers
+    let events: TraceEventEntry[]
+    if (oldLedgers && !step.events) {
+      // Convert old ledgers to unified events
+      const ps = (oldLedgers.providerStream ?? []).map((e: any) => ({ ...e, seq: e.seq ?? ++globalSeq }))
+      const ae = (oldLedgers.agentEvents ?? []).map((e: any) => ({ ...e, seq: e.seq ?? ++globalSeq }))
+      const le = (oldLedgers.lifecycleEvents ?? []).map(backfillLifecycle)
+      for (const e of [...ps, ...ae, ...le]) {
+        if (e.seq > globalSeq) globalSeq = e.seq
+      }
+      events = [...ps, ...ae, ...le].sort((a, b) => a.seq - b.seq)
+    } else {
+      events = (step.events ?? []).map(e => {
+        const patched = { ...e, seq: e.seq ?? ++globalSeq }
+        if (patched.source === 'lifecycle_event') return backfillLifecycle(patched)
+        return patched
+      })
+      for (const e of events) {
+        if (e.seq > globalSeq) globalSeq = e.seq
+      }
     }
-    return { ...step, ledgers: { providerStream: ps, agentEvents: ae, lifecycleEvents: le } }
+    return { ...step, events }
   })
-  const runLE = (trace.runLifecycleEvents ?? []).map(e => ({ ...e, seq: e.seq ?? ++globalSeq, count: (e as any).count ?? null, messageCount: (e as any).messageCount ?? null, interruptSource: (e as any).interruptSource ?? null, requestedAt: (e as any).requestedAt ?? null, observedAt: (e as any).observedAt ?? null, latencyMs: (e as any).latencyMs ?? null }))
-  return { ...trace, steps, runLifecycleEvents: runLE }
+
+  // Backward compat: old traces have `runLifecycleEvents`, new traces have `runEvents`
+  const oldRunLE = (trace as any).runLifecycleEvents
+  let runEvents: TraceEventEntry[]
+  if (oldRunLE && !trace.runEvents) {
+    runEvents = oldRunLE.map(backfillLifecycle)
+  } else {
+    runEvents = (trace.runEvents ?? []).map((e: any) => {
+      if (e.source === 'lifecycle_event') return backfillLifecycle(e)
+      return { ...e, seq: e.seq ?? ++globalSeq }
+    })
+  }
+
+  return { ...trace, steps, runEvents }
 }
 
 // ---------------------------------------------------------------------------
@@ -93,21 +147,15 @@ interface MergedEvent {
   event: LifecycleTraceEvent | ProviderStreamTraceEvent | AgentTraceEvent
 }
 
-/** Build a run-wide merged event view: all step events + runLifecycleEvents, sorted by seq */
+/** Build a run-wide merged event view: all step events + runEvents, sorted by seq */
 function allRunEventsSorted(trace: TraceRunV2): MergedEvent[] {
   const events: MergedEvent[] = []
   for (const step of trace.steps) {
-    for (const e of step.ledgers.providerStream) {
-      events.push({ seq: e.seq, timestamp: e.timestamp, type: e.type, source: e.source, step: step.step, event: e })
-    }
-    for (const e of step.ledgers.agentEvents) {
-      events.push({ seq: e.seq, timestamp: e.timestamp, type: e.type, source: e.source, step: step.step, event: e })
-    }
-    for (const e of step.ledgers.lifecycleEvents) {
+    for (const e of step.events) {
       events.push({ seq: e.seq, timestamp: e.timestamp, type: e.type, source: e.source, step: step.step, event: e })
     }
   }
-  for (const e of trace.runLifecycleEvents ?? []) {
+  for (const e of trace.runEvents ?? []) {
     events.push({ seq: e.seq, timestamp: e.timestamp, type: e.type, source: e.source, step: null, event: e })
   }
   events.sort((a, b) => a.seq - b.seq)
@@ -120,11 +168,7 @@ function allRunEventsSorted(trace: TraceRunV2): MergedEvent[] {
 
 /** Merge all events in a step, sorted by seq */
 function allEventsSorted(step: TraceStepV2) {
-  return [
-    ...step.ledgers.providerStream,
-    ...step.ledgers.agentEvents,
-    ...step.ledgers.lifecycleEvents,
-  ].sort((a, b) => a.seq - b.seq)
+  return [...step.events].sort((a, b) => a.seq - b.seq)
 }
 
 function issue(severity: CheckSeverity, step: number | null, rule: string, message: string, seq?: number | null, source?: string | null): CheckIssue {
@@ -171,7 +215,7 @@ function checkToolCallLifecycleOrder(trace: TraceRunV2, issues: CheckIssue[]): v
   for (const step of trace.steps) {
     const created = new Map<string, number>()
     const completed = new Map<string, number>()
-    for (const le of step.ledgers.lifecycleEvents) {
+    for (const le of stepLifecycleEvents(step)) {
       if (le.type === 'tool_call_created' && le.toolCallId) created.set(le.toolCallId, le.seq)
       if (le.type === 'tool_call_completed' && le.toolCallId) completed.set(le.toolCallId, le.seq)
     }
@@ -190,7 +234,7 @@ function checkToolCallLifecycleOrder(trace: TraceRunV2, issues: CheckIssue[]): v
 function checkToolCallNoDuplicateCompleted(trace: TraceRunV2, issues: CheckIssue[]): void {
   for (const step of trace.steps) {
     const counts = new Map<string, number>()
-    for (const le of step.ledgers.lifecycleEvents) {
+    for (const le of stepLifecycleEvents(step)) {
       if (le.type === 'tool_call_completed' && le.toolCallId) counts.set(le.toolCallId, (counts.get(le.toolCallId) ?? 0) + 1)
     }
     for (const [tcId, count] of counts) {
@@ -205,11 +249,11 @@ function checkToolCallNoDuplicateCompleted(trace: TraceRunV2, issues: CheckIssue
 function checkProviderAgentToolCallCorrelation(trace: TraceRunV2, issues: CheckIssue[]): void {
   for (const step of trace.steps) {
     const providerTcIds = new Set<string>()
-    for (const pe of step.ledgers.providerStream) {
+    for (const pe of stepProviderEvents(step)) {
       if (pe.type === 'toolcall_end' && pe.toolCallId) providerTcIds.add(pe.toolCallId)
     }
     const agentTcIds = new Set<string>()
-    for (const ae of step.ledgers.agentEvents) {
+    for (const ae of stepAgentEvents(step)) {
       if (ae.type === 'toolcall_end' && ae.toolCallId) agentTcIds.add(ae.toolCallId)
     }
     for (const tcId of providerTcIds) {
@@ -224,11 +268,11 @@ function checkProviderAgentToolCallCorrelation(trace: TraceRunV2, issues: CheckI
 function checkAgentLifecycleToolCallCorrelation(trace: TraceRunV2, issues: CheckIssue[]): void {
   for (const step of trace.steps) {
     const agentTcIds = new Set<string>()
-    for (const ae of step.ledgers.agentEvents) {
+    for (const ae of stepAgentEvents(step)) {
       if (ae.type === 'toolcall_end' && ae.toolCallId) agentTcIds.add(ae.toolCallId)
     }
     const lifecycleTcIds = new Set<string>()
-    for (const le of step.ledgers.lifecycleEvents) {
+    for (const le of stepLifecycleEvents(step)) {
       if (le.type === 'tool_call_created' && le.toolCallId) lifecycleTcIds.add(le.toolCallId)
     }
     for (const tcId of agentTcIds) {
@@ -244,7 +288,7 @@ function checkAgentToolExecChain(trace: TraceRunV2, issues: CheckIssue[]): void 
   for (const step of trace.steps) {
     const starts: { key: string; label: string; seq: number }[] = []
     const resultKeys = new Set<string>()
-    for (const ae of step.ledgers.agentEvents) {
+    for (const ae of stepAgentEvents(step)) {
       if (ae.type === 'tool_exec_start') {
         const key = ae.toolCallId ?? ae.toolName ?? `unknown:${ae.seq}`
         const label = ae.toolCallId ? `tc=${ae.toolCallId.slice(0, 8)}` : ae.toolName ?? 'unknown'
@@ -267,7 +311,7 @@ function checkAgentToolExecChain(trace: TraceRunV2, issues: CheckIssue[]): void 
 function checkQuestionAnsweredChain(trace: TraceRunV2, issues: CheckIssue[]): void {
   let hasWaitingUser = false
   for (const step of trace.steps) {
-    for (const le of step.ledgers.lifecycleEvents) {
+    for (const le of stepLifecycleEvents(step)) {
       if (le.type === 'blocked_enter' && le.reason === 'waiting_user') hasWaitingUser = true
       if (le.type === 'question_answered') {
         if (!hasWaitingUser) {
@@ -277,7 +321,7 @@ function checkQuestionAnsweredChain(trace: TraceRunV2, issues: CheckIssue[]): vo
       }
     }
   }
-  for (const le of trace.runLifecycleEvents ?? []) {
+  for (const le of runLifecycleEvents(trace)) {
     if (le.type === 'blocked_enter' && le.reason === 'waiting_user') hasWaitingUser = true
     if (le.type === 'question_answered') {
       if (!hasWaitingUser) {
@@ -291,8 +335,8 @@ function checkQuestionAnsweredChain(trace: TraceRunV2, issues: CheckIssue[]): vo
 /** queue_drained count should match the number of messages recorded */
 function checkQueueDrainedConsistency(trace: TraceRunV2, issues: CheckIssue[]): void {
   const allLE = [
-    ...trace.steps.flatMap(s => s.ledgers.lifecycleEvents.map(le => ({ le, step: s.step }))),
-    ...(trace.runLifecycleEvents ?? []).map(le => ({ le, step: null as number | null })),
+    ...trace.steps.flatMap(s => stepLifecycleEvents(s).map(le => ({ le, step: s.step }))),
+    ...runLifecycleEvents(trace).map(le => ({ le, step: null as number | null })),
   ]
   for (const { le, step } of allLE) {
     if (le.type !== 'queue_drained') continue
@@ -308,12 +352,12 @@ function checkSessionDoneAfterLastStep(trace: TraceRunV2, issues: CheckIssue[]):
   const lastStep = trace.steps[trace.steps.length - 1]
   if (!lastStep.endedAt) return
 
-  for (const le of lastStep.ledgers.lifecycleEvents) {
+  for (const le of stepLifecycleEvents(lastStep)) {
     if (le.type === 'session_done' && le.timestamp < lastStep.endedAt) {
       issues.push(issue('warning', lastStep.step, 'session_done_before_step_end', `session_done timestamp (${le.timestamp}) is before step endedAt (${lastStep.endedAt})`, le.seq, 'lifecycle_event'))
     }
   }
-  for (const le of trace.runLifecycleEvents ?? []) {
+  for (const le of runLifecycleEvents(trace)) {
     if (le.type === 'session_done' && le.timestamp < lastStep.endedAt) {
       issues.push(issue('warning', null, 'session_done_before_step_end', `session_done timestamp (${le.timestamp}) is before last step endedAt (${lastStep.endedAt})`, le.seq, 'lifecycle_event'))
     }
@@ -328,8 +372,8 @@ function checkSessionDoneAfterLastStep(trace: TraceRunV2, issues: CheckIssue[]):
 function checkInterruptChain(trace: TraceRunV2, issues: CheckIssue[]): void {
   // Collect all interrupt-related events across the entire run
   const allLE = [
-    ...trace.steps.flatMap(s => s.ledgers.lifecycleEvents.map(le => ({ le, step: s.step }))),
-    ...(trace.runLifecycleEvents ?? []).map(le => ({ le, step: null as number | null })),
+    ...trace.steps.flatMap(s => stepLifecycleEvents(s).map(le => ({ le, step: s.step }))),
+    ...runLifecycleEvents(trace).map(le => ({ le, step: null as number | null })),
   ]
 
   const requests: { le: LifecycleTraceEvent; step: number | null }[] = []
@@ -404,7 +448,7 @@ function checkThinkingAbsent(trace: TraceRunV2, issues: CheckIssue[]): void {
   const thinkingTypes = new Set(['thinking_start', 'thinking_delta', 'thinking_end'])
   let hasThinking = false
   for (const step of trace.steps) {
-    for (const pe of step.ledgers.providerStream) {
+    for (const pe of stepProviderEvents(step)) {
       if (thinkingTypes.has(pe.type)) { hasThinking = true; break }
     }
     if (hasThinking) break
@@ -429,7 +473,7 @@ function checkToolcallDeltaDensity(trace: TraceRunV2, issues: CheckIssue[]): voi
   for (const step of trace.steps) {
     // Group toolcall_delta by toolCallId
     const deltasByTc = new Map<string, { timestamps: number[]; count: number }>()
-    for (const pe of step.ledgers.providerStream) {
+    for (const pe of stepProviderEvents(step)) {
       if (pe.type === 'toolcall_delta' && pe.toolCallId) {
         let entry = deltasByTc.get(pe.toolCallId)
         if (!entry) { entry = { timestamps: [], count: 0 }; deltasByTc.set(pe.toolCallId, entry) }
@@ -471,14 +515,14 @@ function checkPartialToLifecycleGap(trace: TraceRunV2, issues: CheckIssue[]): vo
   for (const step of trace.steps) {
     // Find first raw partial timestamp per toolCallId
     const firstPartial = new Map<string, number>()
-    for (const pe of step.ledgers.providerStream) {
+    for (const pe of stepProviderEvents(step)) {
       if ((pe.type === 'toolcall_start' || pe.type === 'toolcall_delta') && pe.toolCallId) {
         if (!firstPartial.has(pe.toolCallId)) firstPartial.set(pe.toolCallId, pe.timestamp)
       }
     }
     // Find lifecycle tool_call_created timestamp per toolCallId
     const lifecycleCreated = new Map<string, number>()
-    for (const le of step.ledgers.lifecycleEvents) {
+    for (const le of stepLifecycleEvents(step)) {
       if (le.type === 'tool_call_created' && le.toolCallId) {
         lifecycleCreated.set(le.toolCallId, le.timestamp)
       }

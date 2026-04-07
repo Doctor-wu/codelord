@@ -80,9 +80,12 @@ describe('TraceRecorder v2', () => {
     expect(trace.steps).toHaveLength(1)
 
     const step = trace.steps[0]
-    expect(step.ledgers.providerStream.length).toBeGreaterThanOrEqual(2)
-    expect(step.ledgers.agentEvents.length).toBeGreaterThanOrEqual(2)
-    expect(step.ledgers.lifecycleEvents.length).toBeGreaterThanOrEqual(2)
+    const pCount = step.events.filter(e => e.source === 'provider_stream').length
+    const aCount = step.events.filter(e => e.source === 'agent_event').length
+    const lCount = step.events.filter(e => e.source === 'lifecycle_event').length
+    expect(pCount).toBeGreaterThanOrEqual(2)
+    expect(aCount).toBeGreaterThanOrEqual(2)
+    expect(lCount).toBeGreaterThanOrEqual(2)
 
     expect(trace.eventCounts.providerStream).toBe(2)
     expect(trace.eventCounts.agentEvents).toBe(2)
@@ -112,10 +115,10 @@ describe('TraceRecorder v2', () => {
     const trace = rec.finalize({ type: 'success', text: '' })
     const step = trace.steps[0]
 
-    // All three ledgers should reference tc-42
-    const providerTc = step.ledgers.providerStream.find(e => e.toolCallId === 'tc-42')
-    const agentTc = step.ledgers.agentEvents.find(e => e.toolCallId === 'tc-42')
-    const lifecycleTc = step.ledgers.lifecycleEvents.find(e => e.toolCallId === 'tc-42')
+    // All three layers should reference tc-42
+    const providerTc = step.events.find(e => e.source === 'provider_stream' && 'toolCallId' in e && e.toolCallId === 'tc-42')
+    const agentTc = step.events.find(e => e.source === 'agent_event' && 'toolCallId' in e && e.toolCallId === 'tc-42')
+    const lifecycleTc = step.events.find(e => e.source === 'lifecycle_event' && 'toolCallId' in e && e.toolCallId === 'tc-42')
 
     expect(providerTc).toBeDefined()
     expect(agentTc).toBeDefined()
@@ -134,7 +137,7 @@ describe('TraceRecorder v2', () => {
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1100 })
     const trace = rec.finalize({ type: 'success', text: '' })
 
-    const delta = trace.steps[0].ledgers.providerStream[0]
+    const delta = trace.steps[0].events.find(e => e.source === 'provider_stream' && e.type === 'text_delta') as any
     expect(delta.deltaPreview).toContain('[REDACTED:API_KEY]')
     expect(delta.deltaPreview).not.toContain('sk-aaaa')
   })
@@ -152,18 +155,14 @@ describe('TraceRecorder v2', () => {
     const step = trace.steps[0]
 
     // Collect all seqs across layers
-    const allSeqs = [
-      ...step.ledgers.providerStream.map(e => e.seq),
-      ...step.ledgers.agentEvents.map(e => e.seq),
-      ...step.ledgers.lifecycleEvents.map(e => e.seq),
-    ].sort((a, b) => a - b)
+    const allSeqs = step.events.map(e => e.seq).sort((a, b) => a - b)
 
     // All seqs should be unique and positive
     expect(allSeqs.every(s => s > 0)).toBe(true)
     expect(new Set(allSeqs).size).toBe(allSeqs.length)
   })
 
-  it('session_done without currentStep goes to runLifecycleEvents', () => {
+  it('session_done without currentStep goes to runEvents', () => {
     const rec = new TraceRecorder(recorderOpts)
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1100 })
@@ -171,35 +170,35 @@ describe('TraceRecorder v2', () => {
     rec.onLifecycleEvent({ type: 'session_done', success: true, text: 'ok', timestamp: 1200 })
 
     const trace = rec.finalize({ type: 'success', text: 'ok' })
-    expect(trace.runLifecycleEvents.length).toBeGreaterThanOrEqual(1)
-    expect(trace.runLifecycleEvents.some(e => e.type === 'session_done')).toBe(true)
-    // Should NOT be in step ledger
+    expect(trace.runEvents.length).toBeGreaterThanOrEqual(1)
+    expect(trace.runEvents.some(e => e.type === 'session_done')).toBe(true)
+    // Should NOT be in step events
     for (const step of trace.steps) {
-      expect(step.ledgers.lifecycleEvents.some(e => e.type === 'session_done')).toBe(false)
+      expect(step.events.some(e => e.type === 'session_done')).toBe(false)
     }
   })
 
-  it('queue_drained without currentStep goes to runLifecycleEvents', () => {
+  it('queue_drained without currentStep goes to runEvents', () => {
     const rec = new TraceRecorder(recorderOpts)
     // No step started — queue_drained should go to run-level
     rec.onLifecycleEvent({ type: 'queue_drained', count: 2, messages: [{ content: 'a', enqueuedAt: 900 }, { content: 'b', enqueuedAt: 950 }], injectedAt: 1000 })
 
     const trace = rec.finalize({ type: 'success', text: '' })
-    expect(trace.runLifecycleEvents.some(e => e.type === 'queue_drained')).toBe(true)
-    const qd = trace.runLifecycleEvents.find(e => e.type === 'queue_drained')!
+    expect(trace.runEvents.some(e => e.type === 'queue_drained')).toBe(true)
+    const qd = trace.runEvents.find(e => e.type === 'queue_drained')! as any
     expect(qd.count).toBe(2)
     expect(qd.messageCount).toBe(2)
   })
 
-  it('question_answered without currentStep goes to runLifecycleEvents', () => {
+  it('question_answered without currentStep goes to runEvents', () => {
     const rec = new TraceRecorder(recorderOpts)
     rec.onLifecycleEvent({ type: 'question_answered', question: 'Which?', whyAsk: 'Need', askedAt: 1000, answer: 'pg', answeredAt: 2000 })
 
     const trace = rec.finalize({ type: 'success', text: '' })
-    expect(trace.runLifecycleEvents.some(e => e.type === 'question_answered')).toBe(true)
+    expect(trace.runEvents.some(e => e.type === 'question_answered')).toBe(true)
   })
 
-  it('step-internal events stay in step ledger, not run-level', () => {
+  it('step-internal events stay in step events, not run-level', () => {
     const rec = new TraceRecorder(recorderOpts)
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
     rec.onLifecycleEvent({ type: 'usage_updated', usage: makeUsageAggregate(), timestamp: 1500 })
@@ -207,8 +206,8 @@ describe('TraceRecorder v2', () => {
 
     const trace = rec.finalize({ type: 'success', text: '' })
     // usage_updated should be in step, not run-level
-    expect(trace.steps[0].ledgers.lifecycleEvents.some(e => e.type === 'usage_updated')).toBe(true)
-    expect(trace.runLifecycleEvents.some(e => e.type === 'usage_updated')).toBe(false)
+    expect(trace.steps[0].events.some(e => e.type === 'usage_updated')).toBe(true)
+    expect(trace.runEvents.some(e => e.type === 'usage_updated')).toBe(false)
   })
 
   // --- Interrupt chain recording ---
@@ -221,7 +220,7 @@ describe('TraceRecorder v2', () => {
 
     const trace = rec.finalize({ type: 'blocked', reason: 'interrupted' })
     const step = trace.steps[0]
-    const reqEvent = step.ledgers.lifecycleEvents.find(e => e.type === 'interrupt_requested')
+    const reqEvent = step.events.find(e => e.type === 'interrupt_requested') as any
     expect(reqEvent).toBeDefined()
     expect(reqEvent!.interruptSource).toBe('sigint')
     expect(reqEvent!.seq).toBeGreaterThan(0)
@@ -236,7 +235,7 @@ describe('TraceRecorder v2', () => {
 
     const trace = rec.finalize({ type: 'blocked', reason: 'interrupted' })
     const step = trace.steps[0]
-    const obsEvent = step.ledgers.lifecycleEvents.find(e => e.type === 'interrupt_observed')
+    const obsEvent = step.events.find(e => e.type === 'interrupt_observed') as any
     expect(obsEvent).toBeDefined()
     expect(obsEvent!.interruptSource).toBe('sigint')
     expect(obsEvent!.requestedAt).not.toBeNull()
@@ -253,21 +252,21 @@ describe('TraceRecorder v2', () => {
 
     const trace = rec.finalize({ type: 'blocked', reason: 'interrupted' })
     const step = trace.steps[0]
-    const reqSeq = step.ledgers.lifecycleEvents.find(e => e.type === 'interrupt_requested')!.seq
-    const obsSeq = step.ledgers.lifecycleEvents.find(e => e.type === 'interrupt_observed')!.seq
-    const blockedSeq = step.ledgers.lifecycleEvents.find(e => e.type === 'blocked_enter' && e.reason === 'interrupted')!.seq
+    const reqSeq = step.events.find(e => e.type === 'interrupt_requested')!.seq
+    const obsSeq = step.events.find(e => e.type === 'interrupt_observed')!.seq
+    const blockedSeq = step.events.find(e => e.type === 'blocked_enter' && (e as any).reason === 'interrupted')!.seq
     expect(reqSeq).toBeLessThan(obsSeq)
     expect(obsSeq).toBeLessThan(blockedSeq)
   })
 
-  it('interrupt_requested without step goes to runLifecycleEvents', () => {
+  it('interrupt_requested without step goes to runEvents', () => {
     const rec = new TraceRecorder(recorderOpts)
     // No step started
     rec.recordInterruptRequest('api')
 
     const trace = rec.finalize({ type: 'blocked', reason: 'interrupted' })
-    expect(trace.runLifecycleEvents.some(e => e.type === 'interrupt_requested')).toBe(true)
-    expect(trace.runLifecycleEvents.find(e => e.type === 'interrupt_requested')!.interruptSource).toBe('api')
+    expect(trace.runEvents.some(e => e.type === 'interrupt_requested')).toBe(true)
+    expect((trace.runEvents.find(e => e.type === 'interrupt_requested') as any)!.interruptSource).toBe('api')
   })
 
   it('interrupt events do not duplicate across step and run-level', () => {
@@ -279,10 +278,10 @@ describe('TraceRecorder v2', () => {
 
     const trace = rec.finalize({ type: 'blocked', reason: 'interrupted' })
     // All interrupt events should be in step, not run-level
-    expect(trace.steps[0].ledgers.lifecycleEvents.filter(e => e.type === 'interrupt_requested')).toHaveLength(1)
-    expect(trace.steps[0].ledgers.lifecycleEvents.filter(e => e.type === 'interrupt_observed')).toHaveLength(1)
-    expect(trace.runLifecycleEvents.filter(e => e.type === 'interrupt_requested')).toHaveLength(0)
-    expect(trace.runLifecycleEvents.filter(e => e.type === 'interrupt_observed')).toHaveLength(0)
+    expect(trace.steps[0].events.filter(e => e.type === 'interrupt_requested')).toHaveLength(1)
+    expect(trace.steps[0].events.filter(e => e.type === 'interrupt_observed')).toHaveLength(1)
+    expect(trace.runEvents.filter(e => e.type === 'interrupt_requested')).toHaveLength(0)
+    expect(trace.runEvents.filter(e => e.type === 'interrupt_observed')).toHaveLength(0)
   })
 })
 
@@ -496,7 +495,7 @@ describe('TraceStore prefix matching', () => {
 // ---------------------------------------------------------------------------
 
 describe('formatTraceShow debugger view', () => {
-  it('output contains step headers with provider/agent/lifecycle sections', () => {
+  it('output contains step headers with [P]/[A]/[L] tagged events', () => {
     const rec = new TraceRecorder(recorderOpts)
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
 
@@ -521,10 +520,10 @@ describe('formatTraceShow debugger view', () => {
 
     // Step header
     expect(output).toContain('Step 1')
-    // Three sections
-    expect(output).toContain('Provider Stream')
-    expect(output).toContain('Agent Events')
-    expect(output).toContain('Lifecycle')
+    // Source tags
+    expect(output).toContain('[P]')
+    expect(output).toContain('[A]')
+    expect(output).toContain('[L]')
     // Delta folding
     expect(output).toContain('text_delta ×2')
     // Key events visible
@@ -576,7 +575,7 @@ describe('formatTraceShow debugger view', () => {
     expect(lines).toHaveLength(1)
   })
 
-  it('output shows run-level lifecycle section for session_done', () => {
+  it('output shows run-level events section for session_done', () => {
     const rec = new TraceRecorder(recorderOpts)
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1100 })
@@ -585,7 +584,7 @@ describe('formatTraceShow debugger view', () => {
     const trace = rec.finalize({ type: 'success', text: 'ok' })
     const output = formatTraceShow(trace)
 
-    expect(output).toContain('Run-level Lifecycle')
+    expect(output).toContain('Run-level Events')
     expect(output).toContain('session_done')
   })
 

@@ -6,7 +6,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import type {
   LifecycleEvent, AgentEvent, RunOutcome, UsageAggregate,
   ProviderStreamTraceEvent, AgentTraceEvent, LifecycleTraceEvent,
-  TraceRunV2, TraceStepV2, TraceStepLedgers,
+  TraceRunV2, TraceStepV2, TraceEventEntry,
 } from '@agent/core'
 import { safePreview } from '@agent/core'
 import type { RedactionHit } from '@agent/core'
@@ -29,7 +29,7 @@ export class TraceRecorder {
   private readonly startedAt: number
   private steps: TraceStepV2[] = []
   private currentStep: TraceStepV2 | null = null
-  private runLifecycleEvents: import('@agent/core').LifecycleTraceEvent[] = []
+  private runEvents: TraceEventEntry[] = []
   private allRedactionHits: RedactionHit[] = []
   private usageSummary = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, llmCalls: 0 }
   private interruptRequestedAt: number | null = null
@@ -77,9 +77,9 @@ export class TraceRecorder {
     }
 
     if (this.currentStep) {
-      this.currentStep.ledgers.lifecycleEvents.push(le)
+      this.currentStep.events.push(le)
     } else {
-      this.runLifecycleEvents.push(le)
+      this.runEvents.push(le)
     }
   }
 
@@ -100,7 +100,7 @@ export class TraceRecorder {
       this.mergeHits(hits)
     }
     this.ensureStep(event.step, event.turnId)
-    this.currentStep!.ledgers.providerStream.push(event)
+    this.currentStep!.events.push(event)
   }
 
   // --- Agent event layer ---
@@ -165,7 +165,9 @@ export class TraceRecorder {
     if (this.currentStep) {
       base.step = this.currentStep.step
       base.turnId = this.currentStep.turnId
-      this.currentStep.ledgers.agentEvents.push(base)
+      this.currentStep.events.push(base)
+    } else {
+      this.runEvents.push(base)
     }
   }
 
@@ -183,7 +185,7 @@ export class TraceRecorder {
           turnId: event.id,
           startedAt: event.timestamp,
           endedAt: null,
-          ledgers: { providerStream: [], agentEvents: [], lifecycleEvents: [] },
+          events: [],
         }
         break
       case 'assistant_turn_end':
@@ -270,10 +272,10 @@ export class TraceRecorder {
     }
 
     if (this.currentStep) {
-      this.currentStep.ledgers.lifecycleEvents.push(le)
+      this.currentStep.events.push(le)
     } else {
       // No active step — this is a run-level event (session_done, queue_drained, etc.)
-      this.runLifecycleEvents.push(le)
+      this.runEvents.push(le)
     }
 
     // Flush step on turn end
@@ -319,7 +321,7 @@ export class TraceRecorder {
         lifecycleEvents: this.totalLifecycleEvents,
       },
       steps: this.steps,
-      runLifecycleEvents: this.runLifecycleEvents,
+      runEvents: this.runEvents,
     }
   }
 
@@ -336,7 +338,7 @@ export class TraceRecorder {
         turnId,
         startedAt: Date.now(),
         endedAt: null,
-        ledgers: { providerStream: [], agentEvents: [], lifecycleEvents: [] },
+        events: [],
       }
     }
   }
@@ -382,9 +384,9 @@ export class TraceRecorder {
     }
 
     if (this.currentStep) {
-      this.currentStep.ledgers.lifecycleEvents.push(le)
+      this.currentStep.events.push(le)
     } else {
-      this.runLifecycleEvents.push(le)
+      this.runEvents.push(le)
     }
   }
 
