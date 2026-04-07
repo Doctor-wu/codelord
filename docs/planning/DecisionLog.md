@@ -6,6 +6,32 @@
 
 ---
 
+## 2026-04-07 — 质量治理冲刺：interrupt/queue 语义修正 + 渲染架构限制确认
+
+### 背景
+
+dogfooding 暴露了一系列"已有功能的实现方案有问题"的质量缺陷。停下来做了一轮专项治理。过程中两个决策值得记录：
+
+### 决策
+
+1. **Interrupt 语义改写**：interrupt 后 runtime 进入 READY 而非 BLOCKED。去掉 PAUSED 中间态。用户期望的是"中断后直接可以继续交互"，不需要额外的恢复步骤。新增 `OutcomeInterrupted` 类型替代 `OutcomeBlocked(interrupted)`。
+
+2. **Queue 入队语义改写**：queue 中的消息只在 burst 结束时 drain（正常结束或 interrupt），不在 burst 内 step 之间 drain。用户心理模型是"我发的消息在当前任务结束后才被处理"，不是"在下一个安全边界就被偷偷注入上下文"。
+
+3. **F15 Running 时滚动问题延期**：尝试了两种方案（stdout flush 被 Ink 覆盖；Ink `<Static>` 效果差）均失败。根因是 vanilla Ink 的 cursor-up-then-redraw 架构。Claude Code 通过 fork Ink 实现 cell-level diff 来解决。暂时接受限制，记入长期待办。
+
+### 影响
+
+- Interrupt 和 queue 的行为定义从本轮开始稳定，不再是临时方案
+- Running 时不能滚动成为已知限制。后续 TUI 升级（fork Ink 或换框架）排入长期 roadmap
+- Trace 从分桶存储改为统一时间线，配合三层展示策略（summary/detail/raw），这不是 schema v2（那是下一个 sprint），只是把现有数据重新组织
+
+### 结果
+
+质量治理冲刺完成了 15 项改动（13 完成 + 1 延期 + 1 bonus trace show 优化）。代码基础从"能跑"提升到"设计过"：runtime 有了 manager 层、renderer 有了组件化、trace 有了分层展示、交互有了补全和信息密度。下一个 sprint 可以在更干净的地基上推进 trace schema v2 或其他 milestone。
+
+---
+
 ## 2026-04-07 — Trace 立场确立：从局部字段补丁转向三层诊断模型
 
 ### 背景
