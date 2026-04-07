@@ -8,7 +8,6 @@ import { startRepl } from './repl.js'
 import { resolveApiKey } from '../auth/index.js'
 import { SessionStore } from '../session-store.js'
 import { TraceStore, workspaceId, formatTraceList, formatTraceShow } from '../trace-store.js'
-import { checkTrace, formatCheckResult } from '@agent/core'
 
 interface CliFlags {
   model?: string
@@ -160,38 +159,8 @@ function handleTraceCommand(args: string[]): void {
         process.exitCode = 1
         break
     }
-  } else if (sub === 'check') {
-    const runId = positional[1]
-    if (!runId) {
-      console.error('Usage: codelord trace check <runId>')
-      process.exitCode = 1
-      return
-    }
-    const store = new TraceStore()
-    const result = store.findByPrefix(runId)
-    switch (result.type) {
-      case 'exact':
-      case 'unique': {
-        const checkResult = checkTrace(result.trace)
-        console.log(formatCheckResult(checkResult, result.trace.runId))
-        if (!checkResult.passed) process.exitCode = 1
-        break
-      }
-      case 'ambiguous':
-        console.error(`Trace id prefix is ambiguous: ${runId}`)
-        console.error('Candidates:')
-        for (const c of result.candidates) {
-          console.error(`  ${c.runId}  ${new Date(c.startedAt).toLocaleString()}  ${c.outcome}  ${c.workspaceSlug}`)
-        }
-        process.exitCode = 1
-        break
-      case 'not_found':
-        console.error(`Trace not found: ${runId}`)
-        process.exitCode = 1
-        break
-    }
   } else {
-    console.error(`Unknown trace subcommand: ${sub}\nUsage: codelord trace list [--all] [--limit N]\n       codelord trace show <runId> [--detail|--raw]\n       codelord trace check <runId>`)
+    console.error(`Unknown trace subcommand: ${sub}\nUsage: codelord trace list [--all] [--limit N]\n       codelord trace show <runId> [--detail|--raw]`)
     process.exitCode = 1
   }
 }

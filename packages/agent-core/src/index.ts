@@ -81,9 +81,7 @@ export type {
   TraceRunV2, TraceStepV2, TraceEventEntry,
   ProviderStreamTraceEvent, AgentTraceEvent, LifecycleTraceEvent,
 } from './trace.js'
-
-export { checkTrace, formatCheckResult, normalizeTrace } from './trace-check.js'
-export type { CheckResult, CheckIssue, CheckSeverity } from './trace-check.js'
+export { normalizeTrace } from './trace.js'
 
 export { estimateTokens, estimateMessageTokens, truncateMessages, DEFAULT_CONTEXT_WINDOW } from './context-window.js'
 export type { ContextWindowConfig, TruncationResult } from './context-window.js'

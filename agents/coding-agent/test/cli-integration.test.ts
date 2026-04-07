@@ -63,22 +63,6 @@ describe('CLI: trace subcommand routing', () => {
     expect(consoleErrorSpy.mock.calls[0][0]).toContain('Unknown trace subcommand')
     expect(process.exitCode).toBe(1)
   })
-
-  it('trace check without runId shows usage error', () => {
-    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    handleTraceCommand(['check'])
-    expect(consoleErrorSpy).toHaveBeenCalled()
-    expect(consoleErrorSpy.mock.calls[0][0]).toContain('Usage')
-    expect(process.exitCode).toBe(1)
-  })
-
-  it('trace check <nonexistent> shows not found', () => {
-    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    handleTraceCommand(['check', 'nonexistent-id'])
-    expect(consoleErrorSpy).toHaveBeenCalled()
-    expect(consoleErrorSpy.mock.calls[0][0]).toContain('Trace not found')
-    expect(process.exitCode).toBe(1)
-  })
 })
 
 describe('CLI: runCli trace routing', () => {

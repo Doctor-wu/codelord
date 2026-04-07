@@ -214,3 +214,57 @@ export interface TraceRun {
   redactionSummary: RedactionHit[]
   steps: TraceStep[]
 }
+
+// ---------------------------------------------------------------------------
+// Normalize — backfill missing seq for old traces
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalize a trace for show: backfill missing `seq` with index-based
+ * values so downstream code never sees undefined. Also converts old ledgers
+ * format to unified events array for backward compatibility. Returns a shallow copy.
+ */
+export function normalizeTrace(trace: TraceRunV2): TraceRunV2 {
+  let globalSeq = 0
+
+  function backfillLifecycle(e: any): LifecycleTraceEvent {
+    return { ...e, seq: e.seq ?? ++globalSeq, count: e.count ?? null, messageCount: e.messageCount ?? null, interruptSource: e.interruptSource ?? null, requestedAt: e.requestedAt ?? null, observedAt: e.observedAt ?? null, latencyMs: e.latencyMs ?? null }
+  }
+
+  const steps = trace.steps.map(step => {
+    const oldLedgers = (step as any).ledgers
+    let events: TraceEventEntry[]
+    if (oldLedgers && !step.events) {
+      const ps = (oldLedgers.providerStream ?? []).map((e: any) => ({ ...e, seq: e.seq ?? ++globalSeq }))
+      const ae = (oldLedgers.agentEvents ?? []).map((e: any) => ({ ...e, seq: e.seq ?? ++globalSeq }))
+      const le = (oldLedgers.lifecycleEvents ?? []).map(backfillLifecycle)
+      for (const e of [...ps, ...ae, ...le]) {
+        if (e.seq > globalSeq) globalSeq = e.seq
+      }
+      events = [...ps, ...ae, ...le].sort((a, b) => a.seq - b.seq)
+    } else {
+      events = (step.events ?? []).map(e => {
+        const patched = { ...e, seq: e.seq ?? ++globalSeq }
+        if (patched.source === 'lifecycle_event') return backfillLifecycle(patched)
+        return patched
+      })
+      for (const e of events) {
+        if (e.seq > globalSeq) globalSeq = e.seq
+      }
+    }
+    return { ...step, events }
+  })
+
+  const oldRunLE = (trace as any).runLifecycleEvents
+  let runEvents: TraceEventEntry[]
+  if (oldRunLE && !trace.runEvents) {
+    runEvents = oldRunLE.map(backfillLifecycle)
+  } else {
+    runEvents = (trace.runEvents ?? []).map((e: any) => {
+      if (e.source === 'lifecycle_event') return backfillLifecycle(e)
+      return { ...e, seq: e.seq ?? ++globalSeq }
+    })
+  }
+
+  return { ...trace, steps, runEvents }
+}
