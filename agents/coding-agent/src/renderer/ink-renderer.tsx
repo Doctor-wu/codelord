@@ -20,7 +20,8 @@ export interface InkRendererConfig {
   provider: string
   model: string
   version: string
-  maxSteps: number
+  cwd: string
+  reasoningLevel?: string
   idle?: boolean
   interactive?: boolean
 }
@@ -30,31 +31,43 @@ export class InkRenderer implements InteractiveRenderer {
   private readonly store: TimelineStore
   private readonly config: InkRendererConfig
   private readonly inputBridge: InputBridge | null
+  private _reasoningLevel: string
 
   constructor(config: InkRendererConfig) {
     this.config = config
     this.store = new TimelineStore(config.idle)
     this.inputBridge = config.interactive ? new InputBridge() : null
+    this._reasoningLevel = config.reasoningLevel ?? 'high'
+
+    // Clear terminal before rendering
+    process.stdout.write('\x1B[2J\x1B[3J\x1B[H')
 
     this.inkInstance = render(
       <App
         store={this.store}
         inputBridge={this.inputBridge}
         version={config.version}
+        cwd={config.cwd}
         provider={config.provider}
         model={config.model}
-        maxSteps={config.maxSteps}
+        reasoningLevel={this._reasoningLevel}
       />,
       { exitOnCtrlC: false },
     )
 
     if (this.inputBridge) {
       this.inputBridge.setActive(true)
+      this.inputBridge.setReasoningLevel(this._reasoningLevel)
     }
   }
 
   onEvent(event: AgentEvent): void { this.store.onRawEvent(event) }
   onLifecycleEvent(event: LifecycleEvent): void { this.store.onLifecycleEvent(event) }
+
+  setReasoningLevel(level: string): void {
+    this._reasoningLevel = level
+    this.inputBridge?.setReasoningLevel(level)
+  }
 
   async waitForInput(): Promise<string | null> {
     if (!this.inputBridge) throw new Error('waitForInput requires interactive mode')

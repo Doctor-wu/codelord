@@ -6,7 +6,8 @@ import React, { useState } from 'react'
 import { Box, Text, useInput } from 'ink'
 import Spinner from 'ink-spinner'
 import { APP_COLOR, GLYPH, LANE } from './theme.js'
-import { matchCommandSuggestions } from '../../cli/commands.js'
+import { matchCommandSuggestions, isRegisteredCommand } from '../../cli/commands.js'
+import type { CommandDefinition } from '../../cli/commands.js'
 
 export type SessionMode = 'idle' | 'running' | 'waiting_answer' | 'error'
 
@@ -33,6 +34,12 @@ export function InputComposer({
 }: InputComposerProps) {
   const [value, setValue] = useState('')
   const [cursor, setCursor] = useState(0)
+  const [suggestionIndex, setSuggestionIndex] = useState(0)
+
+  // Compute suggestions for current input
+  const suggestions = matchCommandSuggestions(value, mode, isRunning)
+  const isComplete = isRegisteredCommand(value)
+  const showSuggestions = suggestions.length > 0 && !isComplete
 
   useInput((input, key) => {
     if (!isActive) return
@@ -43,24 +50,54 @@ export function InputComposer({
       return
     }
 
-    // Escape — interrupt only (never exit)
+    // Escape — close suggestions or interrupt
     if (key.escape) {
+      if (showSuggestions) {
+        setValue('')
+        setCursor(0)
+        setSuggestionIndex(0)
+        return
+      }
       onInterrupt?.()
       return
     }
 
+    // Up/Down — navigate suggestions when visible
+    if (key.upArrow && showSuggestions) {
+      setSuggestionIndex(prev => Math.max(0, prev - 1))
+      return
+    }
+    if (key.downArrow && showSuggestions) {
+      setSuggestionIndex(prev => Math.min(suggestions.length - 1, prev + 1))
+      return
+    }
+
+    // Tab — complete selected suggestion
+    if (key.tab && showSuggestions) {
+      applySuggestion(suggestions[suggestionIndex])
+      return
+    }
+
     if (key.return) {
+      // If suggestions visible, Enter completes (same as Tab)
+      if (showSuggestions) {
+        applySuggestion(suggestions[suggestionIndex])
+        return
+      }
       const submitted = value
       setValue('')
       setCursor(0)
+      setSuggestionIndex(0)
       if (submitted.trim()) onSubmit(submitted)
       return
     }
 
     if (key.backspace || key.delete) {
       if (cursor > 0) {
-        setValue(prev => prev.slice(0, cursor - 1) + prev.slice(cursor))
+        const next = value.slice(0, cursor - 1) + value.slice(cursor)
+        setValue(next)
         setCursor(prev => prev - 1)
+        setSuggestionIndex(0)
       }
       return
     }
@@ -76,10 +113,20 @@ export function InputComposer({
     }
 
     if (input && !key.ctrl && !key.meta) {
-      setValue(prev => prev.slice(0, cursor) + input + prev.slice(cursor))
+      const next = value.slice(0, cursor) + input + value.slice(cursor)
+      setValue(next)
       setCursor(prev => prev + input.length)
+      setSuggestionIndex(0)
     }
   }, { isActive })
+
+  function applySuggestion(cmd: CommandDefinition) {
+    // If command takes args (has usage), append a space
+    const completed = cmd.usage ? cmd.name + ' ' : cmd.name
+    setValue(completed)
+    setCursor(completed.length)
+    setSuggestionIndex(0)
+  }
 
   const promptColor = getPromptColor(mode, isActive)
   const promptChar = mode === 'waiting_answer' ? '»' : '>'
@@ -106,7 +153,9 @@ export function InputComposer({
       </Box>
 
       {/* ── Command suggestions (when typing `/`) ── */}
-      <CommandSuggestions value={value} mode={mode} isRunning={isRunning} />
+      {showSuggestions && (
+        <CommandSuggestions suggestions={suggestions} selectedIndex={suggestionIndex} />
+      )}
 
       {/* ── Hint bar ── */}
       <HintBar mode={mode} isRunning={isRunning} />
@@ -198,18 +247,18 @@ function QueuePreview({ queue }: { queue: string[] }) {
   )
 }
 
-function CommandSuggestions({ value, mode, isRunning }: { value: string; mode: SessionMode; isRunning: boolean }) {
-  const suggestions = matchCommandSuggestions(value, mode, isRunning)
-  if (suggestions.length === 0) return null
-
+function CommandSuggestions({ suggestions, selectedIndex }: { suggestions: CommandDefinition[]; selectedIndex: number }) {
   return (
     <Box flexDirection="column">
-      {suggestions.map(cmd => (
-        <Box key={cmd.name}>
-          <Text dimColor>  {cmd.usage ?? cmd.name}</Text>
-          <Text dimColor color={LANE.muted}>  {cmd.description}</Text>
-        </Box>
-      ))}
+      {suggestions.map((cmd, i) => {
+        const isSelected = i === selectedIndex
+        return (
+          <Box key={cmd.name}>
+            <Text bold={isSelected} dimColor={!isSelected}>  {cmd.usage ?? cmd.name}</Text>
+            <Text bold={isSelected} dimColor={!isSelected} color={isSelected ? undefined : LANE.muted}>  {cmd.description}</Text>
+          </Box>
+        )
+      })}
     </Box>
   )
 }

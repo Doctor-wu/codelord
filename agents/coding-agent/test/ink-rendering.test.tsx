@@ -27,13 +27,14 @@ describe('App rendering', () => {
         store={storeFromState(state)}
         inputBridge={null}
         version="0.0.1"
+        cwd="/test"
         provider="openai"
         model="gpt-5.4"
-        maxSteps={10}
+        reasoningLevel="high"
       />,
     )
 
-    expect(output).toContain('codelord')
+    expect(output).toContain('██████╗')
   })
 
   it('renders the tool card instead of thinking once a tool call exists', () => {
@@ -59,9 +60,10 @@ describe('App rendering', () => {
         store={storeFromState(state)}
         inputBridge={null}
         version="0.0.1"
+        cwd="/test"
         provider="openai"
         model="gpt-5.4"
-        maxSteps={10}
+        reasoningLevel="high"
       />,
     )
 
@@ -94,9 +96,10 @@ describe('App rendering', () => {
         store={storeFromState(state)}
         inputBridge={null}
         version="0.0.1"
+        cwd="/test"
         provider="openai"
         model="gpt-5.4"
-        maxSteps={10}
+        reasoningLevel="high"
       />,
     )
 
@@ -156,9 +159,10 @@ describe('Idle state (REPL)', () => {
         store={storeFromState(state)}
         inputBridge={null}
         version="0.0.1"
+        cwd="/test"
         provider="openai"
         model="gpt-5.4"
-        maxSteps={10}
+        reasoningLevel="high"
       />,
     )
 
@@ -173,13 +177,14 @@ describe('Idle state (REPL)', () => {
         store={storeFromState(state)}
         inputBridge={null}
         version="0.0.1"
+        cwd="/test"
         provider="openai"
         model="gpt-5.4"
-        maxSteps={10}
+        reasoningLevel="high"
       />,
     )
 
-    expect(output).toContain('codelord')
+    expect(output).toContain('██████╗')
     expect(output).toContain('gpt-5.4')
   })
 })
@@ -214,9 +219,10 @@ describe('Header status reflects session mode', () => {
         store={storeFromState(state)}
         inputBridge={null}
         version="0.0.1"
+        cwd="/test"
         provider="openai"
         model="gpt-5.4"
-        maxSteps={10}
+        reasoningLevel="high"
       />,
     )
 
@@ -241,9 +247,10 @@ describe('Header status reflects session mode', () => {
         store={storeFromState(state)}
         inputBridge={null}
         version="0.0.1"
+        cwd="/test"
         provider="openai"
         model="gpt-5.4"
-        maxSteps={10}
+        reasoningLevel="high"
       />,
     )
 
@@ -259,9 +266,10 @@ describe('Header status reflects session mode', () => {
         store={storeFromState(state)}
         inputBridge={null}
         version="0.0.1"
+        cwd="/test"
         provider="openai"
         model="gpt-5.4"
-        maxSteps={10}
+        reasoningLevel="high"
       />,
     )
 
@@ -355,9 +363,10 @@ describe('Built-in tool card shows derived feedback when no stdout', () => {
         store={storeFromState(state)}
         inputBridge={null}
         version="0.0.1"
+        cwd="/test"
         provider="openai"
         model="gpt-5.4"
-        maxSteps={10}
+        reasoningLevel="high"
       />,
     )
 
@@ -390,9 +399,10 @@ describe('Built-in tool card shows derived feedback when no stdout', () => {
         store={storeFromState(state)}
         inputBridge={null}
         version="0.0.1"
+        cwd="/test"
         provider="openai"
         model="gpt-5.4"
-        maxSteps={10}
+        reasoningLevel="high"
       />,
     )
 

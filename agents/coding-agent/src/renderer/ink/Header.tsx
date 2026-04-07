@@ -1,66 +1,53 @@
 // ---------------------------------------------------------------------------
-// Header — mission console header bar
+// Header — ASCII logo + workspace info (first-screen identity)
 // ---------------------------------------------------------------------------
 
 import { Box, Text, useStdout } from 'ink'
-import { APP_NAME, APP_COLOR, getProviderBrand, GLYPH, LANE } from './theme.js'
-import type { SessionMode } from './InputComposer.js'
+import { APP_COLOR, GLYPH, getProviderBrand } from './theme.js'
+import { homedir } from 'node:os'
 
 interface HeaderProps {
   version: string
+  cwd: string
   provider: string
   model: string
-  isRunning: boolean
-  sessionMode?: SessionMode
-  queueCount?: number
+  reasoningLevel: string
 }
 
-export function Header({ version, provider, model, isRunning, sessionMode = 'idle', queueCount = 0 }: HeaderProps) {
-  const { stdout } = useStdout()
-  const brand = getProviderBrand(provider)
-  const cols = Math.max(40, (stdout?.columns ?? 80) - 1)
+const LOGO = [
+  ' ██████╗ ██████╗ ██████╗ ███████╗██╗      ██████╗ ██████╗ ██████╗ ',
+  '██╔════╝██╔═══██╗██╔══██╗██╔════╝██║     ██╔═══██╗██╔══██╗██╔══██╗',
+  '██║     ██║   ██║██║  ██║█████╗  ██║     ██║   ██║██████╔╝██║  ██║',
+  '██║     ██║   ██║██║  ██║██╔══╝  ██║     ██║   ██║██╔══██╗██║  ██║',
+  '╚██████╗╚██████╔╝██████╔╝███████╗███████╗╚██████╔╝██║  ██║██████╔╝',
+  ' ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═════╝',
+]
 
-  const { color: statusColor, icon: statusIcon, label: statusLabel } = resolveHeaderStatus(isRunning, sessionMode, queueCount)
+function shortenHome(path: string): string {
+  const home = homedir()
+  if (path === home) return '~'
+  if (path.startsWith(home + '/')) return '~' + path.slice(home.length)
+  return path
+}
+
+export function Header({ version, cwd, provider, model, reasoningLevel }: HeaderProps) {
+  const { stdout } = useStdout()
+  const cols = Math.max(40, (stdout?.columns ?? 80) - 1)
+  const brand = getProviderBrand(provider)
 
   return (
-    <Box flexDirection="column">
-      {/* ── Header content ── */}
-      <Box justifyContent="space-between">
-        <Box>
-          <Text color={APP_COLOR} bold>{APP_NAME}</Text>
-          <Text dimColor> v{version}</Text>
-          <Text dimColor>  </Text>
-          <Text color={brand.color}>{brand.symbol} {model}</Text>
-        </Box>
-
-        <Box>
-          <Text color={statusColor}>{statusIcon} </Text>
-          <Text color={statusColor}>{statusLabel}</Text>
-          {queueCount > 0 && sessionMode !== 'idle' && (
-            <Text color={LANE.user}> {queueCount}q</Text>
-          )}
-        </Box>
+    <Box flexDirection="column" marginTop={1}>
+      {LOGO.map((line, i) => (
+        <Text key={i} color={APP_COLOR} bold>{line}</Text>
+      ))}
+      <Text dimColor>  v{version}</Text>
+      <Text> </Text>
+      <Box>
+        <Text dimColor>  {shortenHome(cwd)} · </Text>
+        <Text color={brand.color}>{brand.symbol} {model}</Text>
+        <Text dimColor> · reasoning:{reasoningLevel}</Text>
       </Box>
-
       <Text dimColor>{GLYPH.thinRule.repeat(cols)}</Text>
     </Box>
   )
-}
-
-function resolveHeaderStatus(isRunning: boolean, mode: SessionMode, queueCount: number): { color: string; icon: string; label: string } {
-  if (isRunning) {
-    return { color: 'green', icon: GLYPH.phaseActive, label: 'LIVE' }
-  }
-
-  switch (mode) {
-    case 'waiting_answer':
-      return { color: LANE.control, icon: GLYPH.live, label: 'YOUR TURN' }
-    case 'error':
-      return { color: LANE.error, icon: GLYPH.phaseFail, label: 'ERROR' }
-    case 'running':
-      return { color: 'green', icon: GLYPH.phaseActive, label: 'LIVE' }
-    case 'idle':
-    default:
-      return { color: LANE.muted, icon: GLYPH.phaseDim, label: 'IDLE' }
-  }
 }

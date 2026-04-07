@@ -15,12 +15,19 @@ export class InputBridge {
 
   // Runtime queue info (read-only projection for UI)
   private _runtimeQueue: RuntimeQueueInfo | null = null
+  private _reasoningLevel = 'high'
 
   get isActive(): boolean { return this._isActive }
   get isRunning(): boolean { return this._isRunning }
   get runtimeQueue(): RuntimeQueueInfo | null { return this._runtimeQueue }
+  get reasoningLevel(): string { return this._reasoningLevel }
 
   setOnChange(callback: () => void): void { this._onChange = callback }
+
+  setReasoningLevel(level: string): void {
+    this._reasoningLevel = level
+    this._onChange?.()
+  }
 
   setActive(active: boolean): void {
     this._isActive = active

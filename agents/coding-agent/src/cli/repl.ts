@@ -293,6 +293,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
           })
         } else if (VALID_LEVELS.includes(arg as ReasoningLevel)) {
           runtime.setReasoningLevel(arg as ReasoningLevel)
+          renderer.setReasoningLevel(arg)
           renderer.onLifecycleEvent?.({
             type: 'command_feedback',
             success: true,

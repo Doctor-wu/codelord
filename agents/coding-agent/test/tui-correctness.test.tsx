@@ -36,7 +36,7 @@ function makeInputBridge(running = false, queue?: { pendingInboundCount: number;
 function renderApp(state: TimelineState, opts?: { withInput?: boolean }): string {
   const bridge = opts?.withInput ? makeInputBridge(state.isRunning) : null
   return renderToString(
-    <App store={storeFromState(state)} inputBridge={bridge} version="0.0.1" provider="test" model="test" maxSteps={10} />,
+    <App store={storeFromState(state)} inputBridge={bridge} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
   )
 }
 
@@ -453,7 +453,7 @@ describe('Session mode in composer', () => {
     })
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge()} version="0.0.1" provider="test" model="test" maxSteps={10} />,
+      <App store={storeFromState(state)} inputBridge={makeInputBridge()} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
     )
     expect(output).toContain('answer the question')
   })
@@ -465,7 +465,7 @@ describe('Session mode in composer', () => {
     }
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge(true)} version="0.0.1" provider="test" model="test" maxSteps={10} />,
+      <App store={storeFromState(state)} inputBridge={makeInputBridge(true)} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
     )
     expect(output).toContain('working')
     expect(output).toContain('Esc to interrupt')
@@ -502,7 +502,7 @@ describe('Thinking vs working convergence', () => {
     }
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge(true)} version="0.0.1" provider="test" model="test" maxSteps={10} />,
+      <App store={storeFromState(state)} inputBridge={makeInputBridge(true)} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
     )
     // Composer shows working — this is the authoritative running indicator
     expect(output).toContain('working')
@@ -539,7 +539,7 @@ describe('Composer always visible', () => {
     }
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge(true)} version="0.0.1" provider="test" model="test" maxSteps={10} />,
+      <App store={storeFromState(state)} inputBridge={makeInputBridge(true)} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
     )
     // Prompt character should be visible even when disabled
     expect(output).toContain('>')
@@ -550,7 +550,7 @@ describe('Composer always visible', () => {
     const state = createInitialTimelineState(true)
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge()} version="0.0.1" provider="test" model="test" maxSteps={10} />,
+      <App store={storeFromState(state)} inputBridge={makeInputBridge()} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
     )
     expect(output).toContain('>')
     expect(output).toContain('Enter to send')
@@ -629,7 +629,7 @@ describe('Queue input during running', () => {
     }
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge(true)} version="0.0.1" provider="test" model="test" maxSteps={10} />,
+      <App store={storeFromState(state)} inputBridge={makeInputBridge(true)} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
     )
     // Prompt should be visible
     expect(output).toContain('>')
@@ -644,7 +644,7 @@ describe('Queue input during running', () => {
     }
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge(true, { pendingInboundCount: 2, pendingInboundPreviews: ['fix the bug', 'then run tests'] })} version="0.0.1" provider="test" model="test" maxSteps={10} />,
+      <App store={storeFromState(state)} inputBridge={makeInputBridge(true, { pendingInboundCount: 2, pendingInboundPreviews: ['fix the bug', 'then run tests'] })} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
     )
     expect(output).toContain('2 queued')
   })
@@ -656,7 +656,7 @@ describe('Queue input during running', () => {
     }
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge(true, { pendingInboundCount: 2, pendingInboundPreviews: ['fix the bug', 'then run tests'] })} version="0.0.1" provider="test" model="test" maxSteps={10} />,
+      <App store={storeFromState(state)} inputBridge={makeInputBridge(true, { pendingInboundCount: 2, pendingInboundPreviews: ['fix the bug', 'then run tests'] })} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
     )
     expect(output).toContain('fix the bug')
     expect(output).toContain('then run tests')
@@ -670,7 +670,7 @@ describe('Queue input during running', () => {
     }
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge(true, { pendingInboundCount: 1, pendingInboundPreviews: [longMsg] })} version="0.0.1" provider="test" model="test" maxSteps={10} />,
+      <App store={storeFromState(state)} inputBridge={makeInputBridge(true, { pendingInboundCount: 1, pendingInboundPreviews: [longMsg] })} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
     )
     // Should be truncated with ellipsis
     expect(output).toContain('…')
@@ -684,7 +684,7 @@ describe('Queue input during running', () => {
     }
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge(true)} version="0.0.1" provider="test" model="test" maxSteps={10} />,
+      <App store={storeFromState(state)} inputBridge={makeInputBridge(true)} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
     )
     expect(output).not.toContain('queued')
   })
@@ -693,26 +693,3 @@ describe('Queue input during running', () => {
 // ---------------------------------------------------------------------------
 // Status bar: steps display
 // ---------------------------------------------------------------------------
-
-describe('Status bar step telemetry', () => {
-  it('displays steps current/max after assistant turns', () => {
-    let state = createInitialTimelineState()
-    state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'hi', timestamp: 1 })
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 3 })
-
-    const output = renderApp(state)
-    expect(output).toContain('steps 1/10')
-  })
-
-  it('step count increments across multiple turns', () => {
-    let state = createInitialTimelineState()
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a2', reasoning: createReasoningState(), timestamp: 3 })
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a2', reasoning: createReasoningState(), timestamp: 4 })
-
-    const output = renderApp(state)
-    expect(output).toContain('steps 2/10')
-  })
-})

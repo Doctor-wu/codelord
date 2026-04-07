@@ -34,6 +34,8 @@ export interface InteractiveRenderer extends Renderer {
   setInterruptHandler(handler: () => void): void
   /** Set the callback for Ctrl+C exit */
   setExitHandler(handler: () => void): void
+  /** Update reasoning level display in footer */
+  setReasoningLevel(level: string): void
   /** Capture current timeline state for persistence */
   captureTimelineSnapshot(): TimelineSnapshot
   /** Restore timeline state from a persisted snapshot */
