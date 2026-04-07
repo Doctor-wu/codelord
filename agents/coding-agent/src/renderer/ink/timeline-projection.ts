@@ -261,6 +261,8 @@ export function reduceLifecycleEvent(state: TimelineState, event: LifecycleEvent
     case 'interrupt_requested':
     case 'interrupt_observed':
     case 'context_truncated':
+    case 'checkpoint_created':
+    case 'checkpoint_undone':
       return state
   }
 }

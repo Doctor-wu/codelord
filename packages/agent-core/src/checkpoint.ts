@@ -16,6 +16,19 @@ export interface FileSnapshot {
 }
 
 // ---------------------------------------------------------------------------
+// GitCheckpoint — git-level checkpoint info
+// ---------------------------------------------------------------------------
+
+export interface GitCheckpoint {
+  /** HEAD commit hash at checkpoint time */
+  headCommit: string
+  /** Whether there were uncommitted changes */
+  hadUncommittedChanges: boolean
+  /** Stash ref if changes were stashed (e.g. "stash@{0}") */
+  stashRef: string | null
+}
+
+// ---------------------------------------------------------------------------
 // CheckpointRecord — one undo unit (one mutating burst)
 // ---------------------------------------------------------------------------
 
@@ -25,9 +38,11 @@ export interface CheckpointRecord {
   createdAt: number
   /** Which burst created this checkpoint */
   burstIndex: number
-  strategy: 'file_snapshot'
+  strategy: 'file_snapshot' | 'git_stash' | 'hybrid'
   /** Files protected by this checkpoint */
   files: FileSnapshot[]
+  /** Git-level checkpoint info (null if not in git repo or git unavailable) */
+  git: GitCheckpoint | null
   /** Human-readable summary */
   summary: string
   /** Whether this checkpoint can be reliably undone */

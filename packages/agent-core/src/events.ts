@@ -219,6 +219,9 @@ export type LifecycleEvent =
   | { type: 'interrupt_observed'; requestedAt: number; observedAt: number; source: 'sigint' | 'api'; latencyMs: number; timestamp: number }
   // --- Context window ---
   | { type: 'context_truncated'; droppedCount: number; droppedTokens: number; budget: { total: number; systemPrompt: number; tools: number; reserved: number; availableForMessages: number; messagesBeforeTruncation: number; messagesAfterTruncation: number }; timestamp: number }
+  // --- Checkpoint ---
+  | { type: 'checkpoint_created'; checkpointId: string; strategy: string; fileCount: number; hasGit: boolean; timestamp: number }
+  | { type: 'checkpoint_undone'; checkpointId: string; restoredFileCount: number; gitRestored: boolean; timestamp: number }
 
 // ---------------------------------------------------------------------------
 // QuestionDetail — full question metadata for UI rendering

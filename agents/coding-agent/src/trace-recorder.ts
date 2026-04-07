@@ -76,6 +76,8 @@ export class TraceRecorder {
       latencyMs: null,
       droppedCount: null,
       droppedTokens: null,
+      checkpointId: null,
+      fileCount: null,
     }
 
     if (this.currentStep) {
@@ -223,6 +225,8 @@ export class TraceRecorder {
       latencyMs: null,
       droppedCount: null,
       droppedTokens: null,
+      checkpointId: null,
+      fileCount: null,
     }
 
     switch (event.type) {
@@ -276,6 +280,14 @@ export class TraceRecorder {
       case 'context_truncated':
         le.droppedCount = event.droppedCount
         le.droppedTokens = event.droppedTokens
+        break
+      case 'checkpoint_created':
+        le.checkpointId = event.checkpointId
+        le.fileCount = event.fileCount
+        break
+      case 'checkpoint_undone':
+        le.checkpointId = event.checkpointId
+        le.fileCount = event.restoredFileCount
         break
     }
 
@@ -392,6 +404,8 @@ export class TraceRecorder {
       latencyMs: this.interruptRequestedAt ? now - this.interruptRequestedAt : null,
       droppedCount: null,
       droppedTokens: null,
+      checkpointId: null,
+      fileCount: null,
     }
 
     if (this.currentStep) {

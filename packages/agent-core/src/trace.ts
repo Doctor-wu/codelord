@@ -80,6 +80,10 @@ export interface LifecycleTraceEvent extends LedgerEventBase {
   droppedCount: number | null
   /** For context_truncated */
   droppedTokens: number | null
+  /** For checkpoint_created / checkpoint_undone */
+  checkpointId: string | null
+  /** For checkpoint_created: number of files protected */
+  fileCount: number | null
 }
 
 // ---------------------------------------------------------------------------
@@ -228,7 +232,7 @@ export function normalizeTrace(trace: TraceRunV2): TraceRunV2 {
   let globalSeq = 0
 
   function backfillLifecycle(e: any): LifecycleTraceEvent {
-    return { ...e, seq: e.seq ?? ++globalSeq, count: e.count ?? null, messageCount: e.messageCount ?? null, interruptSource: e.interruptSource ?? null, requestedAt: e.requestedAt ?? null, observedAt: e.observedAt ?? null, latencyMs: e.latencyMs ?? null }
+    return { ...e, seq: e.seq ?? ++globalSeq, count: e.count ?? null, messageCount: e.messageCount ?? null, interruptSource: e.interruptSource ?? null, requestedAt: e.requestedAt ?? null, observedAt: e.observedAt ?? null, latencyMs: e.latencyMs ?? null, checkpointId: e.checkpointId ?? null, fileCount: e.fileCount ?? null }
   }
 
   const steps = trace.steps.map(step => {

@@ -13,6 +13,7 @@ import { CheckpointManager } from '../checkpoint-manager.js'
 import { TraceRecorder } from '../trace-recorder.js'
 import { TraceStore, workspaceSlug, workspaceId } from '../trace-store.js'
 import { reconcileTimelineForResume } from '../renderer/ink/timeline-projection.js'
+import { getGitBranch } from './git-utils.js'
 
 // ---------------------------------------------------------------------------
 // REPL — interactive shell with Ink as sole stdout owner
@@ -51,6 +52,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   let sessionId: string
   let sessionCreatedAt: number
   let checkpointManager: CheckpointManager
+  const gitBranch = getGitBranch(cwd)
 
   // --- Resume or new ---
   if (resumeSessionId) {
@@ -156,6 +158,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
       model: config.model,
       createdAt: sessionCreatedAt,
       checkpoints: [...checkpointManager.stack],
+      gitBranch,
     })
     const timeline = renderer.captureTimelineSnapshot()
     store.save(snapshot, timeline)
@@ -243,6 +246,14 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 
     const result = checkpointManager.undo()
     if (!result) return true
+
+    fanOutLifecycle({
+      type: 'checkpoint_undone',
+      checkpointId: result.record.checkpointId,
+      restoredFileCount: result.restoredFiles.length,
+      gitRestored: result.gitRestored,
+      timestamp: Date.now(),
+    })
 
     const fileList = result.restoredFiles.map(f => `  - ${f}`).join('\n')
     const undoMessage = `[UNDO] Reverted ${result.restoredFiles.length} file(s) from checkpoint ${result.record.checkpointId.slice(0, 8)}:\n${fileList}\n\nThe file changes from the previous agent turn have been undone. The files listed above have been restored to their state before that turn.`
@@ -360,7 +371,17 @@ export async function startRepl(options: ReplOptions): Promise<void> {
       outcome = { type: 'error', error: 'Unhandled runtime error' }
     }
     running = false
-    checkpointManager.endBurst()
+    const checkpoint = checkpointManager.endBurst()
+    if (checkpoint) {
+      fanOutLifecycle({
+        type: 'checkpoint_created',
+        checkpointId: checkpoint.checkpointId,
+        strategy: checkpoint.strategy,
+        fileCount: checkpoint.files.length,
+        hasGit: checkpoint.git !== null,
+        timestamp: Date.now(),
+      })
+    }
 
     // Lightweight interrupt feedback
     if (outcome.type === 'interrupted') {
@@ -391,7 +412,17 @@ export async function startRepl(options: ReplOptions): Promise<void> {
         rerunOutcome = { type: 'error', error: 'Unhandled runtime error' }
       }
       running = false
-      checkpointManager.endBurst()
+      const rerunCheckpoint = checkpointManager.endBurst()
+      if (rerunCheckpoint) {
+        fanOutLifecycle({
+          type: 'checkpoint_created',
+          checkpointId: rerunCheckpoint.checkpointId,
+          strategy: rerunCheckpoint.strategy,
+          fileCount: rerunCheckpoint.files.length,
+          hasGit: rerunCheckpoint.git !== null,
+          timestamp: Date.now(),
+        })
+      }
       if (rerunOutcome.type === 'interrupted') {
         renderer.onLifecycleEvent?.({
           type: 'command_feedback',

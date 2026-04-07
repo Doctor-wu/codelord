@@ -3,6 +3,7 @@ import { writeFileSync, readFileSync, mkdirSync, rmSync, existsSync } from 'node
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
+import { execSync } from 'node:child_process'
 import { CheckpointManager } from '../src/checkpoint-manager.js'
 import type { ToolHandler } from '@agent/core'
 
@@ -309,5 +310,167 @@ describe('CheckpointManager', () => {
     // Undo restores to original, not to first-edit
     mgr.undo()
     expect(readFileSync(join(cwd, 'multi.txt'), 'utf-8')).toBe('original')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Git-aware checkpoint tests
+// ---------------------------------------------------------------------------
+
+function makeGitRepo(): string {
+  const dir = join(tmpdir(), `codelord-git-ckpt-test-${randomUUID()}`)
+  mkdirSync(dir, { recursive: true })
+  execSync('git init', { cwd: dir, stdio: 'pipe' })
+  execSync('git config user.email "test@test.com"', { cwd: dir, stdio: 'pipe' })
+  execSync('git config user.name "Test"', { cwd: dir, stdio: 'pipe' })
+  // Need at least one commit for HEAD to exist
+  writeFileSync(join(dir, 'init.txt'), 'init', 'utf-8')
+  execSync('git add . && git commit -m "init"', { cwd: dir, stdio: 'pipe' })
+  return dir
+}
+
+describe('CheckpointManager — git-aware', () => {
+  const dirs: string[] = []
+
+  afterEach(() => {
+    for (const dir of dirs) {
+      if (existsSync(dir)) rmSync(dir, { recursive: true, force: true })
+    }
+    dirs.length = 0
+  })
+
+  it('beginBurst in git repo creates git checkpoint with stash when dirty', () => {
+    const cwd = makeGitRepo()
+    dirs.push(cwd)
+
+    // Make the repo dirty
+    writeFileSync(join(cwd, 'dirty.txt'), 'uncommitted', 'utf-8')
+
+    const mgr = new CheckpointManager({ cwd, sessionId: 'test' })
+    const handlers = new Map<string, ToolHandler>([
+      ['file_write', async (args) => {
+        writeFileSync(join(cwd, args.file_path as string), args.content as string, 'utf-8')
+        return { output: 'OK', isError: false }
+      }],
+    ])
+    const wrapped = mgr.wrapHandlers(handlers)
+
+    mgr.beginBurst()
+    // After beginBurst, dirty file should be stashed — verify it's gone from working tree
+    expect(existsSync(join(cwd, 'dirty.txt'))).toBe(false)
+
+    // Simulate a bash-only burst (no file_write/file_edit)
+    const checkpoint = mgr.endBurst()
+    expect(checkpoint).not.toBeNull()
+    expect(checkpoint!.strategy).toBe('git_stash')
+    expect(checkpoint!.git).not.toBeNull()
+    expect(checkpoint!.git!.hadUncommittedChanges).toBe(true)
+    expect(checkpoint!.git!.stashRef).toBe('stash@{0}')
+    expect(checkpoint!.files).toHaveLength(0)
+  })
+
+  it('beginBurst in git repo records HEAD but no stash when clean', () => {
+    const cwd = makeGitRepo()
+    dirs.push(cwd)
+
+    const mgr = new CheckpointManager({ cwd, sessionId: 'test' })
+
+    mgr.beginBurst()
+    // No file mutations, but git checkpoint should exist with no stash
+    const checkpoint = mgr.endBurst()
+    // Clean repo + no file mutations = no checkpoint needed
+    expect(checkpoint).toBeNull()
+  })
+
+  it('hybrid strategy when git stash + file_write both present', () => {
+    const cwd = makeGitRepo()
+    dirs.push(cwd)
+
+    // Make dirty
+    writeFileSync(join(cwd, 'dirty.txt'), 'uncommitted', 'utf-8')
+
+    const mgr = new CheckpointManager({ cwd, sessionId: 'test' })
+    const handlers = new Map<string, ToolHandler>([
+      ['file_write', async (args) => {
+        writeFileSync(join(cwd, args.file_path as string), args.content as string, 'utf-8')
+        return { output: 'OK', isError: false }
+      }],
+    ])
+    const wrapped = mgr.wrapHandlers(handlers)
+
+    mgr.beginBurst()
+    // file_write triggers file snapshot
+    wrapped.get('file_write')!({ file_path: 'new.txt', content: 'hello' }, { emitOutput: () => {} })
+
+    const checkpoint = mgr.endBurst()
+    expect(checkpoint).not.toBeNull()
+    expect(checkpoint!.strategy).toBe('hybrid')
+    expect(checkpoint!.git).not.toBeNull()
+    expect(checkpoint!.files.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('undo executes git stash pop', () => {
+    const cwd = makeGitRepo()
+    dirs.push(cwd)
+
+    // Make dirty
+    writeFileSync(join(cwd, 'dirty.txt'), 'uncommitted', 'utf-8')
+
+    const mgr = new CheckpointManager({ cwd, sessionId: 'test' })
+
+    mgr.beginBurst()
+    // dirty.txt is now stashed
+    expect(existsSync(join(cwd, 'dirty.txt'))).toBe(false)
+
+    const checkpoint = mgr.endBurst()
+    expect(checkpoint).not.toBeNull()
+
+    // Undo should pop the stash
+    const result = mgr.undo()
+    expect(result).not.toBeNull()
+    expect(result!.gitRestored).toBe(true)
+    expect(existsSync(join(cwd, 'dirty.txt'))).toBe(true)
+    expect(readFileSync(join(cwd, 'dirty.txt'), 'utf-8')).toBe('uncommitted')
+  })
+
+  it('endBurst returns CheckpointRecord with correct shape', () => {
+    const cwd = makeGitRepo()
+    dirs.push(cwd)
+
+    writeFileSync(join(cwd, 'dirty.txt'), 'data', 'utf-8')
+
+    const mgr = new CheckpointManager({ cwd, sessionId: 'test' })
+    mgr.beginBurst()
+    const record = mgr.endBurst()
+
+    expect(record).not.toBeNull()
+    expect(record!.checkpointId).toBeTruthy()
+    expect(record!.sessionId).toBe('test')
+    expect(record!.burstIndex).toBe(1)
+    expect(record!.canUndo).toBe(true)
+    expect(record!.git!.headCommit).toMatch(/^[0-9a-f]{40}$/)
+  })
+
+  it('non-git repo falls back to pure file_snapshot', () => {
+    const cwd = makeTmpDir()
+    dirs.push(cwd)
+
+    const mgr = new CheckpointManager({ cwd, sessionId: 'test' })
+    const handlers = new Map<string, ToolHandler>([
+      ['file_write', async (args) => {
+        writeFileSync(join(cwd, args.file_path as string), args.content as string, 'utf-8')
+        return { output: 'OK', isError: false }
+      }],
+    ])
+    const wrapped = mgr.wrapHandlers(handlers)
+
+    mgr.beginBurst()
+    wrapped.get('file_write')!({ file_path: 'test.txt', content: 'data' }, { emitOutput: () => {} })
+    const checkpoint = mgr.endBurst()
+
+    expect(checkpoint).not.toBeNull()
+    expect(checkpoint!.strategy).toBe('file_snapshot')
+    expect(checkpoint!.git).toBeNull()
+    expect(checkpoint!.files).toHaveLength(1)
   })
 })
