@@ -7,7 +7,7 @@ import type { ContextWindowConfig } from '@agent/core'
 import { createToolKernel } from './tool-kernel.js'
 import { buildSystemPrompt } from './system-prompt.js'
 import { createRenderer } from './run.js'
-import { isRegisteredCommand } from './commands.js'
+import { isRegisteredCommand, formatHelpText } from './commands.js'
 import { SessionStore } from '../session-store.js'
 import { CheckpointManager } from '../checkpoint-manager.js'
 import { TraceRecorder } from '../trace-recorder.js'
@@ -281,6 +281,16 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 
     // --- Control commands (registered in command registry) ---
     if (isRegisteredCommand(trimmed)) {
+      if (trimmed === '/help') {
+        renderer.onLifecycleEvent?.({
+          type: 'command_feedback',
+          success: true,
+          message: formatHelpText('idle', running),
+          timestamp: Date.now(),
+        })
+        continue
+      }
+
       if (trimmed === '/undo') {
         if (running) {
           renderer.onLifecycleEvent?.({

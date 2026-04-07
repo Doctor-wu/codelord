@@ -16,6 +16,12 @@ export interface CommandDefinition {
 
 const COMMANDS: CommandDefinition[] = [
   {
+    name: '/help',
+    description: 'Show available commands',
+    availableIn: ['idle', 'running', 'waiting_answer', 'error'],
+    availableWhileRunning: true,
+  },
+  {
     name: '/exit',
     description: 'Quit the session',
     availableIn: ['idle', 'error'],
@@ -43,19 +49,39 @@ export function getAvailableCommands(mode: SessionMode, isRunning: boolean): Com
   )
 }
 
-/** Prefix-match commands against user input starting with `/`. */
-export function matchCommandSuggestions(input: string, mode: SessionMode, isRunning: boolean): CommandDefinition[] {
-  const trimmed = input.trim().toLowerCase()
-  if (!trimmed.startsWith('/')) return []
-  // Extract just the command part (before any space/args)
-  const cmdPart = trimmed.split(/\s/)[0]
-  return getAvailableCommands(mode, isRunning).filter(cmd =>
-    cmd.name.startsWith(cmdPart),
-  )
-}
-
 /** Check if input is a registered command (exact match on the command name part). */
 export function isRegisteredCommand(input: string): boolean {
   const cmdPart = input.trim().toLowerCase().split(/\s/)[0]
   return COMMANDS.some(cmd => cmd.name === cmdPart)
+}
+
+/** Get all commands with availability flag for the current state. */
+export function getAllCommandsWithAvailability(mode: SessionMode, isRunning: boolean): (CommandDefinition & { available: boolean })[] {
+  return COMMANDS.map(cmd => ({
+    ...cmd,
+    available: cmd.availableIn.includes(mode) && (isRunning ? cmd.availableWhileRunning : true),
+  }))
+}
+
+/** Prefix-match ALL commands (with availability flag) for suggestion display. */
+export function matchAllCommandSuggestions(input: string, mode: SessionMode, isRunning: boolean): (CommandDefinition & { available: boolean })[] {
+  const trimmed = input.trim().toLowerCase()
+  if (!trimmed.startsWith('/')) return []
+  const cmdPart = trimmed.split(/\s/)[0]
+  return getAllCommandsWithAvailability(mode, isRunning).filter(cmd =>
+    cmd.name.startsWith(cmdPart),
+  )
+}
+
+/** Format help text for command_feedback lifecycle event. */
+export function formatHelpText(mode: SessionMode, isRunning: boolean): string {
+  const cmds = getAllCommandsWithAvailability(mode, isRunning)
+  const maxLen = Math.max(...cmds.map(c => c.name.length))
+  const lines = ['Available commands:', '']
+  for (const cmd of cmds) {
+    const pad = ' '.repeat(maxLen - cmd.name.length + 2)
+    const suffix = cmd.available ? '' : '  [not available now]'
+    lines.push(`  ${cmd.name}${pad}${cmd.description}${suffix}`)
+  }
+  return lines.join('\n')
 }

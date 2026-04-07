@@ -6,7 +6,7 @@ import React, { useState } from 'react'
 import { Box, Text, useInput } from 'ink'
 import Spinner from 'ink-spinner'
 import { APP_COLOR, GLYPH, LANE } from './theme.js'
-import { matchCommandSuggestions, isRegisteredCommand } from '../../cli/commands.js'
+import { matchAllCommandSuggestions, isRegisteredCommand } from '../../cli/commands.js'
 import type { CommandDefinition } from '../../cli/commands.js'
 
 export type SessionMode = 'idle' | 'running' | 'waiting_answer' | 'error'
@@ -37,7 +37,7 @@ export function InputComposer({
   const [suggestionIndex, setSuggestionIndex] = useState(0)
 
   // Compute suggestions for current input
-  const suggestions = matchCommandSuggestions(value, mode, isRunning)
+  const suggestions = matchAllCommandSuggestions(value, mode, isRunning)
   const isComplete = isRegisteredCommand(value)
   const showSuggestions = suggestions.length > 0 && !isComplete
 
@@ -120,7 +120,8 @@ export function InputComposer({
     }
   }, { isActive })
 
-  function applySuggestion(cmd: CommandDefinition) {
+  function applySuggestion(cmd: CommandDefinition & { available: boolean }) {
+    if (!cmd.available) return
     // If command takes args (has usage), append a space
     const completed = cmd.usage ? cmd.name + ' ' : cmd.name
     setValue(completed)
@@ -247,15 +248,16 @@ function QueuePreview({ queue }: { queue: string[] }) {
   )
 }
 
-function CommandSuggestions({ suggestions, selectedIndex }: { suggestions: CommandDefinition[]; selectedIndex: number }) {
+function CommandSuggestions({ suggestions, selectedIndex }: { suggestions: (CommandDefinition & { available: boolean })[]; selectedIndex: number }) {
   return (
     <Box flexDirection="column">
       {suggestions.map((cmd, i) => {
         const isSelected = i === selectedIndex
+        const dim = !cmd.available
         return (
           <Box key={cmd.name}>
-            <Text bold={isSelected} dimColor={!isSelected}>  {cmd.usage ?? cmd.name}</Text>
-            <Text bold={isSelected} dimColor={!isSelected} color={isSelected ? undefined : LANE.muted}>  {cmd.description}</Text>
+            <Text bold={isSelected && !dim} dimColor={dim || !isSelected}>  {cmd.usage ?? cmd.name}</Text>
+            <Text bold={isSelected && !dim} dimColor={dim || !isSelected} color={isSelected && !dim ? undefined : LANE.muted}>  {cmd.description}{dim ? '  [n/a]' : ''}</Text>
           </Box>
         )
       })}

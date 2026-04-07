@@ -47,6 +47,7 @@ export function Header({ version, cwd, provider, model, reasoningLevel }: Header
         <Text color={brand.color}>{brand.symbol} {model}</Text>
         <Text dimColor> · reasoning:{reasoningLevel}</Text>
       </Box>
+      <Text dimColor>  Type /help for commands</Text>
       <Text dimColor>{GLYPH.thinRule.repeat(cols)}</Text>
     </Box>
   )
