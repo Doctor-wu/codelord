@@ -19,6 +19,7 @@ export type {
   OutcomeSuccess,
   OutcomeError,
   OutcomeBlocked,
+  OutcomeInterrupted,
   PartialAssistant,
 } from './runtime.js'
 
