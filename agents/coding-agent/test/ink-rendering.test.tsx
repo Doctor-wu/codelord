@@ -3,10 +3,17 @@ import { renderToString } from 'ink'
 import { describe, expect, it } from 'vitest'
 import { App } from '../src/renderer/ink/App.js'
 import { classifyCommand, classifyToolName } from '../src/renderer/ink/classify.js'
-import { createInitialTimelineState } from '../src/renderer/ink/timeline-projection.js'
+import { createInitialTimelineState, captureTimelineSnapshot } from '../src/renderer/ink/timeline-projection.js'
 import type { TimelineState } from '../src/renderer/ink/timeline-projection.js'
+import { TimelineStore } from '../src/renderer/ink/timeline-store.js'
 import { createToolCallLifecycle } from '@agent/core'
 import { derivePhaseFeedback } from '../src/renderer/tool-display.js'
+
+function storeFromState(state: TimelineState): TimelineStore {
+  const store = new TimelineStore()
+  store.hydrateFromSnapshot(captureTimelineSnapshot(state))
+  return store
+}
 
 // ---------------------------------------------------------------------------
 // App rendering (timeline-based)
@@ -17,7 +24,8 @@ describe('App rendering', () => {
     const state = createInitialTimelineState()
     const output = renderToString(
       <App
-        state={state}
+        store={storeFromState(state)}
+        inputBridge={null}
         version="0.0.1"
         provider="openai"
         model="gpt-5.4"
@@ -48,7 +56,8 @@ describe('App rendering', () => {
 
     const output = renderToString(
       <App
-        state={state}
+        store={storeFromState(state)}
+        inputBridge={null}
         version="0.0.1"
         provider="openai"
         model="gpt-5.4"
@@ -82,7 +91,8 @@ describe('App rendering', () => {
 
     const output = renderToString(
       <App
-        state={state}
+        store={storeFromState(state)}
+        inputBridge={null}
         version="0.0.1"
         provider="openai"
         model="gpt-5.4"
@@ -90,7 +100,7 @@ describe('App rendering', () => {
       />,
     )
 
-    expect(output).toContain('●')
+    expect(output).toContain('◉')
     expect(output).toContain('Bash(cat > result.md)')
     expect(output).toContain('writing file')
   })
@@ -143,7 +153,8 @@ describe('Idle state (REPL)', () => {
     const state = createInitialTimelineState(true)
     const output = renderToString(
       <App
-        state={state}
+        store={storeFromState(state)}
+        inputBridge={null}
         version="0.0.1"
         provider="openai"
         model="gpt-5.4"
@@ -159,7 +170,8 @@ describe('Idle state (REPL)', () => {
     const state = createInitialTimelineState()
     const output = renderToString(
       <App
-        state={state}
+        store={storeFromState(state)}
+        inputBridge={null}
         version="0.0.1"
         provider="openai"
         model="gpt-5.4"
@@ -199,7 +211,8 @@ describe('Header status reflects session mode', () => {
 
     const output = renderToString(
       <App
-        state={state}
+        store={storeFromState(state)}
+        inputBridge={null}
         version="0.0.1"
         provider="openai"
         model="gpt-5.4"
@@ -225,7 +238,8 @@ describe('Header status reflects session mode', () => {
 
     const output = renderToString(
       <App
-        state={state}
+        store={storeFromState(state)}
+        inputBridge={null}
         version="0.0.1"
         provider="openai"
         model="gpt-5.4"
@@ -242,7 +256,8 @@ describe('Header status reflects session mode', () => {
 
     const output = renderToString(
       <App
-        state={state}
+        store={storeFromState(state)}
+        inputBridge={null}
         version="0.0.1"
         provider="openai"
         model="gpt-5.4"
@@ -337,7 +352,8 @@ describe('Built-in tool card shows derived feedback when no stdout', () => {
 
     const output = renderToString(
       <App
-        state={state}
+        store={storeFromState(state)}
+        inputBridge={null}
         version="0.0.1"
         provider="openai"
         model="gpt-5.4"
@@ -371,7 +387,8 @@ describe('Built-in tool card shows derived feedback when no stdout', () => {
 
     const output = renderToString(
       <App
-        state={state}
+        store={storeFromState(state)}
+        inputBridge={null}
         version="0.0.1"
         provider="openai"
         model="gpt-5.4"

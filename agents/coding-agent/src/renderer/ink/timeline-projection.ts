@@ -166,7 +166,7 @@ export function reduceLifecycleEvent(state: TimelineState, event: LifecycleEvent
           isStreaming: true,
           reasoning: event.reasoning ?? null,
           reasoningSnapshot: null,
-          liveProxy: 'Thinking…',
+          liveProxy: event.reasoning ? 'Thinking…' : null,
           hasProviderThought: false,
           timestamp: event.timestamp,
         }],
