@@ -6,6 +6,7 @@ import React, { useState } from 'react'
 import { Box, Text, useInput } from 'ink'
 import Spinner from 'ink-spinner'
 import { APP_COLOR, GLYPH, LANE } from './theme.js'
+import { matchCommandSuggestions } from '../../cli/commands.js'
 
 export type SessionMode = 'idle' | 'running' | 'waiting_answer' | 'interrupted' | 'error'
 
@@ -13,6 +14,7 @@ interface InputComposerProps {
   isActive: boolean
   onSubmit: (text: string) => void
   onInterrupt?: () => void
+  onExit?: () => void
   mode?: SessionMode
   /** Messages queued during running */
   pendingQueue?: string[]
@@ -24,6 +26,7 @@ export function InputComposer({
   isActive,
   onSubmit,
   onInterrupt,
+  onExit,
   mode = 'idle',
   pendingQueue = [],
   isRunning = false,
@@ -34,6 +37,13 @@ export function InputComposer({
   useInput((input, key) => {
     if (!isActive) return
 
+    // Ctrl+C — exit (idle) or interrupt (running)
+    if (input === 'c' && key.ctrl) {
+      onExit?.()
+      return
+    }
+
+    // Escape — interrupt only (never exit)
     if (key.escape) {
       onInterrupt?.()
       return
@@ -94,6 +104,9 @@ export function InputComposer({
           <Text dimColor> </Text>
         )}
       </Box>
+
+      {/* ── Command suggestions (when typing `/`) ── */}
+      <CommandSuggestions value={value} mode={mode} isRunning={isRunning} />
 
       {/* ── Hint bar ── */}
       <HintBar mode={mode} isRunning={isRunning} />
@@ -192,13 +205,29 @@ function QueuePreview({ queue }: { queue: string[] }) {
   )
 }
 
+function CommandSuggestions({ value, mode, isRunning }: { value: string; mode: SessionMode; isRunning: boolean }) {
+  const suggestions = matchCommandSuggestions(value, mode, isRunning)
+  if (suggestions.length === 0) return null
+
+  return (
+    <Box flexDirection="column">
+      {suggestions.map(cmd => (
+        <Box key={cmd.name}>
+          <Text dimColor>  {cmd.usage ?? cmd.name}</Text>
+          <Text dimColor color={LANE.muted}>  {cmd.description}</Text>
+        </Box>
+      ))}
+    </Box>
+  )
+}
+
 function HintBar({ mode, isRunning }: { mode: SessionMode; isRunning: boolean }) {
   if (mode === 'running') return null
   return (
     <Box>
-      <Text dimColor>Enter to send</Text>
+      <Text dimColor>/ for commands</Text>
       <Text dimColor>  {GLYPH.thinRule}  </Text>
-      <Text dimColor>/exit to quit</Text>
+      <Text dimColor>Enter to send</Text>
     </Box>
   )
 }

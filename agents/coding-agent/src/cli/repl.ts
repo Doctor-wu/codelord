@@ -5,6 +5,7 @@ import type { CodelordConfig } from '@agent/config'
 import { createToolKernel } from './tool-kernel.js'
 import { buildSystemPrompt } from './system-prompt.js'
 import { createRenderer } from './run.js'
+import { isRegisteredCommand } from './commands.js'
 import { SessionStore } from '../session-store.js'
 import { CheckpointManager } from '../checkpoint-manager.js'
 import { TraceRecorder } from '../trace-recorder.js'
@@ -169,11 +170,24 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     }
   }
 
-  // Escape key interrupt — wired through Ink InputComposer
+  // Escape — interrupt running agent (no-op when idle)
   renderer.setInterruptHandler(() => {
     if (running) {
       activeRecorder?.recordInterruptRequest()
       runtime.requestInterrupt()
+    }
+  })
+
+  // Ctrl+C — interrupt when running, graceful exit when idle
+  renderer.setExitHandler(() => {
+    if (running) {
+      activeRecorder?.recordInterruptRequest()
+      runtime.requestInterrupt()
+    } else {
+      saveSession()
+      renderer.cleanup()
+      printResumeHint()
+      process.exit(0)
     }
   })
 
@@ -194,9 +208,9 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   const handleUndo = (): boolean => {
     if (checkpointManager.undoCount === 0) {
       renderer.onLifecycleEvent?.({
-        type: 'session_done',
+        type: 'command_feedback',
         success: false,
-        error: 'Nothing to undo — no checkpoints available.',
+        message: 'Nothing to undo — no checkpoints available.',
         timestamp: Date.now(),
       })
       return true
@@ -205,9 +219,9 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     const last = checkpointManager.stack[checkpointManager.stack.length - 1]
     if (!last.canUndo) {
       renderer.onLifecycleEvent?.({
-        type: 'session_done',
+        type: 'command_feedback',
         success: false,
-        error: `Cannot undo: ${last.limitations.join('; ') || 'checkpoint marked as non-reversible'}.`,
+        message: `Cannot undo: ${last.limitations.join('; ') || 'checkpoint marked as non-reversible'}.`,
         timestamp: Date.now(),
       })
       return true
@@ -251,49 +265,52 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     if (!trimmed) continue
     if (trimmed === '/exit') break
 
-    // --- Control commands (not queued, not sent to runtime) ---
-    if (trimmed === '/undo') {
-      if (running) {
-        renderer.onLifecycleEvent?.({
-          type: 'session_done',
-          success: false,
-          error: 'Cannot /undo while agent is running. Press Ctrl+C to interrupt first.',
-          timestamp: Date.now(),
-        })
+    // --- Control commands (registered in command registry) ---
+    if (isRegisteredCommand(trimmed)) {
+      if (trimmed === '/undo') {
+        if (running) {
+          renderer.onLifecycleEvent?.({
+            type: 'command_feedback',
+            success: false,
+            message: 'Cannot /undo while agent is running. Press Ctrl+C to interrupt first.',
+            timestamp: Date.now(),
+          })
+          continue
+        }
+        handleUndo()
         continue
       }
-      handleUndo()
-      continue
-    }
 
-    // --- /reasoning command ---
-    if (trimmed === '/reasoning' || trimmed.startsWith('/reasoning ')) {
-      const VALID_LEVELS: ReasoningLevel[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
-      const arg = trimmed.slice('/reasoning'.length).trim()
-      if (!arg) {
-        renderer.onLifecycleEvent?.({
-          type: 'session_done',
-          success: true,
-          text: `Reasoning level: ${runtime.reasoningLevel}`,
-          timestamp: Date.now(),
-        })
-      } else if (VALID_LEVELS.includes(arg as ReasoningLevel)) {
-        runtime.setReasoningLevel(arg as ReasoningLevel)
-        renderer.onLifecycleEvent?.({
-          type: 'session_done',
-          success: true,
-          text: `Reasoning level → ${arg}`,
-          timestamp: Date.now(),
-        })
-      } else {
-        renderer.onLifecycleEvent?.({
-          type: 'session_done',
-          success: false,
-          error: `Invalid reasoning level "${arg}". Valid: ${VALID_LEVELS.join(', ')}`,
-          timestamp: Date.now(),
-        })
+      if (trimmed === '/reasoning' || trimmed.startsWith('/reasoning ')) {
+        const VALID_LEVELS: ReasoningLevel[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
+        const arg = trimmed.slice('/reasoning'.length).trim()
+        if (!arg) {
+          renderer.onLifecycleEvent?.({
+            type: 'command_feedback',
+            success: true,
+            message: `Reasoning level: ${runtime.reasoningLevel}`,
+            timestamp: Date.now(),
+          })
+        } else if (VALID_LEVELS.includes(arg as ReasoningLevel)) {
+          runtime.setReasoningLevel(arg as ReasoningLevel)
+          renderer.onLifecycleEvent?.({
+            type: 'command_feedback',
+            success: true,
+            message: `Reasoning level → ${arg}`,
+            timestamp: Date.now(),
+          })
+        } else {
+          renderer.onLifecycleEvent?.({
+            type: 'command_feedback',
+            success: false,
+            message: `Invalid reasoning level "${arg}". Valid: ${VALID_LEVELS.join(', ')}`,
+            timestamp: Date.now(),
+          })
+        }
+        continue
       }
-      continue
+
+      continue // registered but unhandled — skip
     }
 
     // --- Inject input into runtime ---
@@ -349,4 +366,5 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   saveSession()
   renderer.cleanup()
   printResumeHint()
+  process.exit(0)
 }
