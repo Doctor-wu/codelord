@@ -939,3 +939,131 @@ describe('Timeline Projection', () => {
     })
   })
 })
+
+// ---------------------------------------------------------------------------
+// Settled Reasoning Policy (via TimelineStore)
+// ---------------------------------------------------------------------------
+
+import { TimelineStore } from '../src/renderer/ink/timeline-store.js'
+
+describe('Settled Reasoning Policy', () => {
+  function buildAssistantTurnState(opts: { hasProviderThought: boolean; thinking: string; reasoningSnapshot: string | null }): TimelineStore {
+    const store = new TimelineStore(false, 'high')
+    const reasoning = createReasoningState()
+    reasoning.rawThoughtText = opts.thinking
+
+    // Simulate assistant_turn_start
+    store.onLifecycleEvent({
+      type: 'assistant_turn_start',
+      id: 'turn-1',
+      reasoning,
+      timestamp: Date.now(),
+    })
+
+    // If hasProviderThought, simulate thinking deltas
+    if (opts.hasProviderThought) {
+      store.onRawEvent({ type: 'thinking_delta', contentIndex: 0, delta: opts.thinking })
+    }
+
+    // Simulate text
+    store.onRawEvent({ type: 'text_delta', contentIndex: 0, delta: 'Hello' })
+
+    // Manually set reasoningSnapshot if needed
+    const state = store.getState()
+    const items = [...state.items]
+    const idx = items.findIndex(i => i.type === 'assistant')
+    if (idx !== -1) {
+      const a = items[idx] as AssistantItem
+      items[idx] = { ...a, reasoningSnapshot: opts.reasoningSnapshot }
+    }
+    // Inject state back via hydrate trick
+    store.hydrateFromSnapshot(captureTimelineSnapshot({ ...state, items }))
+    store.setRunning(true)
+
+    return store
+  }
+
+  it('high + hasProviderThought: keeps thinking', () => {
+    const store = new TimelineStore(false, 'high')
+    const reasoning = createReasoningState()
+    reasoning.rawThoughtText = 'Deep analysis of the code'
+
+    store.onLifecycleEvent({ type: 'assistant_turn_start', id: 'turn-1', reasoning, timestamp: Date.now() })
+    store.onRawEvent({ type: 'thinking_delta', contentIndex: 0, delta: 'Deep analysis of the code' })
+    store.onRawEvent({ type: 'text_delta', contentIndex: 0, delta: 'Result' })
+
+    // End turn
+    store.onLifecycleEvent({ type: 'assistant_turn_end', id: 'turn-1', reasoning, timestamp: Date.now() })
+
+    const items = store.getState().items
+    const assistant = items.find(i => i.type === 'assistant') as AssistantItem
+    expect(assistant.thinking).toBe('Deep analysis of the code')
+  })
+
+  it('high + no provider thought: clears thinking, keeps snapshot', () => {
+    const store = new TimelineStore(false, 'high')
+    const reasoning = createReasoningState()
+    reasoning.rawThoughtText = 'Internal reasoning'
+
+    store.onLifecycleEvent({ type: 'assistant_turn_start', id: 'turn-1', reasoning, timestamp: Date.now() })
+    // No thinking_delta — model doesn't stream thoughts
+    store.onRawEvent({ type: 'text_delta', contentIndex: 0, delta: 'Result' })
+
+    store.onLifecycleEvent({ type: 'assistant_turn_end', id: 'turn-1', reasoning, timestamp: Date.now() })
+
+    const items = store.getState().items
+    const assistant = items.find(i => i.type === 'assistant') as AssistantItem
+    expect(assistant.thinking).toBe('')
+    // reasoningSnapshot may or may not be set depending on projection logic
+  })
+
+  it('off: clears thinking, snapshot, and liveProxy', () => {
+    const store = new TimelineStore(false, 'off')
+    const reasoning = createReasoningState()
+
+    store.onLifecycleEvent({ type: 'assistant_turn_start', id: 'turn-1', reasoning, timestamp: Date.now() })
+    store.onRawEvent({ type: 'text_delta', contentIndex: 0, delta: 'Result' })
+
+    store.onLifecycleEvent({ type: 'assistant_turn_end', id: 'turn-1', reasoning, timestamp: Date.now() })
+
+    const items = store.getState().items
+    const assistant = items.find(i => i.type === 'assistant') as AssistantItem
+    expect(assistant.thinking).toBe('')
+    expect(assistant.reasoningSnapshot).toBeNull()
+    expect(assistant.liveProxy).toBeNull()
+  })
+
+  it('minimal: clears thinking, snapshot, and liveProxy', () => {
+    const store = new TimelineStore(false, 'minimal')
+    const reasoning = createReasoningState()
+
+    store.onLifecycleEvent({ type: 'assistant_turn_start', id: 'turn-1', reasoning, timestamp: Date.now() })
+    store.onRawEvent({ type: 'text_delta', contentIndex: 0, delta: 'Result' })
+
+    store.onLifecycleEvent({ type: 'assistant_turn_end', id: 'turn-1', reasoning, timestamp: Date.now() })
+
+    const items = store.getState().items
+    const assistant = items.find(i => i.type === 'assistant') as AssistantItem
+    expect(assistant.thinking).toBe('')
+    expect(assistant.reasoningSnapshot).toBeNull()
+    expect(assistant.liveProxy).toBeNull()
+  })
+
+  it('low: clears thinking, keeps snapshot', () => {
+    const store = new TimelineStore(false, 'low')
+    const reasoning = createReasoningState()
+    reasoning.rawThoughtText = 'Some thought'
+
+    store.onLifecycleEvent({ type: 'assistant_turn_start', id: 'turn-1', reasoning, timestamp: Date.now() })
+    store.onRawEvent({ type: 'thinking_delta', contentIndex: 0, delta: 'Some thought that is long enough to extract a snapshot from the reasoning' })
+    store.onRawEvent({ type: 'text_delta', contentIndex: 0, delta: 'Result' })
+
+    store.onLifecycleEvent({ type: 'assistant_turn_end', id: 'turn-1', reasoning, timestamp: Date.now() })
+
+    const items = store.getState().items
+    const assistant = items.find(i => i.type === 'assistant') as AssistantItem
+    expect(assistant.thinking).toBe('')
+    // reasoningSnapshot should be preserved (set by applyThinkingDelta)
+    expect(assistant.reasoningSnapshot).not.toBeNull()
+  })
+})

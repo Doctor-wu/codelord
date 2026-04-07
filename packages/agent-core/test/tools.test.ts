@@ -304,3 +304,42 @@ describe('path resolution with .. and relative paths', () => {
     expect(result.output).toContain('top.txt')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Tool schema: reason parameter
+// ---------------------------------------------------------------------------
+
+import { bashTool } from '../src/tools/bash.js'
+import { fileReadTool } from '../src/tools/file-read.js'
+import { fileWriteTool } from '../src/tools/file-write.js'
+import { fileEditTool } from '../src/tools/file-edit.js'
+import { searchTool } from '../src/tools/search.js'
+import { lsTool } from '../src/tools/ls.js'
+import { askUserQuestionTool } from '../src/tools/ask-user.js'
+
+describe('Tool schemas include reason parameter', () => {
+  const toolsWithReason = [bashTool, fileReadTool, fileWriteTool, fileEditTool, searchTool, lsTool]
+
+  for (const tool of toolsWithReason) {
+    it(`${tool.name} has optional reason parameter`, () => {
+      const props = (tool.parameters as any).properties
+      expect(props).toHaveProperty('reason')
+      const required = (tool.parameters as any).required ?? []
+      expect(required).not.toContain('reason')
+    })
+  }
+
+  it('AskUserQuestion does NOT have reason parameter (uses why_ask)', () => {
+    const props = (askUserQuestionTool.parameters as any).properties
+    expect(props).not.toHaveProperty('reason')
+    expect(props).toHaveProperty('why_ask')
+  })
+
+  it('reason is ignored by handler (stripped at runtime level)', async () => {
+    const handler = createFileReadHandler({ cwd: testDir })
+    writeFileSync(join(testDir, 'test.txt'), 'hello')
+    const result = await handler({ file_path: 'test.txt', reason: 'Check file contents' }, noopContext)
+    expect(result.isError).toBe(false)
+    expect(result.output).toContain('hello')
+  })
+})

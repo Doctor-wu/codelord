@@ -32,6 +32,8 @@ import type { ReasoningLevel } from './reasoning-manager.js'
 import type { ContextWindowConfig } from './context-window.js'
 import { DEFAULT_CONTEXT_WINDOW, estimateTokens, truncateMessages } from './context-window.js'
 import { ToolStatsTracker } from './tool-stats.js'
+import { resolveModelCapabilities } from './model-capabilities.js'
+import type { ModelCapabilities } from './model-capabilities.js'
 
 // Re-export ReasoningLevel so external consumers don't break
 export type { ReasoningLevel } from './reasoning-manager.js'
@@ -144,6 +146,7 @@ export class AgentRuntime<TApi extends Api = Api> {
   private readonly _cacheRetention: CacheRetention | undefined
   private readonly emitProviderStream: ((event: ProviderStreamTraceEvent) => void) | undefined
   private readonly contextWindowConfig: ContextWindowConfig
+  private readonly _capabilities: ModelCapabilities
 
   // --- Observability side-channels ---
   private readonly _routeRecords: ToolRouteDecision[] = []
@@ -164,8 +167,12 @@ export class AgentRuntime<TApi extends Api = Api> {
     this._sessionId = options.sessionId
     this._cacheRetention = options.cacheRetention
     this.emitProviderStream = options.onProviderStreamEvent
-    this.contextWindowConfig = options.contextWindow ?? DEFAULT_CONTEXT_WINDOW
-    this.reasoningMgr = new ReasoningManager(options.reasoningLevel ?? 'high')
+    this._capabilities = resolveModelCapabilities(this.model)
+    this.contextWindowConfig = {
+      maxTokens: options.contextWindow?.maxTokens ?? this._capabilities.maxContextTokens,
+      reservedOutputTokens: options.contextWindow?.reservedOutputTokens ?? Math.min(this._capabilities.maxOutputTokens, DEFAULT_CONTEXT_WINDOW.reservedOutputTokens),
+    }
+    this.reasoningMgr = new ReasoningManager(options.reasoningLevel ?? this._capabilities.defaultReasoningLevel)
   }
 
   // --- Public accessors (unchanged API surface) ---
@@ -188,6 +195,7 @@ export class AgentRuntime<TApi extends Api = Api> {
   get usageAggregate(): UsageAggregate { return this.usageTracker.aggregate }
   get toolStats(): ToolStatsTracker { return this.toolStatsTracker }
   get reasoningLevel(): ReasoningLevel { return this.reasoningMgr.level }
+  get modelCapabilities(): ModelCapabilities { return this._capabilities }
   setReasoningLevel(level: ReasoningLevel): void { this.reasoningMgr.setLevel(level) }
 
   // --- Snapshot export / import ---
@@ -407,7 +415,7 @@ export class AgentRuntime<TApi extends Api = Api> {
       }
 
       const streamStartTime = Date.now()
-      const reasoningOpt = (this.model as { reasoning?: boolean }).reasoning && this.reasoningMgr.level !== 'off'
+      const reasoningOpt = this._capabilities.supportsReasoning && this.reasoningMgr.level !== 'off'
         ? { reasoning: this.reasoningMgr.level }
         : {}
       const eventStream = streamSimple(this.model, context, {
@@ -577,18 +585,24 @@ export class AgentRuntime<TApi extends Api = Api> {
 
           // Route + safety + execute
           this.reasoningMgr.setStatus('acting')
+
+          // Extract model-declared reason and strip from args before routing/execution
+          const declaredReason = typeof tc.arguments.reason === 'string' ? tc.arguments.reason : null
+          const cleanArgs = { ...tc.arguments }
+          delete cleanArgs.reason
+
           const lifecycle = createToolCallLifecycle({
-            id: tc.id, toolName: tc.name, args: tc.arguments,
-            command: extractCommandForDisplay(tc.name, tc.arguments),
+            id: tc.id, toolName: tc.name, args: cleanArgs,
+            command: extractCommandForDisplay(tc.name, cleanArgs),
           })
           this.emitLifecycle({ type: 'tool_call_created', toolCall: { ...lifecycle } })
 
-          // Project reasoning intent to tool displayReason
-          if (this.reasoningMgr.current?.intent) {
-            lifecycle.displayReason = sanitizeDisplayReason(this.reasoningMgr.current.intent)
-          }
+          // Priority: model-declared reason > reasoning manager extraction > null
+          lifecycle.displayReason = declaredReason
+            ? sanitizeDisplayReason(declaredReason)
+            : (this.reasoningMgr.current?.intent ? sanitizeDisplayReason(this.reasoningMgr.current.intent) : null)
 
-          const decision = this.router.route(tc.name, tc.arguments)
+          const decision = this.router.route(tc.name, cleanArgs)
           if (decision.wasRouted) {
             this._routeRecords.push(decision)
             this.emit({ type: 'tool_routed', ruleId: decision.ruleId!, originalToolName: decision.originalToolName, originalArgs: decision.originalArgs, resolvedToolName: decision.resolvedToolName, resolvedArgs: decision.resolvedArgs, reason: decision.reason! })
@@ -671,6 +685,9 @@ export class AgentRuntime<TApi extends Api = Api> {
 
           if (decision.wasRouted) {
             this.rewriteToolCallInHistory(tc.id, execToolName, execArgs)
+          } else if (declaredReason) {
+            // Strip reason from history even when not routed
+            this.rewriteToolCallInHistory(tc.id, tc.name, cleanArgs)
           }
 
           // Check interrupt after each tool

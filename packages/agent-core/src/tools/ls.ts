@@ -32,6 +32,9 @@ export const lsTool: Tool = {
     max_entries: Type.Optional(
       Type.Number({ description: 'Maximum entries to return. Defaults to 200.' }),
     ),
+    reason: Type.Optional(
+      Type.String({ description: 'Brief explanation of why you are calling this tool for this specific step.' }),
+    ),
   }),
 }
 

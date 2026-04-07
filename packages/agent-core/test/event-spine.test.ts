@@ -269,6 +269,7 @@ describe('Event Spine — lifecycle events from runtime', () => {
       tools: [],
       toolHandlers: new Map(),
       apiKey: 'test',
+      reasoningLevel: 'high',
       onLifecycleEvent: (e) => lifecycleEvents.push(e),
     })
 
@@ -336,6 +337,7 @@ describe('Event Spine — lifecycle events from runtime', () => {
       tools: [],
       toolHandlers: new Map([['file_read', handler]]),
       apiKey: 'test',
+      reasoningLevel: 'high',
       router,
       safetyPolicy,
       onLifecycleEvent: (e) => lifecycleEvents.push(e),
@@ -383,6 +385,7 @@ describe('Event Spine — lifecycle events from runtime', () => {
       tools: [],
       toolHandlers: new Map(),
       apiKey: 'test',
+      reasoningLevel: 'high',
       onLifecycleEvent: (e) => lifecycleEvents.push(e),
     })
 
@@ -396,6 +399,189 @@ describe('Event Spine — lifecycle events from runtime', () => {
     if (blocked.type === 'blocked_enter') {
       expect(blocked.reasoning).toBeDefined()
       expect(blocked.reasoning!.rawThoughtText).toContain('color preference')
+    }
+  })
+
+  it('model-declared reason takes priority over reasoning extraction for displayReason', async () => {
+    const lifecycleEvents: LifecycleEvent[] = []
+    const router = new ToolRouter()
+    const safetyPolicy = new ToolSafetyPolicy({ cwd: '/tmp' })
+
+    const handler: ToolHandler = vi.fn(async () => ({
+      output: 'done',
+      isError: false,
+    }))
+
+    const toolCall = {
+      type: 'toolCall',
+      id: 'tc-reason',
+      name: 'file_read',
+      arguments: { file_path: 'config.ts', reason: 'Check if config has the new field' },
+    }
+
+    const assistantWithTool = makeAssistantMessage({
+      content: [toolCall],
+      stopReason: 'toolUse',
+    })
+
+    const finalAssistant = makeAssistantMessage({
+      content: [{ type: 'text', text: 'Done' }],
+    })
+
+    streamSimpleMock
+      .mockReturnValueOnce(makeEventStream([
+        { type: 'thinking_start', contentIndex: 0 },
+        { type: 'thinking_delta', contentIndex: 0, delta: 'I should look at the config' },
+        { type: 'thinking_end', contentIndex: 0, content: 'I should look at the config' },
+        { type: 'toolcall_end', toolCall },
+        { type: 'done', message: assistantWithTool },
+      ], assistantWithTool))
+      .mockReturnValueOnce(makeEventStream([
+        { type: 'done', message: finalAssistant },
+      ], finalAssistant))
+
+    const rt = new AgentRuntime({
+      model: { id: 'test' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map([['file_read', handler]]),
+      apiKey: 'test',
+      router,
+      safetyPolicy,
+      onLifecycleEvent: (e) => lifecycleEvents.push(e),
+    })
+
+    rt.messages.push({ role: 'user', content: 'read', timestamp: Date.now() })
+    await rt.run()
+
+    const completed = lifecycleEvents.find(e => e.type === 'tool_call_completed')
+    expect(completed).toBeDefined()
+    if (completed?.type === 'tool_call_completed') {
+      // Model-declared reason takes priority
+      expect(completed.toolCall.displayReason).toBe('Check if config has the new field')
+      // reason is stripped from lifecycle args
+      expect(completed.toolCall.args).not.toHaveProperty('reason')
+    }
+
+    // Handler should not receive reason in args
+    expect(handler).toHaveBeenCalledWith(
+      expect.not.objectContaining({ reason: expect.anything() }),
+      expect.anything(),
+    )
+  })
+
+  it('reason is stripped from args passed to handler', async () => {
+    const lifecycleEvents: LifecycleEvent[] = []
+    const router = new ToolRouter()
+    const safetyPolicy = new ToolSafetyPolicy({ cwd: '/tmp' })
+
+    let receivedArgs: Record<string, unknown> = {}
+    const handler: ToolHandler = vi.fn(async (args) => {
+      receivedArgs = args
+      return { output: 'done', isError: false }
+    })
+
+    const toolCall = {
+      type: 'toolCall',
+      id: 'tc-strip',
+      name: 'file_read',
+      arguments: { file_path: 'test.ts', reason: 'Verify test exists' },
+    }
+
+    const assistantWithTool = makeAssistantMessage({
+      content: [toolCall],
+      stopReason: 'toolUse',
+    })
+
+    const finalAssistant = makeAssistantMessage({
+      content: [{ type: 'text', text: 'OK' }],
+    })
+
+    streamSimpleMock
+      .mockReturnValueOnce(makeEventStream([
+        { type: 'toolcall_end', toolCall },
+        { type: 'done', message: assistantWithTool },
+      ], assistantWithTool))
+      .mockReturnValueOnce(makeEventStream([
+        { type: 'done', message: finalAssistant },
+      ], finalAssistant))
+
+    const rt = new AgentRuntime({
+      model: { id: 'test' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map([['file_read', handler]]),
+      apiKey: 'test',
+      router,
+      safetyPolicy,
+      onLifecycleEvent: (e) => lifecycleEvents.push(e),
+    })
+
+    rt.messages.push({ role: 'user', content: 'go', timestamp: Date.now() })
+    await rt.run()
+
+    expect(receivedArgs).toHaveProperty('file_path', 'test.ts')
+    expect(receivedArgs).not.toHaveProperty('reason')
+  })
+
+  it('falls back to reasoning extraction when model provides no reason', async () => {
+    const lifecycleEvents: LifecycleEvent[] = []
+    const router = new ToolRouter()
+    const safetyPolicy = new ToolSafetyPolicy({ cwd: '/tmp' })
+
+    const handler: ToolHandler = vi.fn(async () => ({
+      output: 'done',
+      isError: false,
+    }))
+
+    const toolCall = {
+      type: 'toolCall',
+      id: 'tc-fallback',
+      name: 'file_read',
+      arguments: { file_path: 'foo.ts' },
+    }
+
+    const assistantWithTool = makeAssistantMessage({
+      content: [toolCall],
+      stopReason: 'toolUse',
+    })
+
+    const finalAssistant = makeAssistantMessage({
+      content: [{ type: 'text', text: 'Done' }],
+    })
+
+    streamSimpleMock
+      .mockReturnValueOnce(makeEventStream([
+        { type: 'thinking_start', contentIndex: 0 },
+        { type: 'thinking_delta', contentIndex: 0, delta: 'I need to check the implementation details.' },
+        { type: 'thinking_end', contentIndex: 0, content: 'I need to check the implementation details.' },
+        { type: 'toolcall_end', toolCall },
+        { type: 'done', message: assistantWithTool },
+      ], assistantWithTool))
+      .mockReturnValueOnce(makeEventStream([
+        { type: 'done', message: finalAssistant },
+      ], finalAssistant))
+
+    const rt = new AgentRuntime({
+      model: { id: 'test' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map([['file_read', handler]]),
+      apiKey: 'test',
+      reasoningLevel: 'high',
+      router,
+      safetyPolicy,
+      onLifecycleEvent: (e) => lifecycleEvents.push(e),
+    })
+
+    rt.messages.push({ role: 'user', content: 'read', timestamp: Date.now() })
+    await rt.run()
+
+    const completed = lifecycleEvents.find(e => e.type === 'tool_call_completed')
+    expect(completed).toBeDefined()
+    if (completed?.type === 'tool_call_completed') {
+      // Falls back to reasoning extraction
+      expect(completed.toolCall.displayReason).toBe('I need to check the implementation details.')
     }
   })
 })

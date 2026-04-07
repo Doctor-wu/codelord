@@ -21,6 +21,9 @@ export const fileEditTool: Tool = {
     file_path: Type.String({ description: 'Absolute or relative path to the file.' }),
     old_string: Type.String({ description: 'The exact string to find. Must match exactly once.' }),
     new_string: Type.String({ description: 'The replacement string.' }),
+    reason: Type.Optional(
+      Type.String({ description: 'Brief explanation of why you are calling this tool for this specific step.' }),
+    ),
   }),
 }
 

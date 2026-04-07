@@ -19,6 +19,9 @@ export const bashTool: Tool = {
   ].join(' '),
   parameters: Type.Object({
     command: Type.String({ description: 'The shell command to execute' }),
+    reason: Type.Optional(
+      Type.String({ description: 'Brief explanation of why you are calling this tool for this specific step.' }),
+    ),
   }),
 }
 

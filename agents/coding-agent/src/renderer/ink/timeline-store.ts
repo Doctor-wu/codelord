@@ -120,6 +120,10 @@ export class TimelineStore {
     if (!vis.showThoughtViewport && !vis.showReasoningSummary) {
       this.state = suppressLiveProxy(this.state)
     }
+    // Apply settled reasoning policy after assistant turn ends
+    if (event.type === 'assistant_turn_end') {
+      this.state = applySettledReasoningPolicy(this.state, this._reasoningLevel)
+    }
     this.notify()
   }
 
@@ -146,6 +150,48 @@ function suppressLiveProxy(state: TimelineState): TimelineState {
       items[i] = { ...(item as AssistantItem), liveProxy: null }
       return { ...state, items }
     }
+  }
+  return state
+}
+
+/**
+ * Apply settled reasoning policy after assistant_turn_end.
+ *
+ * - high/xhigh + hasProviderThought: keep thinking (full viewport)
+ * - high/xhigh + no thought: keep reasoningSnapshot, clear thinking (collapse)
+ * - low/medium: keep reasoningSnapshot, clear thinking (collapse)
+ * - minimal/off: clear thinking, reasoningSnapshot, liveProxy (hide)
+ */
+function applySettledReasoningPolicy(state: TimelineState, level: ReasoningLevel): TimelineState {
+  const items = [...state.items]
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i]!
+    if (item.type !== 'assistant') continue
+    const a = item as AssistantItem
+    if (a.isStreaming) continue // only apply to settled items
+
+    switch (level) {
+      case 'high':
+      case 'xhigh':
+        if (a.hasProviderThought) {
+          // Keep thinking viewport as-is
+        } else {
+          // Collapse: keep snapshot, clear thinking
+          items[i] = { ...a, thinking: '' }
+        }
+        break
+      case 'low':
+      case 'medium':
+        // Collapse: keep snapshot, clear thinking
+        items[i] = { ...a, thinking: '' }
+        break
+      case 'minimal':
+      case 'off':
+        // Hide: clear everything
+        items[i] = { ...a, thinking: '', reasoningSnapshot: null, liveProxy: null }
+        break
+    }
+    return { ...state, items }
   }
   return state
 }

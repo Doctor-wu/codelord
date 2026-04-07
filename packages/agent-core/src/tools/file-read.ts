@@ -24,6 +24,9 @@ export const fileReadTool: Tool = {
     limit: Type.Optional(
       Type.Number({ description: 'Maximum number of lines to read. Defaults to no limit.' }),
     ),
+    reason: Type.Optional(
+      Type.String({ description: 'Brief explanation of why you are calling this tool for this specific step.' }),
+    ),
   }),
 }
 

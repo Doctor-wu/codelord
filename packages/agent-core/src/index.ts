@@ -26,6 +26,9 @@ export type {
 export { ReasoningManager, resolveReasoningVisibility, sanitizeDisplayReason } from './reasoning-manager.js'
 export type { ReasoningVisibility } from './reasoning-manager.js'
 
+export { resolveModelCapabilities } from './model-capabilities.js'
+export type { ModelCapabilities } from './model-capabilities.js'
+
 export { ToolRouter } from './tool-router.js'
 export type { ToolRouteDecision } from './tool-router.js'
 

@@ -34,6 +34,9 @@ export const searchTool: Tool = {
     max_results: Type.Optional(
       Type.Number({ description: 'Maximum number of matching lines to return. Defaults to 100.' }),
     ),
+    reason: Type.Optional(
+      Type.String({ description: 'Brief explanation of why you are calling this tool for this specific step.' }),
+    ),
   }),
 }
 

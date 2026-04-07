@@ -22,6 +22,9 @@ export const fileWriteTool: Tool = {
     create_directories: Type.Optional(
       Type.Boolean({ description: 'Create parent directories if they do not exist. Defaults to false.' }),
     ),
+    reason: Type.Optional(
+      Type.String({ description: 'Brief explanation of why you are calling this tool for this specific step.' }),
+    ),
   }),
 }
 
