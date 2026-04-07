@@ -26,13 +26,14 @@ interface AppProps {
   inputActive?: boolean
   onInputSubmit?: (text: string) => void
   onInterrupt?: () => void
+  onExit?: () => void
   /** Messages queued during running */
   pendingQueue?: string[]
   /** Whether the agent is currently running */
   isRunning?: boolean
 }
 
-export function App({ state, version, provider, model, maxSteps, inputActive, onInputSubmit, onInterrupt, pendingQueue, isRunning }: AppProps) {
+export function App({ state, version, provider, model, maxSteps, inputActive, onInputSubmit, onInterrupt, onExit, pendingQueue, isRunning }: AppProps) {
   const sessionMode = deriveSessionMode(state)
   const queueCount = pendingQueue?.length ?? 0
 
@@ -56,6 +57,7 @@ export function App({ state, version, provider, model, maxSteps, inputActive, on
           isActive={!!inputActive}
           onSubmit={onInputSubmit}
           onInterrupt={onInterrupt}
+          onExit={onExit}
           mode={sessionMode}
           pendingQueue={pendingQueue ?? []}
           isRunning={!!isRunning}
@@ -206,6 +208,13 @@ function getReasoningIcon(status: ReasoningStatus, isStreaming: boolean): string
 // ---------------------------------------------------------------------------
 
 function StatusItemView({ item }: { item: StatusItem }) {
+  if (item.status === 'info') {
+    return (
+      <Box marginTop={1}>
+        <Text color={LANE.control}>{item.message}</Text>
+      </Box>
+    )
+  }
   if (item.status === 'error') {
     return (
       <Box marginTop={1}>

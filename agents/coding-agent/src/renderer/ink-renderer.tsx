@@ -148,6 +148,7 @@ class InputBridge {
   private _resolve: ((value: string | null) => void) | null = null
   private _queueTarget: ((text: string) => void) | null = null
   private _interruptHandler: (() => void) | null = null
+  private _exitHandler: (() => void) | null = null
   private _listeners: Set<(active: boolean) => void> = new Set()
 
   // Runtime queue info (read-only projection for UI)
@@ -180,6 +181,9 @@ class InputBridge {
     this._interruptHandler = handler
   }
 
+  setExitHandler(handler: () => void): void {
+    this._exitHandler = handler
+  }
   subscribe(listener: (active: boolean) => void): () => void {
     this._listeners.add(listener)
     return () => this._listeners.delete(listener)
@@ -196,7 +200,9 @@ class InputBridge {
 
   /** Called by Ink InputComposer when user presses Enter */
   submit(text: string): void {
-    if (this._isRunning && this._queueTarget) {
+    // Slash commands are never queued — always resolve to REPL for processing
+    const isSlashCommand = text.trimStart().startsWith('/')
+    if (this._isRunning && this._queueTarget && !isSlashCommand) {
       // Queue mode: send directly to runtime
       this._queueTarget(text)
       // Re-read runtime queue info and notify UI
@@ -211,6 +217,11 @@ class InputBridge {
   /** Called by Ink InputComposer when user presses Escape */
   interrupt(): void {
     this._interruptHandler?.()
+  }
+
+  /** Called by Ink InputComposer when user presses Ctrl+C */
+  exit(): void {
+    this._exitHandler?.()
   }
 
   /** Called by REPL to wait for next input */
@@ -275,6 +286,10 @@ function Bridge({ store, inputBridge, version, provider, model, maxSteps }: Brid
     ? () => inputBridge.interrupt()
     : undefined
 
+  const handleExit = inputBridge
+    ? () => inputBridge.exit()
+    : undefined
+
   // Build pending queue from runtime queue info
   const pendingQueue = runtimeQueue?.pendingInboundPreviews ?? []
 
@@ -288,6 +303,7 @@ function Bridge({ store, inputBridge, version, provider, model, maxSteps }: Brid
       inputActive={inputActive}
       onInputSubmit={handleSubmit}
       onInterrupt={handleInterrupt}
+      onExit={handleExit}
       pendingQueue={pendingQueue}
       isRunning={isRunning}
     />
@@ -368,6 +384,12 @@ export class InkRenderer implements InteractiveRenderer {
   setInterruptHandler(handler: () => void): void {
     if (this.inputBridge) {
       this.inputBridge.setInterruptHandler(handler)
+    }
+  }
+
+  setExitHandler(handler: () => void): void {
+    if (this.inputBridge) {
+      this.inputBridge.setExitHandler(handler)
     }
   }
 

@@ -32,6 +32,8 @@ export interface InteractiveRenderer extends Renderer {
   setQueueTarget(enqueue: (text: string) => void): void
   /** Set the callback for Escape-key interrupt */
   setInterruptHandler(handler: () => void): void
+  /** Set the callback for Ctrl+C exit */
+  setExitHandler(handler: () => void): void
   /** Capture current timeline state for persistence */
   captureTimelineSnapshot(): TimelineSnapshot
   /** Restore timeline state from a persisted snapshot */

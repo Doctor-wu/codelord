@@ -212,6 +212,8 @@ export type LifecycleEvent =
   | { type: 'blocked_enter'; reason: 'waiting_user' | 'interrupted' | 'pending_input'; question?: string; questionDetail?: QuestionDetail; reasoning?: AssistantReasoningState; timestamp: number }
   | { type: 'blocked_exit'; timestamp: number }
   | { type: 'session_done'; success: boolean; text?: string; error?: string; timestamp: number }
+  // --- Command feedback (slash commands, not LLM output) ---
+  | { type: 'command_feedback'; success: boolean; message: string; timestamp: number }
   // --- Interrupt chain ---
   | { type: 'interrupt_requested'; source: 'sigint' | 'api'; timestamp: number }
   | { type: 'interrupt_observed'; requestedAt: number; observedAt: number; source: 'sigint' | 'api'; latencyMs: number; timestamp: number }

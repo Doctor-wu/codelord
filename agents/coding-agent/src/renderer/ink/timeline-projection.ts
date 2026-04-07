@@ -62,7 +62,7 @@ export interface QuestionItem {
 export interface StatusItem {
   type: 'status'
   id: string
-  status: 'running' | 'idle' | 'interrupted' | 'done' | 'error'
+  status: 'running' | 'idle' | 'interrupted' | 'done' | 'error' | 'info'
   message?: string
   timestamp: number
 }
@@ -245,6 +245,21 @@ export function reduceLifecycleEvent(state: TimelineState, event: LifecycleEvent
               message: event.error,
               timestamp: event.timestamp,
             }],
+      }
+    }
+
+    case 'command_feedback': {
+      const nextId = state._nextId + 1
+      return {
+        ...state,
+        _nextId: nextId,
+        items: [...state.items, {
+          type: 'status' as const,
+          id: `status-${nextId}`,
+          status: event.success ? 'info' as const : 'error' as const,
+          message: event.message,
+          timestamp: event.timestamp,
+        }],
       }
     }
 
