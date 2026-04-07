@@ -223,14 +223,6 @@ function StatusItemView({ item }: { item: StatusItem }) {
       </Box>
     )
   }
-  if (item.status === 'interrupted') {
-    return (
-      <Box marginTop={1}>
-        <Text color={LANE.control} bold>{GLYPH.phaseBlocked} PAUSED </Text>
-        <Text color={LANE.controlMuted}>Agent execution suspended</Text>
-      </Box>
-    )
-  }
   return null
 }
 
@@ -244,7 +236,6 @@ function deriveSessionMode(state: TimelineState): SessionMode {
   const lastItem = state.items[state.items.length - 1]
   if (lastItem?.type === 'question') return 'waiting_answer'
   if (lastItem?.type === 'status') {
-    if ((lastItem as StatusItem).status === 'interrupted') return 'interrupted'
     if ((lastItem as StatusItem).status === 'error') return 'error'
   }
 
@@ -253,7 +244,6 @@ function deriveSessionMode(state: TimelineState): SessionMode {
   const rc = state.resumeContext
   if (rc?.isResumed) {
     if (rc.hasPendingQuestion) return 'waiting_answer'
-    if (rc.wasDowngraded) return 'interrupted'
   }
 
   return 'idle'

@@ -61,13 +61,6 @@ function makeTimelineWithQuestion(): TimelineSnapshot {
   return captureTimelineSnapshot(state)
 }
 
-function makeTimelineWithInterrupted(): TimelineSnapshot {
-  let state = createInitialTimelineState()
-  state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'hi', timestamp: 1000 })
-  state = reduceLifecycleEvent(state, { type: 'blocked_enter', reason: 'interrupted', timestamp: 1200 })
-  return captureTimelineSnapshot(state)
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -117,9 +110,9 @@ describe('reconcileTimelineForResume', () => {
     expect(questions).toHaveLength(1)
   })
 
-  // --- Scenario B: resume interrupted/downgraded without timeline ---
+  // --- Scenario B: resume interrupted/downgraded — no status item injected ---
 
-  it('shows interrupted status from snapshot even without timeline cache', () => {
+  it('does not inject interrupted status item on downgraded resume', () => {
     const snapshot = makeSnapshot({
       runtimeState: 'STREAMING',
       wasInFlight: true,
@@ -131,29 +124,8 @@ describe('reconcileTimelineForResume', () => {
       interruptedDuring: 'STREAMING',
     })
 
-    const lastItem = state.items[state.items.length - 1]
-    expect(lastItem?.type).toBe('status')
-    expect((lastItem as StatusItem).status).toBe('interrupted')
-    expect((lastItem as StatusItem).message).toContain('STREAMING')
-  })
-
-  // --- Scenario B: resume interrupted with timeline ---
-
-  it('keeps existing interrupted from timeline, does not duplicate', () => {
-    const snapshot = makeSnapshot({
-      runtimeState: 'STREAMING',
-      wasInFlight: true,
-    })
-    const timeline = makeTimelineWithInterrupted()
-
-    const state = reconcileTimelineForResume(timeline, {
-      snapshot,
-      wasDowngraded: true,
-      interruptedDuring: 'STREAMING',
-    })
-
     const interrupts = state.items.filter(i => i.type === 'status' && (i as StatusItem).status === 'interrupted')
-    expect(interrupts).toHaveLength(1)
+    expect(interrupts).toHaveLength(0)
   })
 
   // --- Scenario C: resume with pending queue ---
@@ -196,24 +168,6 @@ describe('reconcileTimelineForResume', () => {
 
     const questions = state.items.filter(i => i.type === 'question')
     expect(questions).toHaveLength(0)
-  })
-
-  // --- Scenario D: timeline has stale interrupted but runtime is normal READY ---
-
-  it('removes stale interrupted when runtime is not downgraded', () => {
-    const snapshot = makeSnapshot({
-      runtimeState: 'READY',
-    })
-    const timeline = makeTimelineWithInterrupted()
-
-    const state = reconcileTimelineForResume(timeline, {
-      snapshot,
-      wasDowngraded: false,
-      interruptedDuring: null,
-    })
-
-    const interrupts = state.items.filter(i => i.type === 'status' && (i as StatusItem).status === 'interrupted')
-    expect(interrupts).toHaveLength(0)
   })
 
   // --- Telemetry preservation ---

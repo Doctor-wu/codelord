@@ -8,7 +8,7 @@ import Spinner from 'ink-spinner'
 import { APP_COLOR, GLYPH, LANE } from './theme.js'
 import { matchCommandSuggestions } from '../../cli/commands.js'
 
-export type SessionMode = 'idle' | 'running' | 'waiting_answer' | 'interrupted' | 'error'
+export type SessionMode = 'idle' | 'running' | 'waiting_answer' | 'error'
 
 interface InputComposerProps {
   isActive: boolean
@@ -150,13 +150,6 @@ function StatusStrip({ mode, queueCount }: { mode: SessionMode; queueCount: numb
         <Box>
           <Text color={LANE.control} bold>{GLYPH.live} YOUR TURN</Text>
           <Text dimColor>  {GLYPH.thinRule}  answer the question above</Text>
-        </Box>
-      )
-    case 'interrupted':
-      return (
-        <Box>
-          <Text color={LANE.control} bold>{GLYPH.phaseBlocked} PAUSED</Text>
-          <Text dimColor>  {GLYPH.thinRule}  continue with your next input</Text>
         </Box>
       )
     case 'error':

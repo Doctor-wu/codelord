@@ -18,20 +18,20 @@ const COMMANDS: CommandDefinition[] = [
   {
     name: '/exit',
     description: 'Quit the session',
-    availableIn: ['idle', 'interrupted', 'error'],
+    availableIn: ['idle', 'error'],
     availableWhileRunning: false,
   },
   {
     name: '/undo',
     description: 'Revert last file changes',
-    availableIn: ['idle', 'interrupted', 'error'],
+    availableIn: ['idle', 'error'],
     availableWhileRunning: false,
   },
   {
     name: '/reasoning',
     description: 'Show or set reasoning level',
     usage: '/reasoning [off|minimal|low|medium|high|xhigh]',
-    availableIn: ['idle', 'running', 'waiting_answer', 'interrupted', 'error'],
+    availableIn: ['idle', 'running', 'waiting_answer', 'error'],
     availableWhileRunning: true,
   },
 ]

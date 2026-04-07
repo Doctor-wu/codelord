@@ -55,8 +55,6 @@ function resolveHeaderStatus(isRunning: boolean, mode: SessionMode, queueCount: 
   switch (mode) {
     case 'waiting_answer':
       return { color: LANE.control, icon: GLYPH.live, label: 'YOUR TURN' }
-    case 'interrupted':
-      return { color: LANE.control, icon: GLYPH.phaseBlocked, label: 'PAUSED' }
     case 'error':
       return { color: LANE.error, icon: GLYPH.phaseFail, label: 'ERROR' }
     case 'running':

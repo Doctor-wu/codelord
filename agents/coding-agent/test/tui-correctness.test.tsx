@@ -159,43 +159,7 @@ describe('Question display deduplication', () => {
 })
 
 // ---------------------------------------------------------------------------
-// 5. interrupted not duplicated
-// ---------------------------------------------------------------------------
-
-describe('Interrupted display deduplication', () => {
-  beforeEach(() => _resetProvisionalIdCounter())
-
-  it('blocked_enter with interrupted adds exactly one status item', () => {
-    let state = createInitialTimelineState()
-    state = reduceLifecycleEvent(state, {
-      type: 'blocked_enter',
-      reason: 'interrupted',
-      timestamp: 1,
-    })
-    const statusItems = state.items.filter(i => i.type === 'status')
-    expect(statusItems).toHaveLength(1)
-    expect((statusItems[0] as StatusItem).status).toBe('interrupted')
-  })
-
-  it('interrupted message renders exactly once', () => {
-    let state = createInitialTimelineState()
-    state = reduceLifecycleEvent(state, {
-      type: 'blocked_enter',
-      reason: 'interrupted',
-      timestamp: 1,
-    })
-    const output = renderApp(state)
-    const matches = output.match(/PAUSED/g)
-    // PAUSED appears in both Header (session mode) and timeline StatusItem — both are correct
-    expect(matches).toHaveLength(2)
-    // But the timeline status item itself should not be duplicated
-    const statusItems = state.items.filter(i => i.type === 'status')
-    expect(statusItems).toHaveLength(1)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// 6. Tool stdout/stderr streaming still works
+// 5. Tool stdout/stderr streaming still works
 // ---------------------------------------------------------------------------
 
 describe('Tool streaming correctness', () => {
@@ -475,22 +439,6 @@ describe('Session mode in composer', () => {
         inputActive={true} onInputSubmit={() => {}} />,
     )
     expect(output).toContain('answer the question')
-  })
-
-  it('derives interrupted mode when last item is interrupted status', () => {
-    let state = createInitialTimelineState()
-    state = reduceLifecycleEvent(state, {
-      type: 'blocked_enter',
-      reason: 'interrupted',
-      timestamp: 1,
-    })
-
-    const output = renderToString(
-      <App state={state} version="0.0.1" provider="test" model="test" maxSteps={10}
-        inputActive={true} onInputSubmit={() => {}} />,
-    )
-    expect(output).toContain('PAUSED')
-    expect(output).toContain('continue')
   })
 
   it('shows working status when running', () => {

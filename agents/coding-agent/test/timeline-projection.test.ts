@@ -179,19 +179,6 @@ describe('Timeline Projection', () => {
       expect((state.items[0] as QuestionItem).question).toBe('What color?')
       expect(state.isRunning).toBe(false)
     })
-
-    it('interrupted adds a status item', () => {
-      let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, {
-        type: 'blocked_enter',
-        reason: 'interrupted',
-        timestamp: 1000,
-      })
-
-      expect(state.items).toHaveLength(1)
-      expect(state.items[0]!.type).toBe('status')
-      expect((state.items[0] as StatusItem).status).toBe('interrupted')
-    })
   })
 
   describe('session_done', () => {

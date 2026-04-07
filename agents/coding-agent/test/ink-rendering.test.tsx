@@ -211,7 +211,7 @@ describe('Header status reflects session mode', () => {
     expect(output).not.toContain('IDLE')
   })
 
-  it('shows PAUSED in header when resumeContext has wasDowngraded', () => {
+  it('shows IDLE in header when resumeContext has wasDowngraded (interrupted status removed)', () => {
     const state: TimelineState = {
       ...createInitialTimelineState(true),
       resumeContext: {
@@ -221,13 +221,6 @@ describe('Header status reflects session mode', () => {
         hasPendingQuestion: false,
         pendingInboundCount: 0,
       },
-      items: [{
-        type: 'status',
-        id: 'status-1',
-        status: 'interrupted',
-        message: 'Session interrupted during STREAMING',
-        timestamp: Date.now(),
-      }],
     }
 
     const output = renderToString(
@@ -240,8 +233,8 @@ describe('Header status reflects session mode', () => {
       />,
     )
 
-    expect(output).toContain('PAUSED')
-    expect(output).not.toContain('IDLE')
+    expect(output).toContain('IDLE')
+    expect(output).not.toContain('PAUSED')
   })
 
   it('shows IDLE for normal fresh session', () => {

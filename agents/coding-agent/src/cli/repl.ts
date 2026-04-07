@@ -337,6 +337,16 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     running = false
     checkpointManager.endBurst()
 
+    // Lightweight interrupt feedback
+    if (outcome.type === 'interrupted') {
+      renderer.onLifecycleEvent?.({
+        type: 'command_feedback',
+        success: true,
+        message: '⏸ Interrupted — ready for your next input',
+        timestamp: Date.now(),
+      })
+    }
+
     // Finalize and persist trace
     try { traceStore.save(activeRecorder.finalize(outcome)) } catch { /* best effort */ }
     activeRecorder = null
@@ -357,6 +367,14 @@ export async function startRepl(options: ReplOptions): Promise<void> {
       }
       running = false
       checkpointManager.endBurst()
+      if (rerunOutcome.type === 'interrupted') {
+        renderer.onLifecycleEvent?.({
+          type: 'command_feedback',
+          success: true,
+          message: '⏸ Interrupted — ready for your next input',
+          timestamp: Date.now(),
+        })
+      }
       try { traceStore.save(activeRecorder.finalize(rerunOutcome)) } catch { /* best effort */ }
       activeRecorder = null
       saveSession()

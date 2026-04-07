@@ -257,8 +257,8 @@ describe('AgentRuntime interrupt', () => {
 
     const outcome = await rt.run()
 
-    expect(outcome).toEqual({ type: 'blocked', reason: 'interrupted' })
-    expect(rt.state).toBe('BLOCKED')
+    expect(outcome).toEqual({ type: 'interrupted' })
+    expect(rt.state).toBe('READY')
     // Partial is preserved — not committed to messages, not lost
     expect(rt.partial).not.toBeNull()
     expect(rt.partial!.textChunks).toEqual(['partial ', 'content'])
@@ -284,8 +284,8 @@ describe('AgentRuntime interrupt', () => {
 
     const outcome = await rt.run()
 
-    expect(outcome).toEqual({ type: 'blocked', reason: 'interrupted' })
-    expect(rt.state).toBe('BLOCKED')
+    expect(outcome).toEqual({ type: 'interrupted' })
+    expect(rt.state).toBe('READY')
     expect(rt.partial!.textChunks).toEqual(['hello'])
   })
 
@@ -337,9 +337,8 @@ describe('AgentRuntime interrupt', () => {
 
     const outcome = await rt.run()
 
-    expect(outcome).toEqual({ type: 'blocked', reason: 'interrupted' })
-    expect(rt.state).toBe('BLOCKED')
-    // First tool completed (not killed), second tool was skipped
+    expect(outcome).toEqual({ type: 'interrupted' })
+    expect(rt.state).toBe('READY')
     expect(handler).toHaveBeenCalledTimes(1)
     // Messages: user + assistant + toolResult for first tool
     expect(rt.messages).toHaveLength(3)
@@ -352,9 +351,8 @@ describe('AgentRuntime interrupt', () => {
 
     const outcome = await rt.run()
 
-    expect(outcome).toEqual({ type: 'blocked', reason: 'interrupted' })
-    expect(rt.state).toBe('BLOCKED')
-    // streamSimple should never have been called
+    expect(outcome).toEqual({ type: 'interrupted' })
+    expect(rt.state).toBe('READY')
     expect(streamSimpleMock).not.toHaveBeenCalled()
   })
 
@@ -378,7 +376,7 @@ describe('AgentRuntime interrupt', () => {
     })
 
     const outcome1 = await rt.run()
-    expect(outcome1).toEqual({ type: 'blocked', reason: 'interrupted' })
+    expect(outcome1).toEqual({ type: 'interrupted' })
 
     // Resume: enqueue new message and run again
     const resumeAssistant = makeAssistantMessage({
@@ -653,7 +651,7 @@ describe('AgentRuntime lastOutcome semantics', () => {
     })
 
     await rt.run()
-    expect(rt.lastOutcome).toEqual({ type: 'blocked', reason: 'interrupted' })
+    expect(rt.lastOutcome).toEqual({ type: 'interrupted' })
   })
 
   it('records waiting_user blocked outcome in lastOutcome', async () => {
@@ -1155,7 +1153,8 @@ describe('AgentRuntime queue (pendingInbound)', () => {
 
   it('enqueue during run is preserved (not lost)', async () => {
     // This tests that enqueueUserMessage can be called while run() is in progress
-    // The message should be in pendingInbound after run() completes
+    // Messages enqueued during a burst are drained at burst boundaries (stop),
+    // so they appear in messages after the run completes.
     const assistantMessage = makeAssistantMessage({
       content: [{ type: 'text', text: 'ok' }],
     })
@@ -1174,10 +1173,11 @@ describe('AgentRuntime queue (pendingInbound)', () => {
 
     await runPromise
 
-    // The message queued during run should still be in pending
-    // (it was enqueued after drainPending was called at the start of the burst)
-    expect(rt.pendingInboundCount).toBe(1)
-    expect(rt.pendingInboundPreviews).toEqual(['queued-during-run'])
+    // The message queued during run is drained at the stop boundary,
+    // so it ends up in messages (not left in pendingInbound)
+    expect(rt.pendingInboundCount).toBe(0)
+    const userMsgs = rt.messages.filter((m: any) => m.role === 'user')
+    expect(userMsgs.map((m: any) => m.content)).toContain('queued-during-run')
   })
 })
 

@@ -62,7 +62,7 @@ export interface QuestionItem {
 export interface StatusItem {
   type: 'status'
   id: string
-  status: 'running' | 'idle' | 'interrupted' | 'done' | 'error' | 'info'
+  status: 'running' | 'idle' | 'done' | 'error' | 'info'
   message?: string
   timestamp: number
 }
@@ -210,16 +210,8 @@ export function reduceLifecycleEvent(state: TimelineState, event: LifecycleEvent
           reasoning: event.reasoning ?? null,
           timestamp: event.timestamp,
         })
-      } else if (event.reason === 'interrupted') {
-        items.push({
-          type: 'status',
-          id: `status-${nextId}`,
-          status: 'interrupted',
-          message: 'Agent paused',
-          timestamp: event.timestamp,
-        })
       }
-      // blocked breaks the current batch
+      // interrupted no longer produces a status item — runtime goes straight to READY
       return { ...state, items, isRunning: false, _nextId: nextId, _currentBatchId: null }
     }
 
@@ -783,15 +775,12 @@ export function reconcileTimelineForResume(
   const items = state.items.filter(item => {
     // Remove question items if runtime has no pending question
     if (item.type === 'question' && !snapshot.pendingQuestion) return false
-    // Remove interrupted status if this isn't a downgraded resume
-    if (item.type === 'status' && (item as StatusItem).status === 'interrupted' && !wasDowngraded) return false
     return true
   })
 
   // --- Check what control items are already present ---
   const lastItem = items[items.length - 1]
   const hasQuestion = lastItem?.type === 'question'
-  const hasInterrupted = lastItem?.type === 'status' && (lastItem as StatusItem).status === 'interrupted'
 
   let nextId = state._nextId
 
@@ -799,17 +788,6 @@ export function reconcileTimelineForResume(
   if (snapshot.pendingQuestion && !hasQuestion) {
     nextId++
     items.push(buildQuestionItem(snapshot.pendingQuestion, nextId, now))
-  }
-
-  if (wasDowngraded && interruptedDuring && !hasInterrupted && !snapshot.pendingQuestion) {
-    nextId++
-    items.push({
-      type: 'status',
-      id: `status-${nextId}`,
-      status: 'interrupted',
-      message: `Session interrupted during ${interruptedDuring}`,
-      timestamp: now,
-    })
   }
 
   return {
