@@ -8,6 +8,7 @@ import { startRepl } from './repl.js'
 import { resolveApiKey } from '../auth/index.js'
 import { SessionStore } from '../session-store.js'
 import { TraceStore, workspaceId, formatTraceList, formatTraceShow } from '../trace-store.js'
+import { runHeadless } from './headless.js'
 
 interface CliFlags {
   model?: string
@@ -114,7 +115,44 @@ function createCli() {
 }
 
 // ---------------------------------------------------------------------------
-// Trace subcommand handler (bypasses cac — it can't do multi-word commands)
+// Run subcommand handler — headless single-shot execution
+// ---------------------------------------------------------------------------
+
+async function handleRunCommand(args: string[]): Promise<void> {
+  const flags = new Set(args.filter(a => a.startsWith('--')))
+  const positional = args.filter(a => !a.startsWith('--'))
+  const prompt = positional[0]
+
+  if (!prompt) {
+    console.error('Usage: codelord run "<prompt>" [--json] [--trace]')
+    process.exitCode = 1
+    return
+  }
+
+  const config = loadConfig()
+  const model = resolveModel(config)
+  const apiKey = await resolveApiKey(config)
+
+  const result = await runHeadless({ model, apiKey, config, prompt })
+
+  if (flags.has('--trace')) {
+    console.log(JSON.stringify(result.trace, null, 2))
+  } else if (flags.has('--json')) {
+    console.log(JSON.stringify({
+      outcome: result.outcome,
+      text: result.text,
+      durationMs: result.durationMs,
+      toolStats: result.toolStats,
+      traceRunId: result.trace.runId,
+    }, null, 2))
+  } else {
+    if (result.text) console.log(result.text)
+  }
+
+  if (result.outcome.type === 'error') process.exitCode = 1
+}
+
+export { handleRunCommand }
 // ---------------------------------------------------------------------------
 
 function handleTraceCommand(args: string[]): void {
@@ -174,6 +212,11 @@ export async function runCli(argv = process.argv): Promise<void> {
   const rawArgs = argv.slice(2) // strip 'node' and script path
   if (rawArgs[0] === 'trace') {
     handleTraceCommand(rawArgs.slice(1))
+    return
+  }
+
+  if (rawArgs[0] === 'run') {
+    await handleRunCommand(rawArgs.slice(1))
     return
   }
 
