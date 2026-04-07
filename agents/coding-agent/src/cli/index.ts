@@ -141,9 +141,11 @@ function handleTraceCommand(args: string[]): void {
     const result = store.findByPrefix(runId)
     switch (result.type) {
       case 'exact':
-      case 'unique':
-        console.log(formatTraceShow(result.trace))
+      case 'unique': {
+        const mode = flags.has('--raw') ? 'raw' : flags.has('--detail') ? 'detail' : 'summary'
+        console.log(formatTraceShow(result.trace, mode))
         break
+      }
       case 'ambiguous': {
         console.error(`Trace id prefix is ambiguous: ${runId}`)
         console.error('Candidates:')
@@ -189,7 +191,7 @@ function handleTraceCommand(args: string[]): void {
         break
     }
   } else {
-    console.error(`Unknown trace subcommand: ${sub}\nUsage: codelord trace list [--all] [--limit N]\n       codelord trace show <runId>\n       codelord trace check <runId>`)
+    console.error(`Unknown trace subcommand: ${sub}\nUsage: codelord trace list [--all] [--limit N]\n       codelord trace show <runId> [--detail|--raw]\n       codelord trace check <runId>`)
     process.exitCode = 1
   }
 }

@@ -495,112 +495,174 @@ describe('TraceStore prefix matching', () => {
 // ---------------------------------------------------------------------------
 
 describe('formatTraceShow debugger view', () => {
-  it('output contains step headers with [P]/[A]/[L] tagged events', () => {
+  // Helper: build a trace with mixed events for testing
+  function buildMixedTrace() {
     const rec = new TraceRecorder(recorderOpts)
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
-
-    // Provider stream
     rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'text_start', contentIndex: 0 }))
     rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'text_delta', deltaPreview: 'hello', contentIndex: 0, eventId: 2 }))
     rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'text_delta', deltaPreview: ' world', contentIndex: 0, eventId: 3 }))
     rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'text_end', contentIndex: 0, contentPreview: 'hello world', eventId: 4 }))
     rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'done', stopReason: 'stop', eventId: 5 }))
-
-    // Agent events
     rec.onAgentEvent({ type: 'text_delta', contentIndex: 0, delta: 'hello' })
     rec.onAgentEvent({ type: 'text_delta', contentIndex: 0, delta: ' world' })
     rec.onAgentEvent({ type: 'text_end', contentIndex: 0, text: 'hello world' })
-
-    // Lifecycle
     rec.onLifecycleEvent({ type: 'usage_updated', usage: makeUsageAggregate(), timestamp: 1500 })
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1700 })
+    return rec.finalize({ type: 'success', text: 'hello world' })
+  }
 
-    const trace = rec.finalize({ type: 'success', text: 'hello world' })
+  // --- Summary mode (default) ---
+
+  it('summary mode shows step header and activity digest', () => {
+    const trace = buildMixedTrace()
     const output = formatTraceShow(trace)
 
-    // Step header
     expect(output).toContain('Step 1')
-    // Source tags
+    // Activity line: text chars
+    expect(output).toContain('text')
+    expect(output).toContain('chars')
+    // Usage line
+    expect(output).toContain('tokens:')
+    // Should NOT contain raw event tags
+    expect(output).not.toContain('[P]')
+    expect(output).not.toContain('[A]')
+  })
+
+  it('summary mode shows tool call names', () => {
+    const rec = new TraceRecorder(recorderOpts)
+    rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
+    rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'toolcall_end', toolCallId: 'tc-1', toolName: 'bash', eventId: 1 }))
+    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: {}, command: 'echo' })
+    tc.phase = 'generating'
+    rec.onLifecycleEvent({ type: 'tool_call_created', toolCall: tc })
+    rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1200 })
+    const trace = rec.finalize({ type: 'success', text: '' })
+    const output = formatTraceShow(trace)
+
+    expect(output).toContain('bash')
+  })
+
+  it('summary mode shows interrupt anomaly', () => {
+    const rec = new TraceRecorder(recorderOpts)
+    rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
+    rec.recordInterruptRequest('sigint')
+    rec.onLifecycleEvent({ type: 'blocked_enter', reason: 'interrupted', timestamp: 1050 })
+    rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1100 })
+    const trace = rec.finalize({ type: 'blocked', reason: 'interrupted' })
+    const output = formatTraceShow(trace)
+
+    expect(output).toContain('interrupted')
+  })
+
+  it('summary mode shows run-level events', () => {
+    const rec = new TraceRecorder(recorderOpts)
+    rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
+    rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1100 })
+    rec.onLifecycleEvent({ type: 'session_done', success: true, text: 'ok', timestamp: 1200 })
+    const trace = rec.finalize({ type: 'success', text: 'ok' })
+    const output = formatTraceShow(trace)
+
+    expect(output).toContain('Run-level')
+    expect(output).toContain('session_done')
+  })
+
+  // --- Raw mode ---
+
+  it('raw mode contains [P]/[A]/[L] tagged events', () => {
+    const trace = buildMixedTrace()
+    const output = formatTraceShow(trace, 'raw')
+
+    expect(output).toContain('Step 1')
     expect(output).toContain('[P]')
     expect(output).toContain('[A]')
     expect(output).toContain('[L]')
-    // Delta folding
     expect(output).toContain('text_delta ×2')
-    // Key events visible
     expect(output).toContain('text_start')
     expect(output).toContain('text_end')
     expect(output).toContain('done')
     expect(output).toContain('stop')
   })
 
-  it('output shows toolCallId correlation across layers', () => {
+  it('raw mode shows toolCallId correlation across layers', () => {
     const rec = new TraceRecorder(recorderOpts)
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
-
     rec.onProviderStreamEvent(makeProviderEvent({
       step: 1, turnId: 'a1', type: 'toolcall_end',
       toolCallId: 'tc-abcd1234', toolName: 'bash', eventId: 1,
     }))
-
     rec.onAgentEvent({ type: 'toolcall_end', toolCall: { type: 'toolCall', id: 'tc-abcd1234', name: 'bash', arguments: {} } as any })
-
     const tc = createToolCallLifecycle({ id: 'tc-abcd1234', toolName: 'bash', args: {}, command: 'echo' })
     tc.phase = 'completed'; tc.completedAt = 1100; tc.executionStartedAt = 1050
     rec.onLifecycleEvent({ type: 'tool_call_completed', toolCall: tc })
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1200 })
-
     const trace = rec.finalize({ type: 'success', text: '' })
-    const output = formatTraceShow(trace)
+    const output = formatTraceShow(trace, 'raw')
 
-    // tc= prefix should appear in all three sections
     expect(output).toContain('tc=tc-abcd1')
   })
 
-  it('consecutive deltas are folded, not dumped individually', () => {
+  it('raw mode folds consecutive deltas', () => {
     const rec = new TraceRecorder(recorderOpts)
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
-
     for (let i = 0; i < 20; i++) {
       rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'thinking_delta', deltaPreview: 'x', eventId: i + 1 }))
     }
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1100 })
-
     const trace = rec.finalize({ type: 'success', text: '' })
-    const output = formatTraceShow(trace)
+    const output = formatTraceShow(trace, 'raw')
 
-    // Should show folded count, not 20 individual lines
     expect(output).toContain('thinking_delta ×20')
-    // Should NOT have 20 separate thinking_delta lines
     const lines = output.split('\n').filter(l => l.includes('thinking_delta'))
     expect(lines).toHaveLength(1)
   })
 
-  it('output shows run-level events section for session_done', () => {
+  it('raw mode shows run-level events section for session_done', () => {
     const rec = new TraceRecorder(recorderOpts)
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1100 })
     rec.onLifecycleEvent({ type: 'session_done', success: true, text: 'ok', timestamp: 1200 })
-
     const trace = rec.finalize({ type: 'success', text: 'ok' })
-    const output = formatTraceShow(trace)
+    const output = formatTraceShow(trace, 'raw')
 
     expect(output).toContain('Run-level Events')
     expect(output).toContain('session_done')
   })
 
-  it('output shows interrupt chain events', () => {
+  it('raw mode shows interrupt chain events', () => {
     const rec = new TraceRecorder(recorderOpts)
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
     rec.recordInterruptRequest('sigint')
     rec.onLifecycleEvent({ type: 'blocked_enter', reason: 'interrupted', timestamp: 1050 })
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1100 })
-
     const trace = rec.finalize({ type: 'blocked', reason: 'interrupted' })
-    const output = formatTraceShow(trace)
+    const output = formatTraceShow(trace, 'raw')
 
     expect(output).toContain('interrupt_requested')
     expect(output).toContain('interrupt_observed')
     expect(output).toContain('source=sigint')
     expect(output).toContain('latency=')
+  })
+
+  // --- Detail mode ---
+
+  it('detail mode merges adjacent P+A pairs into [P+A]', () => {
+    const trace = buildMixedTrace()
+    const output = formatTraceShow(trace, 'detail')
+
+    // Should have merged P+A tags
+    expect(output).toContain('[P+A]')
+    // Should still show lifecycle events with [L]
+    expect(output).toContain('[L]')
+    expect(output).toContain('Step 1')
+  })
+
+  it('detail mode shows event counts in step header', () => {
+    const trace = buildMixedTrace()
+    const output = formatTraceShow(trace, 'detail')
+
+    expect(output).toContain('provider:')
+    expect(output).toContain('agent:')
+    expect(output).toContain('lifecycle:')
   })
 })

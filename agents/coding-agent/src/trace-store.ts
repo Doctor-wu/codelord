@@ -217,9 +217,13 @@ export function formatTraceList(summaries: TraceSummary[]): string {
   return lines.join('\n')
 }
 
-export function formatTraceShow(rawTrace: TraceRunV2): string {
+export type TraceShowMode = 'summary' | 'detail' | 'raw'
+
+export function formatTraceShow(rawTrace: TraceRunV2, mode: TraceShowMode = 'summary'): string {
   const trace = normalizeTrace(rawTrace)
   const L: string[] = []
+
+  // --- Header (shared across all modes) ---
   L.push(`Run: ${trace.runId}`)
   L.push(`Session: ${trace.sessionId}`)
   L.push(`Workspace: ${trace.workspaceSlug} (${trace.workspaceId})`)
@@ -236,6 +240,120 @@ export function formatTraceShow(rawTrace: TraceRunV2): string {
   }
   L.push('')
 
+  // --- Body (mode-specific) ---
+  switch (mode) {
+    case 'summary':
+      formatSummaryBody(trace, L)
+      break
+    case 'detail':
+      formatDetailBody(trace, L)
+      break
+    case 'raw':
+      formatRawBody(trace, L)
+      break
+  }
+
+  return L.join('\n')
+}
+
+// ---------------------------------------------------------------------------
+// Summary mode — high-value digest, 2-3 lines per step
+// ---------------------------------------------------------------------------
+
+function formatSummaryBody(trace: TraceRunV2, L: string[]): void {
+  for (const step of trace.steps) {
+    const dur = step.endedAt ? `${((step.endedAt - step.startedAt) / 1000).toFixed(1)}s` : 'in-flight'
+    L.push(`══ Step ${step.step} (${step.turnId?.slice(0, 12) ?? '?'})  ${new Date(step.startedAt).toLocaleTimeString()}  ${dur} ══`)
+
+    // Build activity summary from events
+    const sorted = [...step.events].sort((a, b) => a.seq - b.seq)
+    const segments: string[] = []
+
+    // Thinking chars
+    let thinkingChars = 0
+    for (const e of sorted) {
+      if (e.type === 'thinking_delta' && e.source === 'provider_stream' && 'deltaPreview' in e && e.deltaPreview) {
+        thinkingChars += e.deltaPreview.length
+      }
+    }
+    if (thinkingChars > 0) segments.push(`thinking ${fmtChars(thinkingChars)}`)
+
+    // Tool calls (from lifecycle tool_call_created)
+    const toolCounts = new Map<string, number>()
+    for (const e of sorted) {
+      if (e.source === 'lifecycle_event' && e.type === 'tool_call_created') {
+        const le = e as LifecycleTraceEvent
+        const name = le.toolName ?? 'unknown'
+        toolCounts.set(name, (toolCounts.get(name) ?? 0) + 1)
+      }
+    }
+    if (toolCounts.size > 0) {
+      const parts = [...toolCounts.entries()].map(([name, count]) => count > 1 ? `${count}×${name}` : name)
+      segments.push(parts.join(', '))
+    }
+
+    // Text output chars
+    let textChars = 0
+    for (const e of sorted) {
+      if (e.type === 'text_delta' && e.source === 'provider_stream' && 'deltaPreview' in e && e.deltaPreview) {
+        textChars += e.deltaPreview.length
+      }
+    }
+    if (textChars > 0) segments.push(`text ${fmtChars(textChars)}`)
+
+    if (segments.length > 0) {
+      L.push(`   ${segments.join(' → ')}`)
+    }
+
+    // Usage line (from lifecycle usage_updated)
+    for (const e of sorted) {
+      if (e.source === 'lifecycle_event' && e.type === 'usage_updated') {
+        const le = e as LifecycleTraceEvent
+        if (le.usageSnapshot) {
+          const u = le.usageSnapshot
+          L.push(`   tokens: ${fmtNum(u.input)} in / ${fmtNum(u.output)} out  $${u.cost.total.toFixed(4)}`)
+        }
+      }
+    }
+
+    // Anomalies
+    for (const e of sorted) {
+      if (e.source === 'agent_event' && (e as AgentTraceEvent).isError) {
+        L.push(`   ⚠ error: ${(e as AgentTraceEvent).resultPreview?.slice(0, 80) ?? e.type}`)
+      }
+      if (e.source === 'agent_event' && (e as AgentTraceEvent).allowed === false) {
+        L.push(`   ⚠ BLOCKED: ${(e as AgentTraceEvent).toolName ?? e.type}  risk=${(e as AgentTraceEvent).riskLevel}`)
+      }
+      if (e.source === 'lifecycle_event' && e.type === 'interrupt_requested') {
+        L.push(`   ⚠ interrupted (${(e as LifecycleTraceEvent).interruptSource})`)
+      }
+    }
+
+    L.push('')
+  }
+
+  // Run-level events summary
+  const runEvts = trace.runEvents ?? []
+  if (runEvts.length > 0) {
+    const types = runEvts.map(e => e.type)
+    L.push(`══ Run-level: ${types.join(', ')} ══`)
+    L.push('')
+  }
+}
+
+function fmtChars(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}k chars` : `${n} chars`
+}
+
+function fmtNum(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`
+}
+
+// ---------------------------------------------------------------------------
+// Detail mode — merged P+A pairs, lifecycle shown separately
+// ---------------------------------------------------------------------------
+
+function formatDetailBody(trace: TraceRunV2, L: string[]): void {
   for (const step of trace.steps) {
     const dur = step.endedAt ? `${step.endedAt - step.startedAt}ms` : 'in-flight'
     const sorted = [...step.events].sort((a, b) => a.seq - b.seq)
@@ -245,42 +363,146 @@ export function formatTraceShow(rawTrace: TraceRunV2): string {
     L.push(`══ Step ${step.step} (${step.turnId?.slice(0, 12) ?? '?'})  ${new Date(step.startedAt).toLocaleTimeString()}  ${dur} ══`)
     L.push(`   provider: ${pCount}  agent: ${aCount}  lifecycle: ${lCount}`)
     L.push('')
-    formatUnifiedTimeline(sorted, L, trace.startedAt)
+    formatMergedTimeline(sorted, L, trace.startedAt)
     L.push('')
   }
 
-  // --- Run-level events ---
   const runEvts = trace.runEvents ?? []
   if (runEvts.length > 0) {
     const sorted = [...runEvts].sort((a, b) => a.seq - b.seq)
     L.push('══ Run-level Events ══')
-    formatUnifiedTimeline(sorted, L, trace.startedAt)
+    formatRawTimeline(sorted, L, trace.startedAt)
+    L.push('')
+  }
+}
+
+/** Detail mode: merge P events with their A mirrors into [P+A] lines */
+function formatMergedTimeline(events: TraceEventEntry[], L: string[], base: number): void {
+  // Pre-compute: build a set of agent event indices that mirror a provider event.
+  // For each P event, find the first unmatched A event with the same type (in seq order).
+  const agentConsumed = new Set<number>()
+  const pToA = new Map<number, number>() // P index → A index
+
+  // Group agent events by type for efficient matching
+  const agentByType = new Map<string, number[]>()
+  for (let i = 0; i < events.length; i++) {
+    if (events[i].source === 'agent_event') {
+      const list = agentByType.get(events[i].type) ?? []
+      list.push(i)
+      agentByType.set(events[i].type, list)
+    }
+  }
+
+  // Match each P event to its first available A mirror
+  for (let i = 0; i < events.length; i++) {
+    if (events[i].source !== 'provider_stream') continue
+    const candidates = agentByType.get(events[i].type)
+    if (!candidates) continue
+    for (const ai of candidates) {
+      if (!agentConsumed.has(ai)) {
+        pToA.set(i, ai)
+        agentConsumed.add(ai)
+        break
+      }
+    }
+  }
+
+  // Now render, skipping consumed agent events
+  let i = 0
+  while (i < events.length) {
+    if (agentConsumed.has(i)) { i++; continue } // skip — already merged with a P event
+
+    const e = events[i]
+
+    // P delta run with merged A mirrors
+    if (isDeltaType(e) && e.source === 'provider_stream') {
+      let count = 0
+      let totalLen = 0
+      let hasPaired = false
+      let j = i
+      while (j < events.length && events[j].source === 'provider_stream' && events[j].type === e.type) {
+        count++
+        totalLen += getDeltaLen(events[j])
+        if (pToA.has(j)) hasPaired = true
+        j++
+      }
+      if (count > 1) {
+        const tag = hasPaired ? '[P+A]' : '[P]  '
+        const ci = getContentIndex(e)
+        const tc = getToolCallId(e)
+        const tn = getToolName(e)
+        L.push(`   │ ${tag} ${seqLabel(e.seq)}  ${tOff(e.timestamp, base)}  ${e.type} ×${count} (~${totalLen} chars)${ci}${tc}${tn}`)
+        i = j
+        continue
+      }
+    }
+
+    // Single P event with A mirror
+    if (e.source === 'provider_stream' && pToA.has(i)) {
+      formatSingleEvent(e, '[P+A]', L, base)
+      i++
+      continue
+    }
+
+    // Fold consecutive same-source deltas (unmatched agent deltas, etc.)
+    if (isDeltaType(e)) {
+      let count = 1
+      let totalLen = getDeltaLen(e)
+      while (i + count < events.length && events[i + count].type === e.type && events[i + count].source === e.source && !agentConsumed.has(i + count)) {
+        totalLen += getDeltaLen(events[i + count])
+        count++
+      }
+      if (count > 1) {
+        const tag = sourceTag(e.source)
+        const ci = getContentIndex(e)
+        const tc = getToolCallId(e)
+        const tn = getToolName(e)
+        L.push(`   │ ${tag} ${seqLabel(e.seq)}  ${tOff(e.timestamp, base)}  ${e.type} ×${count} (~${totalLen} chars)${ci}${tc}${tn}`)
+        i += count
+        continue
+      }
+    }
+
+    // Single event
+    formatSingleEvent(e, sourceTag(e.source), L, base)
+    i++
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Raw mode — every event on its own line (previous behavior)
+// ---------------------------------------------------------------------------
+
+function formatRawBody(trace: TraceRunV2, L: string[]): void {
+  for (const step of trace.steps) {
+    const dur = step.endedAt ? `${step.endedAt - step.startedAt}ms` : 'in-flight'
+    const sorted = [...step.events].sort((a, b) => a.seq - b.seq)
+    const pCount = sorted.filter(e => e.source === 'provider_stream').length
+    const aCount = sorted.filter(e => e.source === 'agent_event').length
+    const lCount = sorted.filter(e => e.source === 'lifecycle_event').length
+    L.push(`══ Step ${step.step} (${step.turnId?.slice(0, 12) ?? '?'})  ${new Date(step.startedAt).toLocaleTimeString()}  ${dur} ══`)
+    L.push(`   provider: ${pCount}  agent: ${aCount}  lifecycle: ${lCount}`)
+    L.push('')
+    formatRawTimeline(sorted, L, trace.startedAt)
     L.push('')
   }
 
-  return L.join('\n')
-}
-
-// ---------------------------------------------------------------------------
-// Unified timeline formatter
-// ---------------------------------------------------------------------------
-
-function sourceTag(source: string): string {
-  switch (source) {
-    case 'provider_stream': return '[P]'
-    case 'agent_event': return '[A]'
-    case 'lifecycle_event': return '[L]'
-    default: return '[?]'
+  const runEvts = trace.runEvents ?? []
+  if (runEvts.length > 0) {
+    const sorted = [...runEvts].sort((a, b) => a.seq - b.seq)
+    L.push('══ Run-level Events ══')
+    formatRawTimeline(sorted, L, trace.startedAt)
+    L.push('')
   }
 }
 
-function formatUnifiedTimeline(events: TraceEventEntry[], L: string[], base: number): void {
+/** Raw timeline: fold consecutive same-source deltas, but no P+A merging */
+function formatRawTimeline(events: TraceEventEntry[], L: string[], base: number): void {
   let i = 0
   while (i < events.length) {
     const e = events[i]
     const tag = sourceTag(e.source)
 
-    // Fold consecutive same-type delta events from the same source
     if (isDeltaType(e)) {
       let count = 1
       let totalLen = getDeltaLen(e)
@@ -298,19 +520,35 @@ function formatUnifiedTimeline(events: TraceEventEntry[], L: string[], base: num
       }
     }
 
-    // Single event — dispatch by source for detail formatting
-    switch (e.source) {
-      case 'provider_stream':
-        formatProviderEvent(e as ProviderStreamTraceEvent, tag, L, base)
-        break
-      case 'agent_event':
-        formatAgentEvent(e as AgentTraceEvent, tag, L, base)
-        break
-      case 'lifecycle_event':
-        formatLifecycleEvent(e as LifecycleTraceEvent, tag, L, base)
-        break
-    }
+    formatSingleEvent(e, tag, L, base)
     i++
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shared formatting helpers
+// ---------------------------------------------------------------------------
+
+function sourceTag(source: string): string {
+  switch (source) {
+    case 'provider_stream': return '[P]'
+    case 'agent_event': return '[A]'
+    case 'lifecycle_event': return '[L]'
+    default: return '[?]'
+  }
+}
+
+function formatSingleEvent(e: TraceEventEntry, tag: string, L: string[], base: number): void {
+  switch (e.source) {
+    case 'provider_stream':
+      formatProviderEvent(e as ProviderStreamTraceEvent, tag, L, base)
+      break
+    case 'agent_event':
+      formatAgentEvent(e as AgentTraceEvent, tag, L, base)
+      break
+    case 'lifecycle_event':
+      formatLifecycleEvent(e as LifecycleTraceEvent, tag, L, base)
+      break
   }
 }
 
