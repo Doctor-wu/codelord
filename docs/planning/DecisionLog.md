@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-04-08 — M1/M1X/M2 尾部收口冲刺关闭
+
+### 决策
+
+1. **Tool reason 作为一等 schema 参数**：模型在 tool call 时直接声明意图（`reason` 字段），而不是从 thought stream 逆向提取。
+2. **从 pi-ai Model 读取 capabilities，不硬编码 matrix**：上游已有的数据不要自己再维护一份。
+3. **Git stash 作为 checkpoint 策略**：复用已有基础设施，不重新发明 bash 修改追踪。
+4. **Contracts 与 Router 数据联动**：ToolContract.routeHints.argMisusePatterns 自动生成路由规则。
+5. **trace check 永久移除**：v1 设计被 Trace v2 淘汰，直接清除技术债。
+6. **Provisional tool call 走 lifecycle**：UI 通过 `tool_call_streaming_*` lifecycle events 驱动，不直接消费 raw stream。
+
+### 结果
+
+M1/M1X/M2 全部关闭。46 项任务，562 → 649 测试。冲刺归档见 `docs/planning/archive/sprints/sprint-m1-m1x-m2-tail-closure.md`。
+
+---
+
 ## 2026-04-07 — 质量治理冲刺：interrupt/queue 语义修正 + 渲染架构限制确认
 
 ### 背景
