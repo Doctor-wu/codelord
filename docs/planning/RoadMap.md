@@ -523,80 +523,159 @@ M9   多体协作            ──→ Multi-Agent
 
 ## M3 — 度量能力（Eval）
 
-> Eval 是单独的大 milestone，而且要非常认真做。
-> 它不是"跑几个 case 看看"，而是 codelord 的实验平台。
-> 后续每一个变化——context 策略、skill prompt、memory 写入、model routing——都通过 M3 验证，不靠感觉。
+> Eval 是 codelord 的实验平台和质量门禁。
+> 后续每一个改动——prompt、skill、context strategy、model、memory——都通过 M3 验证，不靠感觉。
+>
+> **完整立场说明见 [docs/planning/research/eval-position.md](../research/eval-position.md)**
+>
+> **Eval 北极星：** 让每一个改动都有可量化的判定——是变好了还是变差了。不是为了证明 codelord "有多强"，而是为了让后续开发从 "感觉" 变成 "证据"。
 
-### M3a — Eval 基础设施
+### 已交付的 M3 前置依赖（来自 M1/M1X/M2）
 
-- [ ] 定义 eval case 格式：`{ id, description, setup, input, expected, tools, maxSteps, judge }`
-- [ ] 实现 eval runner：headless 运行 agent，复用 trace-native / event-native 输出管线（不再依赖 `PlainTextRenderer`）
-- [ ] 每次 eval run 产出：结果、trace、prompt version、model version、active config
-- [ ] 支持 fixture 项目初始化 / 清理 / 隔离运行
-- [ ] `codelord eval run` 基础可用
+- [x] `runHeadless()` — eval runner 的 programmatic 入口，零 TUI 依赖，返回 `{ outcome, trace, toolStats, text, durationMs }`
+- [x] Tool stats tracker — per-tool attempts/successes/failures，eval 的第一个量化数据源
+- [x] Trace v2 — 三层模型（provider/agent-core/lifecycle），eval 的 transcript 数据源
+- [x] Tool schema reason — 模型声明 tool call 意图，eval 可检查 reason 质量
+- [x] Model capabilities — 从 pi-ai Model 读取，eval 可按 model 分组分析
 
-### M3b — Product Eval（产品门禁）
+### Eval 如何驱动后续开发
 
-> 回答"这个版本对真实用户是不是更好用了"。
+1. **Eval 失败模式指导 roadmap 优先级：** 失败因为 context 不够 → 优先 M4；tool 选错 → 优先 router 改进；推理链断裂 → 优先 M5 skill；模型能力不够 → 等新模型或优先 M7 thinking budget
+2. **Eval 分数作为改动的 gate：** prompt 改了 → 跑 eval → 分数没降才合并
+3. **Eval case 就是产品定义：** codelord 应该能做什么，写成可执行的 case，不是模糊的文字描述
+4. **新模型上线的快速验证：** 换 model → 跑 eval → 几小时内知道该不该切
+5. **Capability eval 标记未来押注：** 为当前做不到的任务写 eval case，新模型/skill 上线后快速验证
 
-- [ ] 设计 10-20 个基础 case，覆盖：
-  - 读文件回答问题
-  - 搜索代码定位定义
-  - 精确修改一处代码
-  - 多文件改动
-  - 跑测试并解释失败
-  - 简单 bug fix
-  - 理解项目结构并回答架构问题
-  - 处理用户中途纠偏（interrupt / queue）
-  - ask_user 正确触发
-- [ ] 每个 case 明确 pass criteria
-- [ ] 支持 deterministic judge（文件 diff / 测试通过 / 关键输出匹配）优先
-- [ ] 记录用户体验导向指标：pass@1 / avg_steps / avg_cost / AskUserQuestion precision / interruption recovery / reasoning-visible rate / first-tool-visible latency / provisional→stable handoff correctness
-- [ ] 建立 `smoke` / `core` 两层产品套件，作为日常开发和回归门禁
+### M3-S1：外部 Benchmark Fast Bootstrap
 
-### M3c — Research Eval（研究实验）
+> 用 SWE-bench + Aider Polyglot 获取 codelord 的第一批基线数据，建立 eval 飞轮的起点。
 
-> 回答"某个机制在理论上是否真的提升了 agent 能力"。
+**做之前**：codelord 从未被量化评估过。不知道它在真实任务上的 pass rate、平均步数、平均成本。所有关于"codelord 表现如何"的判断都是感觉。
 
-- [ ] 单独评估 context strategy / skill variant / memory policy / model routing 这些实验变量
-- [ ] 每个 research case 跑 N 次（N ≥ 5），记录 pass rate 而不是单次结果
-- [ ] 记录研究指标：step efficiency / cost / recovery success rate / tool routing precision / memory hit quality
-- [ ] `codelord eval compare <run1> <run2>`：支持新旧实验结果对比
-- [ ] 报告格式：`case | pass_rate | avg_steps | avg_cost | delta`
-- [ ] 明确：research eval 可以探索激进想法，但不直接充当发布门禁
+**做之后**：
+- SWE-bench Verified 上有 codelord 的 pass@1 基线（预期 < 20%，没有 M4/M5 是正常的）
+- Aider Polyglot 上有 codelord 的 pass_rate_1 / pass_rate_2 基线
+- 每个 trial 有完整的 trace 数据
+- 第一批"codelord 为什么失败"的结构化分析，直接指导后续优先级
 
-### M3d — LLM-as-Judge 与外部 Benchmark
+**具体任务**：
+- [ ] SWE-bench adapter：`runHeadless()` → Docker 环境 → patch 提取 → predictions JSONL → SWE-bench eval harness 评判
+- [ ] Aider Polyglot adapter：`runHeadless()` → Exercism 项目环境 → 代码修改 → 测试运行评判
+- [ ] 在 SWE-bench Verified 上跑 20 题子集，获取第一个基线
+- [ ] 在 Aider Polyglot 上跑 50 题子集，获取第一个基线
+- [ ] 对失败 case 做 trace 分析，归类失败模式（context 不够 / tool 选错 / 推理错误 / 环境问题）
+- [ ] 基于失败模式分析，输出后续 roadmap 优先级建议
 
-- [ ] 在 deterministic judge 不够的 case 上引入 LLM-as-judge
-- [ ] 校准 rubric：task completion / reasoning quality / code quality / user-alignment
-- [ ] 对接外部 benchmark 的 adapter（如 SWE-bench 风格任务、repo-level coding task）
-- [ ] 区分"内部 golden set"与"行业 benchmark"两类信号：前者优化产品方向，后者提供绝对坐标
+**完成标志**：有两个外部 benchmark 的基线数字。有第一批结构化的失败模式分析。后续每次改动都可以在这些子集上快速验证。
 
-### M3e — 实验平台化
+### M3-S2：Eval 基础设施最小闭环
 
-- [ ] 每个 experiment 绑定：prompt version / skill set / context strategy / model / memory policy / retrieval policy
-- [ ] 支持 A/B test：同一 case 在两套配置上对比
-- [ ] 把 M3 设计成后续所有 milestone 的共用实验底座
+> 让 `codelord eval run / compare` 可用，建立 eval-driven development 的工作流。
 
-### M3 — 从当前冲刺移交的任务
+**做之前**：跑 eval 需要手动写脚本，结果散落在各处，无法快速对比两次 run 的差异。S1 的 adapter 是一次性脚本，不可复用。
 
-> 以下任务从 M1/M1X 冲刺中移交，因为它们本质上是 eval 工作，没有 eval 框架做不了。
+**做之后**：
+- `codelord eval run <suite>` 一行命令跑完一个 eval suite
+- `codelord eval compare <run1> <run2>` 对比两次 run 的 pass rate / 步数 / 成本
+- eval case 有标准格式，支持 deterministic grader
+- 每次 run 自动绑定：prompt version + model + active config + trace
+- S1 的 SWE-bench / Aider Polyglot adapter 迁移为内置 suite
 
-- [ ] reasoning quality eval 与 trace 可观测性（原 M1X B1）
-- [ ] 为 reasoning 建立 eval 与 regression 套件（原 M1X B2）
-- [ ] 把 reasoning diagnostics 接入 trace compare / eval compare（原 M1X B2）
-- [ ] route quality 指标、trace 对齐、可解释 fallback（原 M1 A5）
+**具体任务**：
+- [ ] eval case 格式定义：`{ id, description, setup, input, expected, graders, maxSteps, timeoutMs }`
+- [ ] eval runner：调用 `runHeadless()`，环境初始化/清理/隔离，并发控制
+- [ ] deterministic grader 框架：测试通过判定、文件 diff 匹配、关键输出匹配、环境状态检查
+- [ ] `codelord eval run <suite>` CLI 命令
+- [ ] eval run 产出格式：`{ runId, config, results: [{ taskId, pass, score, traceId, steps, cost, durationMs }] }`
+- [ ] `codelord eval compare <run1> <run2>` CLI 命令：`case | pass_rate_delta | steps_delta | cost_delta`
+- [ ] 把 S1 的 SWE-bench / Aider Polyglot adapter 迁移到 eval 框架内，成为内置 suite
 
-### M3f — Retrieval / RAG Eval
+**完成标志**：`eval run / compare` 端到端可用。改一行 prompt → 跑 eval → 看分数变化，整个流程 < 30 分钟（在子集上）。
 
-> RAG 不是"检索看起来很高级"就算成功。它必须被单独度量。
+### M3-S3：内部 Golden Set（Product Eval）
 
-- [ ] 定义 retrieval 指标：precision@k / recall@k / mrr / reranker win rate
-- [ ] 定义 grounding 指标：最终回答或决策引用的内容是否真的来自被检索源，是否可追溯
-- [ ] 定义 usefulness 指标：检回来的 chunk 到底有没有帮到任务完成，而不是只是占 context
-- [ ] 对比 lexical / vector / hybrid retrieval 的效果差异
-- [ ] 单独评估 memory retrieval：命中率、误召回率、false recall 对任务的伤害
-- [ ] 把 retrieval 策略作为一等实验变量，而不是藏在 context assembler 里不可见
+> 建立 codelord 自己的产品级 eval suite，覆盖真实使用场景。
+
+**做之前**：只有外部 benchmark，测的是通用 coding 能力。codelord 独有的能力（interrupt、ask_user、tool router、reasoning visibility）没有被评估。
+
+**做之后**：
+- 20-30 个 codelord 专属 case，覆盖核心使用场景
+- smoke suite（5-10 case，每次改动跑）和 core suite（20-30 case，每次 release 跑）
+- codelord 独有能力被量化：tool router accuracy、ask_user precision、interrupt recovery
+- 来自 dogfooding 的失败 case 有固定的转化流程
+
+**具体任务**：
+- [ ] 设计覆盖矩阵：读文件回答问题 / 搜索代码定位 / 精确修改 / 多文件改动 / 跑测试解释失败 / bug fix / 架构理解 / interrupt 恢复 / ask_user 触发
+- [ ] 正反两面覆盖：该触发 ask_user 时触发 + 不该触发时不触发；该用 file_edit 时用 + 不该用时不用
+- [ ] 每个 case 有 reference solution（证明可解且 grader 正确）
+- [ ] smoke / core 两层 suite 划分
+- [ ] dogfooding 失败 → eval case 的标准转化流程
+- [ ] 记录产品指标：pass@1 / avg_steps / avg_cost / tool_router_accuracy / ask_user_precision
+
+**完成标志**：有一套稳定的内部 golden set。每次 prompt/skill/context 改动都能在 < 10 分钟（smoke）或 < 1 小时（core）内得到量化反馈。
+
+### M3-S4：Research Eval 与实验平台
+
+> 把 eval 从门禁升级为实验平台，支持 A/B 对比和多次运行统计。
+
+**做之前**：eval 只能回答"这次改动有没有回归"。不能回答"某个 context strategy 是否真的比另一个好"——因为没有多次运行、没有 A/B 对比、没有统计置信度。
+
+**做之后**：
+- 每个 research case 跑 N 次（N≥5），报告 pass rate 而非单次结果
+- A/B compare：同一组 case 在两套配置上对比，报告 delta + 置信区间
+- 每个 experiment 绑定完整配置：prompt version / skill set / context strategy / model / thinking level
+- M3 成为 M4/M5/M6/M7 的共用实验底座
+
+**具体任务**：
+- [ ] eval run 支持 `--trials N` 多次运行
+- [ ] eval compare 支持统计指标：pass_rate（非单次 pass/fail）、均值、方差
+- [ ] experiment config 格式：绑定 prompt version + model + skill set + context strategy
+- [ ] `codelord eval experiment <config1> <config2> --suite <suite> --trials 5`
+- [ ] 报告格式：`case | config1_pass_rate | config2_pass_rate | delta | p_value`
+
+**完成标志**：可以用数据回答"改动 A 是否真的比改动 B 好"，而不是靠感觉。M4/M5 的改动都有实验数据支撑。
+
+### M3-S5：LLM-as-Judge 与 Transcript Grading
+
+> 在 deterministic grader 不够的维度引入 LLM judge，评估推理质量、代码质量、工具意图声明质量。
+
+**做之前**：eval 只能判定"最终结果对不对"。不能判定"推理过程好不好"、"代码风格好不好"、"tool reason 声明清不清楚"。
+
+**做之后**：
+- LLM judge 可评估：reasoning quality / code quality / tool reason quality / instruction following
+- LLM judge 有明确 rubric，校准过与人类判断的一致性
+- 从上一轮冲刺移交的 4 项 eval 相关任务全部收口
+
+**具体任务**：
+- [ ] LLM judge grader 框架：接受 rubric + transcript + outcome，输出结构化评分
+- [ ] reasoning quality rubric 设计与校准
+- [ ] code quality rubric 设计与校准
+- [ ] 收口：reasoning quality eval 与 trace 可观测性（原 M1X B1）
+- [ ] 收口：为 reasoning 建立 eval 与 regression 套件（原 M1X B2）
+- [ ] 收口：reasoning diagnostics 接入 eval compare（原 M1X B2）
+- [ ] 收口：route quality 指标、trace 对齐（原 M1 A5）
+
+**完成标志**：eval 不仅能判定结果，还能评估过程质量。从上一轮移交的 4 项任务全部关闭。
+
+### M3-S6：外部 Benchmark 全量运行与持续跟踪
+
+> 扩展到 SWE-bench / Aider Polyglot 全量运行，建立持续跟踪基线。
+
+**做之前**：只在子集上有基线，无法与行业 leaderboard 对比。
+
+**做之后**：
+- SWE-bench Verified 全量 500 题有 codelord 的 pass@1
+- Aider Polyglot 全量 225 题有 codelord 的 pass_rate_1 / pass_rate_2
+- 每次大版本升级后自动跑全量，跟踪趋势
+- 有行业绝对坐标，知道 codelord 在哪个水位
+
+**具体任务**：
+- [ ] SWE-bench Verified 全量运行（500 题，预计 2-4 小时 with 8 并发）
+- [ ] Aider Polyglot 全量运行（225 题）
+- [ ] 建立外部 benchmark 跟踪报告
+- [ ] 每次大改动后的 re-run 流程
+
+**完成标志**：有行业绝对坐标。能用一个数字告诉别人 "codelord 在 SWE-bench Verified 上 pass@1 = X%"。
 
 > **🧠 你不知道你不知道的：**
 >
@@ -604,10 +683,11 @@ M9   多体协作            ──→ Multi-Agent
 > - **Product Eval 和 Research Eval 是两条轨。** 前者决定能不能发布，后者决定值不值得继续研究。混在一起会把门禁和探索都做坏。
 > - **pass@1 和 pass@5 回答的是不同问题。** pass@1 是用户体验，pass@5 是能力上限。
 > - **ask_user 也需要被 eval。** 问太多打断体验，问太少就会瞎猜。它本身是一个可优化对象。
-> - **RAG 最大的幻觉不是答错，而是"检得很像对"。** 没有 grounding 和 usefulness 指标，retrieval 很容易看起来聪明，实际上在喂噪音。
-> - **行业 benchmark 不是产品真相。** 它给你绝对坐标，但不代表你的用户最在意什么。内部 golden set 同样重要。
+> - **Eval 飞轮会自我加速。** 更多 dogfooding → 更多失败 case → 更好的 eval suite → 更好的 agent → 更多 dogfooding。起步最难，但一旦转起来就越来越快。
+> - **Agent scaffold 对 benchmark 分数的影响可能大于模型选择。** 同一模型不同 scaffold 可以产生 22+ 分差距。这意味着 codelord 的 eval 分数很大程度上是在评估我们的 agent core + tool system + context strategy，而不只是在评估 LLM。
+> - **外部 benchmark 分数的第一次跑可能会很难看。** 这完全正常——我们还没有 M4/M5。难看的分数正是 eval 的价值：它指向接下来该做什么。
 >
-> **✅ 完成标志：** `eval run/compare` 可用。拥有一套稳定的 golden dataset。可以用数据比较不同 prompt / skill / context / memory 策略的优劣。
+> **✅ 完成标志：** `eval run / compare / experiment` 可用。拥有内部 golden set + 两个外部 benchmark 基线。可以用数据比较不同 prompt / skill / context / model 策略的优劣。后续每个 milestone 的改动都通过 eval 验证。
 
 ---
 
