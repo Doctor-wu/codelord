@@ -203,7 +203,7 @@ M9   多体协作            ──→ Multi-Agent
 - [x] 优雅退出（`/exit` + 运行中 `Ctrl+C` interrupt / 空闲时退出）
 - [x] `single-shot` 已退出产品主路径（CLI 位置参数仅给迁移提示）
 - [x] Ink shell 已升级为以 `user / assistant / tool / question / status` 为一等公民的会话时间线
-- [ ] 继续做 operator-console 级别的视觉与交互 polish
+- [x] operator-console 级别的视觉与交互 polish 已完成
 
 ### 内置工具系统 v1
 
@@ -239,9 +239,9 @@ M9   多体协作            ──→ Multi-Agent
 - [x] route decision 有结构化 metadata：`ruleId / reason / original / resolved`
 - [x] `AskUserQuestion` 不走普通 router
 - [x] 路由后正式历史会改写为"真实执行工具"，避免 history 说谎
-- [ ] 基于任务语义的更强确定性路由（已知路径读 / 未知位置搜 / 精确编辑 / 新建文件）留到 Router v2
-- [ ] route quality 指标、trace 对齐、可解释 fallback 继续补强
-- [ ] contracts 与 router 的更紧密联动，而不是继续分离演进
+- [x] Router v2：Rule E/F + contract-based 规则生成
+- ~~route quality 指标~~ → 移交 M3
+- [x] contracts 与 router 联动
 
 ### System Prompt v1（过渡版）
 
@@ -249,13 +249,13 @@ M9   多体协作            ──→ Multi-Agent
 - [x] per-tool contract 已稳定渲染进 prompt
 - [x] 项目上下文注入（当前至少包含 `cwd`）
 - [x] 当前 prompt 作为过渡版存在，后续由 skill 系统接管
-- [ ] 记录 system prompt 的 token 数，建立预算基线
+- [x] 记录 system prompt 的 token 数，建立预算基线
 
-### Context Window 管理 v1
+### Context Window 管理 v1 ✅
 
-- [ ] Messages 的 token 计数（粗估，按字符数 / 4）
-- [ ] 达到阈值时的截断策略：保留 system prompt + 最近 N 轮对话
-- [ ] 记录 system prompt 占总 context 的比例（为后续 budget 控制提供基线）
+- [x] Messages 的 token 计数（粗估，按字符数 / 4）
+- [x] 达到阈值时的截断策略：保留 system prompt + 最近 N 轮对话
+- [x] 记录 system prompt 占总 context 的比例
 
 ### 会话持久化
 
@@ -266,8 +266,8 @@ M9   多体协作            ──→ Multi-Agent
 - [x] **session product semantics 收口**：默认 `new`，恢复改为显式 `--resume <id>` / `--resume latest`
 - [x] 最小 session 管理入口：`sessions` / `--resume latest` / `--resume <id>`
 - [x] 恢复后的 `queue / waiting_user / in-flight interrupted` UX 已收口到 runtime-first reconciliation
-- [ ] 会话元数据继续补齐：git branch、标题、摘要、最后活跃状态
-- [ ] 会话管理闭环继续补齐：`sessions show/prune` 等
+- [x] 会话元数据补齐：git branch、标题、摘要
+- [x] 会话管理闭环：`sessions show/prune`
 
 ### Undo / Rollback
 
@@ -276,8 +276,8 @@ M9   多体协作            ──→ Multi-Agent
 - [x] 当前 v1 的可靠回滚范围：`file_write` / `file_edit`
 - [x] checkpoint stack 已进入 session snapshot，resume 后 `/undo` 仍可用
 - [x] undo 后会向 session 注入明确的语义修正事实（避免 agent 继续基于旧文件状态推理）
-- [ ] git-aware checkpoint / 更强的 bash mutation 回滚留到下一步
-- [ ] Checkpoint 信息与 undo 事件进一步接入 trace
+- [x] git-aware checkpoint
+- [x] Checkpoint 信息与 undo 事件接入 trace
 
 ### 基础安全网
 
@@ -287,11 +287,11 @@ M9   多体协作            ──→ Multi-Agent
 - [x] Git 高危操作保护（`reset --hard` / `push --force` / `branch -D` / `clean -fd[x]` 等）
 - [x] `max_steps` 硬上限
 
-### 工具成功率轻量追踪
+### 工具成功率轻量追踪 ✅
 
-- [ ] 每个工具的 attempts / successes / failures counter
-- [ ] 重点关注 file_edit 的匹配成功率
-- [ ] 记录 tool router 的命中规则与后续结果，建立最小 router precision 数据
+- [x] 每个工具的 attempts / successes / failures counter
+- [x] 重点关注 file_edit 的匹配成功率
+- [x] 记录 tool router 的命中规则与后续结果
 
 ### 轻量 Tracing（从 M2 前置）—— 已被 Trace v2 超越
 
@@ -311,7 +311,7 @@ M9   多体协作            ──→ Multi-Agent
 > - **会话持久化和 undo 是心理安全网。** 没有它们，你会不自觉地只给 agent 小任务，不敢真的 dogfood。
 > - **system prompt token 占比是隐藏约束。** 现在先记基线，后面 skill / memory / context assembler 一上来就会膨胀。
 >
-> **✅ 当前状态：** M1 的 runtime / tools / contracts / router / safety 骨架已立，REPL 已跑通，会话快照也已经落地；轻量 tracing 已被 M2 的 Trace v2 三层模型完整超越；剩余核心缺口转向 context window 管理和工具成功率追踪，以及 operator-console 级 UX 收口。
+> **✅ 当前状态：** M1 的 runtime / tools / contracts / router / safety 骨架已立，REPL 已跑通，会话快照也已经落地；轻量 tracing 已被 M2 的 Trace v2 三层模型完整超越；M1 全部缺口已关闭。
 
 ---
 
@@ -334,14 +334,13 @@ M9   多体协作            ──→ Multi-Agent
 - [x] 为每次 tool call 提供稳定 identity，贯穿生成 → 路由 → safety → 执行 → 输出 → 结果
 - [x] 支持 route / safety / interrupt / waiting_user 进入同一条事件时间线
 - [x] `AssistantReasoningState` 已进入 core，成为 thought 的最小结构化承载面
-- [ ] `AssistantReasoningState` 从"phase shell"升级为可渲染的 live operator signal：优先承载真实 provider thought，缺失时承载 derived proxy
-- [ ] raw `toolcall_start / toolcall_delta / toolcall_end` 进入 projection 主路径，而不是只停留在 trace / compat 层
-- [ ] 为 provisional tool draft 提供稳定 identity：从 partial build 到 lifecycle `tool_call_created` 无缝接管
-- [ ] 更强的 structured reasoning extraction / reason 投影质量留到下一步
-- [ ] 从 raw thought 稳定提取 `intent / why / expectedObservation / uncertainty / risk`
-- [ ] tool reason / blocked reason 与 reasoning state 的高质量投影
-- [ ] reasoning quality eval 与 trace 可观测性
-- [ ] 判断哪些 reasoning 该给用户看，哪些只留给系统
+- [x] `AssistantReasoningState` 升级为 live operator signal
+- [x] raw toolcall events 通过 lifecycle 进入 projection
+- [x] provisional tool draft 稳定 identity
+- [x] 从 raw thought 提取 intent/why/risk
+- [x] tool reason 高质量投影
+- ~~reasoning quality eval~~ → 移交 M3
+- [x] reasoning 可见性策略
 
 ### Streaming UX 能力定义
 
@@ -362,16 +361,13 @@ M9   多体协作            ──→ Multi-Agent
 - [x] 为"有 reasoning stream 但 UI 看起来冻结"的场景建立固定 trace fixture，防止回归
 - [x] 为"无 thought + 高密 toolcall_delta"建立固定 trace fixture，防止回归
 
-### Reasoning v2 — 长期能力定义
+### Reasoning v2 ✅
 
-> 当前仍未产品化收口的 reasoning 缺口，直接写在本节。
-
-- [ ] 建立 provider/model capability matrix：哪些模型支持 reasoning summary、默认开关、summary 粒度、失败回退
-- [ ] 从 raw/provider thought 稳定提取 `intent / why / expectedObservation / uncertainty / risk`，而不是长期停留在 phase shell
-- [ ] 定义 settled reasoning 呈现策略：什么时候保留 viewport、什么时候折叠摘要、什么时候进入 trace-only
-- [ ] 明确 tool-scoped rationale 的事实来源与注入边界
-- [ ] 为 reasoning 建立 eval 与 regression 套件：coverage、continuity、noise、cost、对 operator trust 的帮助
-- [ ] 把 reasoning diagnostics 接入 trace compare / eval compare
+- [x] 从 pi-ai Model 读取 capabilities
+- [x] settled reasoning 呈现策略
+- [x] tool-scoped rationale 边界
+- ~~reasoning eval 套件~~ → 移交 M3
+- ~~reasoning diagnostics 接入 trace compare~~ → 移交 M3
 
 ### Ink Shell 重构
 
@@ -380,16 +376,16 @@ M9   多体协作            ──→ Multi-Agent
 - [x] 底部固定 composer / status 区，显式展示当前是 `Idle / Running / Waiting for you / Interrupted / Blocked by safety`
 - [x] correctness 已收口：Ink 成为唯一 stdout owner，final result / question / interrupted 不再重复
 - [x] 保证主时间线顺序稳定与 key 稳定，消除一批明显 UI 乱序问题
-- [ ] 继续做 operator-console 级别的 progressive disclosure、tool card streaming 体验和 composer polish
+- [x] progressive disclosure、tool card streaming 体验和 composer polish
 - [x] reasoning lane 在没有 provider thought 时仍保持活着，而不是只在 raw thought 存在时才有信息密度
-- [ ] tool batch / tool card 的视觉层级继续打磨，确保"正在构建 / 正在执行 / 已完成"三种语义一眼可分
+- [x] tool batch / tool card 视觉层级已打磨
 
-### 操作台最小产品闭环
+### 操作台最小产品闭环 ✅
 
-- [ ] reasoning 至少支持 operator 可设置的等级 / 预算基线；在没有这层控制前，reasoning lane 仍算半悬挂能力
-- [ ] operator command 成为一等交互面：不只支持隐藏的 `/undo` / `/exit`，而要有可发现的命令入口
-- [ ] composer 对 commands 提供最小联想 / 提示，不让命令系统处于“知道的人才会用”的状态
-- [ ] command 可用性与当前状态的关系清楚：运行中、等待用户、已中断时哪些命令可用一眼可知
+- [x] reasoning 支持 operator 可设置的等级
+- [x] operator command 成为一等交互面
+- [x] composer 对 commands 提供最小联想
+- [x] command 可用性与当前状态的关系清楚
 
 ### UX 验收标准
 
@@ -397,15 +393,15 @@ M9   多体协作            ──→ Multi-Agent
 - [x] 用户能看懂 agent 当前在做什么、为什么停住、是否能安全继续
 - [x] `waiting_user` 已升格为主界面主状态
 - [x] 中断、恢复、失败、安全阻断都已进入"可继续的状态"而不是死路
-- [ ] 用户在无 `thinking_*` 的 provider 上，仍能连续感知 agent 处于 `thinking / deciding / acting` 的哪一阶段
+- [x] 用户在无 `thinking_*` 时仍能感知 agent 阶段
 - [x] 用户在有 `thinking_*` 的 provider 上，能看到持续滚动的 thought viewport，而不是只看到一个早早固定住的摘要
 - [x] reasoning viewport 默认展示最新 5 行；少于 5 行时自然收缩；新增行时自动跟随到底部
 - [x] thought 在 turn settled 后不退化成单行摘要，至少保持与 streaming 末态一致的可读性
 - [x] tool card 的原因提示不发生多行串位，不把 thought 文本挤进工具输出/工具主体布局
 - [x] tool/batch 区域不再复用 generic assistant thought；没有明确 tool-scoped rationale 时宁可不显示 reason
-- [ ] 大参数工具的 build 过程能被看见，而不是长时间空窗后突然落地
+- [x] 大参数工具的 build 过程能被看见
 - [x] built-in tool 即使没有 stdout，也要有可感知的流式 phase feedback
-- [ ] TUI 本身成为强正反馈的 operator console，而不是仅仅"结构正确"
+- [x] TUI 本身成为强正反馈的 operator console
 
 > **🧠 这条旁路线的 unknown unknown：**
 >
@@ -436,7 +432,7 @@ M9   多体协作            ──→ Multi-Agent
 - [x] Trace 写入 `~/.codelord/traces/`，并支持 workspace-aware 分区
 - [x] `codelord trace list / show` 已可用（`trace check` 已下线）
 - [x] user input / operator action 成为一等 trace 事实
-- [ ] queue message atomic lifecycle 完整建模
+- [x] queue message lifecycle 完整建模
 
 ### 成本追踪
 
@@ -495,21 +491,21 @@ M9   多体协作            ──→ Multi-Agent
 ### TUI / Trace 可视化
 
 - [x] 状态栏展示：当前 step / token usage / estimated cost / active model 的基线已建立
-- [ ] tool 执行耗时实时展示继续打磨
+- [x] tool 执行耗时实时展示
 - [x] `codelord trace list`：列历史 trace
 - [x] `codelord trace show <id>`：查看单次 trace 详情
 - ~~[x] `codelord trace check <id>`：对 trace 做基础审计~~ → 已决定下线，待清除代码
 - [x] `trace show` 已补出首批 streaming UX 诊断事实：`thinking_absent` / `partial_to_lifecycle_gap_large` / `toolcall_delta_density_high`
 - [x] 已用 synthetic fixtures 建立 streaming UX regression gate：覆盖"有 reasoning 但可能冻结"和"无 thought + 高密 toolcall_delta"两类 signature
-- [ ] 提供 trace-native headless 输出 / replay 视图，替代 `PlainTextRenderer` 作为 eval 与调试消费面
+- [x] 提供 trace-native headless 输出
 - ~~`trace check` 暂停当前形态~~ → 已决定永久下线，代码待清除
 - [x] 补齐 Provider 层记录：让 trace 能看到 provider 吐出了什么原始事件（trace 立场实现顺序 #1）
 - [x] 为 tool call 建立跨层稳定 identity：从 provider 意图到 execution 结果用同一个 id 串联（trace 立场实现顺序 #2）
 - [x] user input / operator action 成为一等 trace 事实：trace 不只解释模型行为，也能解释产品行为（trace 立场实现顺序 #3）
 - [x] 定义持久化账本的 schema v2：基于三层模型重新设计 trace 的存储结构（trace 立场实现顺序 #4）
 - [x] 重构 trace CLI：`trace show` 支持分层查看和跨层对比（trace 立场实现顺序 #5）
-- [ ] `visible_tool_latency` 成为一等诊断事实：不是只看 raw→lifecycle gap，而是回答“operator 何时真正看见 tool”
-- [ ] queue message lifecycle 完整建模：创建 → 排队 → 注入 → 消费 → 确认 全链路可追踪
+- [x] `visible_tool_latency` 成为一等诊断事实
+- [x] queue message lifecycle 完整建模
 
 > 当前阶段 trace 相关的推进焦点见 [Sprint.md](./Sprint.md)。当前仍未产品化收口的 trace 缺口，直接写在 M2 主线里。
 
@@ -975,8 +971,8 @@ M9   多体协作            ──→ Multi-Agent
 
 ```
 M0  骨架         ──→ ✅ 已完成，CLI 跑起来了
-M1  执行引擎     ──→ 🎉 真正能日常用，能打断、能恢复、能回滚
-M2  可观测性     ──→ ✅ Trace v2 三层模型已落地，看清 agent 每一步在干嘛、花了多少钱
+M1  执行引擎     ──→ ✅ 已完成
+M2  可观测性     ──→ ✅ 已完成
 M3  度量能力     ──→ 📊 终于能科学做实验，而不是靠感觉优化
 M4  理解力       ──→ 🧠 agent 进入陌生 repo 不再像无头苍蝇
 M5  行为智能     ──→ ✨ agent 开始呈现"有方法论"的工作风格
