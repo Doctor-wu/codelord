@@ -6,6 +6,30 @@
 
 ---
 
+## 2026-04-08 — Checkpoint 从 git stash 迁移到 shadow git repo
+
+### 背景
+
+M1/M1X/M2 尾部收口时选择了 git stash 作为 checkpoint 策略（"复用已有基础设施，不重新发明 bash 修改追踪"）。实际使用后发现 stash 的语义是"暂存"而不是"快照"——`git stash push` 是破坏性的（把工作区变更移走而不是复制），导致 beginBurst 后外部 agent 的改动、用户 staged 的文件全部消失。第一次修复用 stash push + 立即 stash apply 做非破坏性 copy，undo 时 checkout+clean+apply+drop。能工作但拐弯太多。
+
+调研 Claude Code 的做法：纯 file-level snapshot，只追踪自己的 Write/Edit/MultiEdit 工具，bash 改动明确不追踪（官方文档写明 "Checkpointing does not track files modified by bash commands"）。第三方 checkpoint 插件（如 Ixe1/claude-code-checkpointing-hook、Vvkmnn/claude-vigil-mcp）用 shadow git repo 或 content-addressable storage 来解决这个问题。
+
+### 决策
+
+1. **从 git stash 迁移到 shadow git repo**：在 `{cwd}/.codelord/shadow/` 维护一个独立的 bare git repo，用 `git --git-dir=.codelord/shadow --work-tree=.` 操作。不碰用户自己的 `.git`（不影响 stash、staging area、HEAD）。
+2. **beginBurst 时 `add -A && commit`**：非破坏性快照，一步完成。
+3. **undo 时 `reset --hard <hash> && clean -fd`**：一步原子还原。
+4. **endBurst 检查 working tree 是否真正有变更**：用 `status --porcelain` 判断，纯读 burst 不产生 checkpoint，避免 stack 膨胀。
+5. **类型重命名**：`GitCheckpoint` → `ShadowGitCheckpoint`，`CheckpointRecord.git` → `.shadowGit`，strategy `'git_stash'` → `'shadow_git'`。
+
+### 影响
+
+- Checkpoint 覆盖了 bash 改动（Claude Code 选择放弃的能力），且不再依赖用户 git repo 的任何状态
+- 旧 session 的 checkpoint stack 不兼容（字段名变了），但不影响产品——旧 session 不会恢复 checkpoint
+- 用户项目里会多出 `.codelord/shadow/` 目录，shadow repo 的 exclude 文件已配置排除 `.codelord/` 自身
+
+---
+
 ## 2026-04-08 — 行业对标确认方向未偏，OTel 升级为必做项，进入 M3-S1 冲刺
 
 ### 背景
@@ -59,7 +83,7 @@ M1/M1X/M2 全部关闭后，按大主题推进协议对 M3（Eval）启动全局
 
 1. **Tool reason 作为一等 schema 参数**：模型在 tool call 时直接声明意图（`reason` 字段），而不是从 thought stream 逆向提取。
 2. **从 pi-ai Model 读取 capabilities，不硬编码 matrix**：上游已有的数据不要自己再维护一份。
-3. **Git stash 作为 checkpoint 策略**：复用已有基础设施，不重新发明 bash 修改追踪。
+3. **~~Git stash 作为 checkpoint 策略~~**：已被 shadow git repo 替代（见 2026-04-08 Checkpoint 迁移决策）。
 4. **Contracts 与 Router 数据联动**：ToolContract.routeHints.argMisusePatterns 自动生成路由规则。
 5. **trace check 永久移除**：v1 设计被 Trace v2 淘汰，直接清除技术债。
 6. **Provisional tool call 走 lifecycle**：UI 通过 `tool_call_streaming_*` lifecycle events 驱动，不直接消费 raw stream。

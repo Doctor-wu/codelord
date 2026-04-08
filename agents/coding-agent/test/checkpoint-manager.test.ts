@@ -70,18 +70,14 @@ describe('CheckpointManager', () => {
 
   // --- 1. Pure read burst does NOT create checkpoint ---
 
-  it('pure read burst creates shadow checkpoint but no file snapshots', async () => {
+  it('pure read burst does not create checkpoint', async () => {
     const { mgr, wrapped } = setup()
 
     mgr.beginBurst()
     await wrapped.get('file_read')!({ file_path: 'foo.txt' }, emitCtx)
-    const checkpoint = mgr.endBurst()
+    mgr.endBurst()
 
-    // Shadow git checkpoint is always created
-    expect(mgr.undoCount).toBe(1)
-    expect(checkpoint).not.toBeNull()
-    expect(checkpoint!.strategy).toBe('shadow_git')
-    expect(checkpoint!.files).toHaveLength(0)
+    expect(mgr.undoCount).toBe(0)
   })
 
   // --- 2. Mutating burst lazily creates checkpoint on first write ---
@@ -345,7 +341,7 @@ describe('CheckpointManager — shadow git', () => {
     dirs.length = 0
   })
 
-  it('beginBurst creates shadow git checkpoint', () => {
+  it('beginBurst creates shadow git checkpoint when files change', () => {
     const cwd = makeTmpDir()
     dirs.push(cwd)
 
@@ -358,12 +354,15 @@ describe('CheckpointManager — shadow git', () => {
         return { output: 'OK', isError: false }
       }],
     ])
-    mgr.wrapHandlers(handlers)
+    const wrapped = mgr.wrapHandlers(handlers)
 
     mgr.beginBurst()
     // file.txt should still exist (non-destructive)
     expect(existsSync(join(cwd, 'file.txt'))).toBe(true)
     expect(readFileSync(join(cwd, 'file.txt'), 'utf-8')).toBe('content')
+
+    // Simulate a bash change (not via wrapped handler)
+    writeFileSync(join(cwd, 'bash-created.txt'), 'bash', 'utf-8')
 
     const checkpoint = mgr.endBurst()
     expect(checkpoint).not.toBeNull()
@@ -461,6 +460,8 @@ describe('CheckpointManager — shadow git', () => {
 
     const mgr = new CheckpointManager({ cwd, sessionId: 'test' })
     mgr.beginBurst()
+    // Modify a file during the burst so shadow detects a change
+    writeFileSync(join(cwd, 'data.txt'), 'modified', 'utf-8')
     const record = mgr.endBurst()
 
     expect(record).not.toBeNull()
@@ -479,6 +480,8 @@ describe('CheckpointManager — shadow git', () => {
 
     const mgr = new CheckpointManager({ cwd, sessionId: 'test' })
     mgr.beginBurst()
+    // Modify during burst so shadow detects a change
+    writeFileSync(join(cwd, 'file.txt'), 'changed', 'utf-8')
     const checkpoint = mgr.endBurst()
 
     expect(checkpoint).not.toBeNull()
