@@ -6,6 +6,24 @@
 
 ---
 
+## 2026-04-08 — 行业对标确认方向未偏，OTel 升级为必做项，进入 M3-S1 冲刺
+
+### 背景
+
+对标 Claude Agent SDK / LangGraph / LangSmith 后确认：codelord 的 roadmap 覆盖了行业框架关注的所有核心能力，且在 trace 三层模型、tool contract 分层、context + skill 哲学上有独立思考。但 eval 是当前最大的落后项。
+
+### 决策
+
+1. **OTel 导出从“明确不做”升级为 M3-S2 必做项**：作为 trace 对外输出的标准通道，支持接入 LangSmith / Langfuse / Arize 等外部可观测性平台。设计原则：codelord 原生 trace schema 始终是主口径，OTel 是有损投影。
+2. **M3-S3 dogfooding → eval case 转化工作流强化**：借鉴 LangSmith 的 "trace → dataset" 模式，让每次 dogfooding 发现的问题都能沉淀为可回归测试的 eval case。
+3. **进入 M3-S1 冲刺**：用 SWE-bench + Aider Polyglot 获取第一批基线数据，建立 eval 飞轮的起点。
+
+### 影响
+
+M4/M5 的设计决策将由 eval 数据驱动，而不是凭感觉。
+
+---
+
 ## 2026-04-08 — M3 Eval 全局研究完成，RoadMap M3 重构
 
 ### 背景

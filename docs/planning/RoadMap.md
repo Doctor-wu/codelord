@@ -591,8 +591,13 @@ M9   多体协作            ──→ Multi-Agent
 - [ ] eval run 产出格式：`{ runId, config, results: [{ taskId, pass, score, traceId, steps, cost, durationMs }] }`
 - [ ] `codelord eval compare <run1> <run2>` CLI 命令：`case | pass_rate_delta | steps_delta | cost_delta`
 - [ ] 把 S1 的 SWE-bench / Aider Polyglot adapter 迁移到 eval 框架内，成为内置 suite
+- [ ] OTel 兼容导出（trace 对外输出的标准通道）：
+  - 实现 lossy OTel span exporter：将 codelord 三层 trace 投影为 OTel span 树（丢失跨层 identity / queue lifecycle / operator action 等 codelord 特有语义，保留 LLM call + tool call + step 级别信息）
+  - 支持导出到 LangSmith / Langfuse / Arize 等外部可观测性平台，用于跨工具对比和行业基准对齐
+  - `codelord trace export <id> --format otel` CLI 命令
+  - 设计原则：codelord 原生 trace schema 始终是主口径，OTel 是有损投影，不为 OTel 兼容牺牲三层模型设计
 
-**完成标志**：`eval run / compare` 端到端可用。改一行 prompt → 跑 eval → 看分数变化，整个流程 < 30 分钟（在子集上）。
+**完成标志**：`eval run / compare` 端到端可用。改一行 prompt → 跑 eval → 看分数变化，整个流程 < 30 分钟（在子集上）。trace 可导出为 OTel 格式。
 
 ### M3-S3：内部 Golden Set（Product Eval）
 
