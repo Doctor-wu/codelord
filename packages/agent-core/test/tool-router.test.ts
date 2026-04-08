@@ -1,15 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import { ToolRouter } from '../src/tool-router.js'
+import type { ToolContract } from '../src/tools/tool-contract.js'
 
 describe('ToolRouter', () => {
   const router = new ToolRouter()
 
   // -----------------------------------------------------------------------
-  // Direct built-in calls pass through unchanged
+  // Direct built-in calls pass through unchanged (non-bash, non-semantic)
   // -----------------------------------------------------------------------
 
-  describe('passthrough (non-bash tools)', () => {
-    it('file_read passes through unchanged', () => {
+  describe('passthrough (non-routed tools)', () => {
+    it('file_read with normal path passes through', () => {
       const d = router.route('file_read', { file_path: 'foo.ts' })
       expect(d.wasRouted).toBe(false)
       expect(d.resolvedToolName).toBe('file_read')
@@ -23,8 +24,8 @@ describe('ToolRouter', () => {
       expect(d.resolvedToolName).toBe('file_write')
     })
 
-    it('search passes through unchanged', () => {
-      const d = router.route('search', { query: 'foo' })
+    it('search with normal query passes through', () => {
+      const d = router.route('search', { query: 'TODO' })
       expect(d.wasRouted).toBe(false)
       expect(d.resolvedToolName).toBe('search')
     })
@@ -306,6 +307,175 @@ describe('ToolRouter', () => {
     it('non-string command is not routed', () => {
       const d = router.route('bash', { command: 42 })
       expect(d.wasRouted).toBe(false)
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // Rule E: file_read with glob → search
+  // -----------------------------------------------------------------------
+
+  describe('Rule E: file_read with glob → search', () => {
+    it('routes file_read with * wildcard to search', () => {
+      const d = router.route('file_read', { file_path: '*.ts' })
+      expect(d.wasRouted).toBe(true)
+      expect(d.resolvedToolName).toBe('search')
+      expect(d.resolvedArgs).toEqual({ query: '*.ts', path: '.' })
+      expect(d.ruleId).toBe('file_read_glob_to_search')
+    })
+
+    it('routes file_read with ** glob to search', () => {
+      const d = router.route('file_read', { file_path: 'src/**/*.ts' })
+      expect(d.wasRouted).toBe(true)
+      expect(d.resolvedToolName).toBe('search')
+      expect(d.resolvedArgs).toEqual({ query: 'src/**/*.ts', path: '.' })
+    })
+
+    it('routes file_read with ? wildcard to search', () => {
+      const d = router.route('file_read', { file_path: 'file?.ts' })
+      expect(d.wasRouted).toBe(true)
+      expect(d.resolvedToolName).toBe('search')
+    })
+
+    it('routes file_read with bracket glob to search', () => {
+      const d = router.route('file_read', { file_path: 'src/[a-z].ts' })
+      expect(d.wasRouted).toBe(true)
+      expect(d.resolvedToolName).toBe('search')
+    })
+
+    it('does NOT route file_read with normal path', () => {
+      const d = router.route('file_read', { file_path: 'src/utils.ts' })
+      expect(d.wasRouted).toBe(false)
+      expect(d.resolvedToolName).toBe('file_read')
+    })
+
+    it('does NOT route file_read with absolute path', () => {
+      const d = router.route('file_read', { file_path: '/home/user/project/index.ts' })
+      expect(d.wasRouted).toBe(false)
+    })
+
+    it('does NOT route file_read without file_path', () => {
+      const d = router.route('file_read', {})
+      expect(d.wasRouted).toBe(false)
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // Rule F: search with exact file path → file_read
+  // -----------------------------------------------------------------------
+
+  describe('Rule F: search with exact path → file_read', () => {
+    it('routes search with exact file path to file_read', () => {
+      const d = router.route('search', { query: 'src/utils.ts' })
+      expect(d.wasRouted).toBe(true)
+      expect(d.resolvedToolName).toBe('file_read')
+      expect(d.resolvedArgs).toEqual({ file_path: 'src/utils.ts' })
+      expect(d.ruleId).toBe('search_exact_path_to_file_read')
+    })
+
+    it('routes search with nested path to file_read', () => {
+      const d = router.route('search', { query: 'packages/core/src/index.ts' })
+      expect(d.wasRouted).toBe(true)
+      expect(d.resolvedToolName).toBe('file_read')
+      expect(d.resolvedArgs).toEqual({ file_path: 'packages/core/src/index.ts' })
+    })
+
+    it('does NOT route search with regex pattern', () => {
+      const d = router.route('search', { query: 'TODO.*fix' })
+      expect(d.wasRouted).toBe(false)
+      expect(d.resolvedToolName).toBe('search')
+    })
+
+    it('does NOT route search with spaces (natural language query)', () => {
+      const d = router.route('search', { query: 'function createRouter' })
+      expect(d.wasRouted).toBe(false)
+    })
+
+    it('does NOT route search with glob pattern', () => {
+      const d = router.route('search', { query: '*.ts' })
+      expect(d.wasRouted).toBe(false)
+    })
+
+    it('does NOT route search without query', () => {
+      const d = router.route('search', {})
+      expect(d.wasRouted).toBe(false)
+    })
+
+    it('does NOT route search with path-like string without extension', () => {
+      const d = router.route('search', { query: 'src/utils' })
+      expect(d.wasRouted).toBe(false)
+    })
+  })
+
+  // -----------------------------------------------------------------------
+  // Contract-based rules
+  // -----------------------------------------------------------------------
+
+  describe('contract-based rules', () => {
+    const contractWithHints: ToolContract = {
+      toolName: 'file_read',
+      whenToUse: [],
+      whenNotToUse: [],
+      preconditions: [],
+      failureSemantics: [],
+      fallbackHints: [],
+      routeHints: {
+        argMisusePatterns: [
+          { argName: 'file_path', pattern: /[*?[\]]/, suggestTool: 'search', reason: 'glob pattern in file_path' },
+        ],
+      },
+    }
+
+    const contractWithoutHints: ToolContract = {
+      toolName: 'bash',
+      whenToUse: [],
+      whenNotToUse: [],
+      preconditions: [],
+      failureSemantics: [],
+      fallbackHints: [],
+    }
+
+    const routerWithContracts = new ToolRouter([contractWithHints, contractWithoutHints])
+
+    it('contract rule routes file_read with glob to search', () => {
+      const d = routerWithContracts.route('file_read', { file_path: 'src/**/*.ts' })
+      expect(d.wasRouted).toBe(true)
+      expect(d.resolvedToolName).toBe('search')
+      // Semantic rule E fires first (before contract rule), both would match
+      expect(d.ruleId).toBe('file_read_glob_to_search')
+    })
+
+    it('contract rule does not fire for normal file_read', () => {
+      const d = routerWithContracts.route('file_read', { file_path: 'src/index.ts' })
+      expect(d.wasRouted).toBe(false)
+    })
+
+    it('contract without routeHints generates no rules', () => {
+      // bash with normal command should still route via bash rules
+      const d = routerWithContracts.route('bash', { command: 'cat foo.ts' })
+      expect(d.wasRouted).toBe(true)
+      expect(d.ruleId).toBe('bash_cat_to_file_read')
+    })
+
+    it('contract rule generates correct ruleId', () => {
+      // Use a custom contract to test contract-specific rule ID
+      const customContract: ToolContract = {
+        toolName: 'custom_tool',
+        whenToUse: [],
+        whenNotToUse: [],
+        preconditions: [],
+        failureSemantics: [],
+        fallbackHints: [],
+        routeHints: {
+          argMisusePatterns: [
+            { argName: 'target', pattern: /^https?:\/\//, suggestTool: 'web_fetch', reason: 'URL in target arg' },
+          ],
+        },
+      }
+      const r = new ToolRouter([customContract])
+      const d = r.route('custom_tool', { target: 'https://example.com' })
+      expect(d.wasRouted).toBe(true)
+      expect(d.ruleId).toBe('contract_custom_tool_target_misuse')
+      expect(d.reason).toContain('Contract hint')
     })
   })
 })

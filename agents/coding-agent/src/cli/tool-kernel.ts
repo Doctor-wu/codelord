@@ -65,7 +65,7 @@ export function createToolKernel(options: ToolKernelOptions): ToolKernel {
     ['ls', createLsHandler({ cwd })],
   ])
 
-  const router = new ToolRouter()
+  const router = new ToolRouter(builtinContracts)
   const safetyPolicy = new ToolSafetyPolicy({ cwd })
 
   return { tools, toolHandlers, contracts: builtinContracts, router, safetyPolicy }

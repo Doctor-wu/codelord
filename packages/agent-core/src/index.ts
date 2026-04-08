@@ -30,7 +30,7 @@ export { resolveModelCapabilities } from './model-capabilities.js'
 export type { ModelCapabilities } from './model-capabilities.js'
 
 export { ToolRouter } from './tool-router.js'
-export type { ToolRouteDecision } from './tool-router.js'
+export type { ToolRouteDecision, ContractRouteHints, ArgMisusePattern } from './tool-router.js'
 
 export { ToolSafetyPolicy } from './tool-safety.js'
 export type { RiskLevel, ToolSafetyDecision } from './tool-safety.js'

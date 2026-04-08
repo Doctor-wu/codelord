@@ -1,6 +1,8 @@
 // ---------------------------------------------------------------------------
-// Tool Router v1 — conservative, deterministic bash-to-built-in routing
+// Tool Router v2 — semantic routing + contracts integration
 // ---------------------------------------------------------------------------
+
+import type { ToolContract } from './tools/tool-contract.js'
 
 // ---------------------------------------------------------------------------
 // Route decision — the output of routing a single tool call
@@ -39,21 +41,42 @@ function hasShellComplexity(cmd: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Individual routing rules
+// Route rule interface
 // ---------------------------------------------------------------------------
+
+interface RouteResult {
+  toolName: string
+  args: Record<string, unknown>
+  reason: string
+}
 
 interface RouteRule {
   id: string
   /** Try to match and rewrite. Return null if no match. */
-  match(command: string): { toolName: string; args: Record<string, unknown>; reason: string } | null
+  match(toolName: string, args: Record<string, unknown>): RouteResult | null
 }
+
+// ---------------------------------------------------------------------------
+// Bash command extraction helper
+// ---------------------------------------------------------------------------
+
+/** Extract the command string from bash tool args. Returns empty string if not bash or missing. */
+function extractBashCommand(toolName: string, args: Record<string, unknown>): string {
+  if (toolName !== 'bash') return ''
+  return typeof args.command === 'string' ? args.command : ''
+}
+
+// ---------------------------------------------------------------------------
+// Individual routing rules — bash rewrites (A–D)
+// ---------------------------------------------------------------------------
 
 // --- Rule A: cat <file> → file_read ---
 
 const ruleCat: RouteRule = {
   id: 'bash_cat_to_file_read',
-  match(command) {
-    if (hasShellComplexity(command)) return null
+  match(toolName, args) {
+    const command = extractBashCommand(toolName, args)
+    if (!command || hasShellComplexity(command)) return null
 
     const m = command.match(/^\s*cat\s+(.+?)\s*$/)
     if (!m) return null
@@ -80,8 +103,9 @@ const ruleCat: RouteRule = {
 
 const ruleHead: RouteRule = {
   id: 'bash_head_to_file_read',
-  match(command) {
-    if (hasShellComplexity(command)) return null
+  match(toolName, args) {
+    const command = extractBashCommand(toolName, args)
+    if (!command || hasShellComplexity(command)) return null
 
     // head -n N file  OR  head -N file
     const m1 = command.match(/^\s*head\s+-n\s+(\d+)\s+(.+?)\s*$/)
@@ -112,8 +136,9 @@ const ruleHead: RouteRule = {
 
 const ruleLs: RouteRule = {
   id: 'bash_ls_to_ls',
-  match(command) {
-    if (hasShellComplexity(command)) return null
+  match(toolName, toolArgs) {
+    const command = extractBashCommand(toolName, toolArgs)
+    if (!command || hasShellComplexity(command)) return null
 
     // Match: ls, ls path, ls -R, ls -R path, ls -la (reject complex flags)
     const m = command.match(/^\s*ls(\s+.*?)?\s*$/)
@@ -158,8 +183,9 @@ const ruleLs: RouteRule = {
 
 const ruleSearch: RouteRule = {
   id: 'bash_search_to_search',
-  match(command) {
-    if (hasShellComplexity(command)) return null
+  match(toolName, args) {
+    const command = extractBashCommand(toolName, args)
+    if (!command || hasShellComplexity(command)) return null
 
     // Try rg first, then grep
     return matchRg(command) ?? matchGrep(command) ?? null
@@ -335,12 +361,106 @@ function unquote(s: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// ToolRouter — the main router class
+// Semantic routing rules (E–F) — cross-tool corrections
 // ---------------------------------------------------------------------------
 
-const RULES: readonly RouteRule[] = [ruleCat, ruleHead, ruleLs, ruleSearch]
+// --- Rule E: file_read with glob/wildcard → search ---
+
+const ruleFileReadGlob: RouteRule = {
+  id: 'file_read_glob_to_search',
+  match(toolName, args) {
+    if (toolName !== 'file_read') return null
+    const filePath = args.file_path as string | undefined
+    if (!filePath || !/[*?[\]]/.test(filePath)) return null
+    return {
+      toolName: 'search',
+      args: { query: filePath, path: '.' },
+      reason: 'file_read with glob pattern routed to search',
+    }
+  },
+}
+
+// --- Rule F: search with exact file path → file_read ---
+
+const ruleSearchExactPath: RouteRule = {
+  id: 'search_exact_path_to_file_read',
+  match(toolName, args) {
+    if (toolName !== 'search') return null
+    const query = args.query as string | undefined
+    if (!query) return null
+    // Looks like a file path: has extension, no regex chars, no spaces
+    if (/^[\w./-]+\.\w+$/.test(query) && !/ /.test(query)) {
+      return {
+        toolName: 'file_read',
+        args: { file_path: query },
+        reason: 'search with exact file path routed to file_read',
+      }
+    }
+    return null
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Contract-based rule generation
+// ---------------------------------------------------------------------------
+
+/** Route hint declared in a ToolContract — describes an arg misuse pattern */
+export interface ArgMisusePattern {
+  argName: string
+  pattern: RegExp
+  suggestTool: string
+  reason: string
+}
+
+/** Optional routing hints on a ToolContract, consumed by the router */
+export interface ContractRouteHints {
+  argMisusePatterns?: ArgMisusePattern[]
+}
+
+/** Generate RouteRules from contract routeHints */
+function generateContractRules(contracts: readonly ToolContract[]): RouteRule[] {
+  const rules: RouteRule[] = []
+  for (const contract of contracts) {
+    const hints = contract.routeHints
+    if (!hints?.argMisusePatterns) continue
+    for (const pattern of hints.argMisusePatterns) {
+      rules.push({
+        id: `contract_${contract.toolName}_${pattern.argName}_misuse`,
+        match(toolName, args) {
+          if (toolName !== contract.toolName) return null
+          const value = args[pattern.argName]
+          if (typeof value !== 'string') return null
+          if (!pattern.pattern.test(value)) return null
+          return {
+            toolName: pattern.suggestTool,
+            args: { query: value, path: '.' },
+            reason: `Contract hint: ${pattern.reason}`,
+          }
+        },
+      })
+    }
+  }
+  return rules
+}
+
+// ---------------------------------------------------------------------------
+// Built-in rule sets
+// ---------------------------------------------------------------------------
+
+const BASH_RULES: readonly RouteRule[] = [ruleCat, ruleHead, ruleLs, ruleSearch]
+const SEMANTIC_RULES: readonly RouteRule[] = [ruleFileReadGlob, ruleSearchExactPath]
 
 export class ToolRouter {
+  private readonly rules: readonly RouteRule[]
+
+  constructor(contracts?: readonly ToolContract[]) {
+    this.rules = [
+      ...BASH_RULES,
+      ...SEMANTIC_RULES,
+      ...(contracts ? generateContractRules(contracts) : []),
+    ]
+  }
+
   /**
    * Route a tool call. Returns a decision describing whether and how
    * the call was rewritten.
@@ -351,18 +471,8 @@ export class ToolRouter {
       originalArgs: args,
     }
 
-    // Only route bash tool calls
-    if (toolName !== 'bash') {
-      return { ...base, resolvedToolName: toolName, resolvedArgs: args, wasRouted: false, ruleId: null, reason: null }
-    }
-
-    const command = typeof args.command === 'string' ? args.command : ''
-    if (!command) {
-      return { ...base, resolvedToolName: toolName, resolvedArgs: args, wasRouted: false, ruleId: null, reason: null }
-    }
-
-    for (const rule of RULES) {
-      const result = rule.match(command)
+    for (const rule of this.rules) {
+      const result = rule.match(toolName, args)
       if (result) {
         return {
           ...base,

@@ -2,6 +2,8 @@
 // ToolContract — structured metadata describing how a tool should be used
 // ---------------------------------------------------------------------------
 
+import type { ContractRouteHints } from '../tool-router.js'
+
 export interface ToolContract {
   /** Tool name this contract applies to */
   toolName: string
@@ -15,4 +17,6 @@ export interface ToolContract {
   failureSemantics: string[]
   /** What to try when this tool fails or returns empty results */
   fallbackHints: string[]
+  /** Optional hints for the router about arg misuse patterns */
+  routeHints?: ContractRouteHints
 }

@@ -113,6 +113,11 @@ export const fileReadContract: ToolContract = {
     'On NOT_FOUND, use ls to verify the path or search to locate the file.',
     'Use offset/limit for large files to avoid excessive output.',
   ],
+  routeHints: {
+    argMisusePatterns: [
+      { argName: 'file_path', pattern: /[*?[\]]/, suggestTool: 'search', reason: 'glob pattern in file_path' },
+    ],
+  },
 }
 
 // ---------------------------------------------------------------------------
