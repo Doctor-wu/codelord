@@ -479,10 +479,9 @@ M9   多体协作            ──→ Multi-Agent
 
 **Trace / Hooks / UI 的关系：** 三者是 event spine 的平级消费者，不存在谁建在谁之上的关系。Trace 消费全量事件写入持久化账本；Hooks 只暴露外部需要的切面；Ink UI 消费实时投影。
 
-**明确不做项：** OTEL 导出（当前）、Replay 实现（当前）、streaming 中间态持久化、trace check 当前形态、跨 session 聚合分析。
+**明确不做项：** Replay 实现（当前）、streaming 中间态持久化、trace check 当前形态、跨 session 聚合分析。
 
-**未来可选路径（不进当前主线，但保留接口意识）：**
-- **OTel 兼容导出：** codelord 的三层 trace 模型比行业通用的 flat span 树更丰富（provider / agent-core / user 层分离、跨层 identity、queue lifecycle、operator action 等一等事实在通用 OTel schema 里没有对应物）。当前强行适配 OTel 会丢信息、增加维护负担。但未来如果需要接入外部可观测性平台（LangSmith、Langfuse、Arize 等），OTel 是通用接口。**策略：trace 持久化 schema 设计时保持"可投影为 OTel span"的意识，但不为此牺牲 codelord 自有的三层语义。真正需要时再写一个 lossy exporter。**
+**已移至其他 milestone：** OTel 兼容导出 → M3-S2（eval 基础设施阶段落地，作为 trace 对外输出的标准通道）。
 
 **基于立场的实现顺序：**
 1. ✅ 补齐 Provider 层记录（当前最大的诊断盲区）
