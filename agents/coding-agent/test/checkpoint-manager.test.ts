@@ -70,14 +70,18 @@ describe('CheckpointManager', () => {
 
   // --- 1. Pure read burst does NOT create checkpoint ---
 
-  it('pure read burst does not create checkpoint', async () => {
+  it('pure read burst creates shadow checkpoint but no file snapshots', async () => {
     const { mgr, wrapped } = setup()
 
     mgr.beginBurst()
     await wrapped.get('file_read')!({ file_path: 'foo.txt' }, emitCtx)
-    mgr.endBurst()
+    const checkpoint = mgr.endBurst()
 
-    expect(mgr.undoCount).toBe(0)
+    // Shadow git checkpoint is always created
+    expect(mgr.undoCount).toBe(1)
+    expect(checkpoint).not.toBeNull()
+    expect(checkpoint!.strategy).toBe('shadow_git')
+    expect(checkpoint!.files).toHaveLength(0)
   })
 
   // --- 2. Mutating burst lazily creates checkpoint on first write ---
@@ -229,8 +233,10 @@ describe('CheckpointManager', () => {
 
     const result = mgr.undo()!
     expect(result.record.files).toHaveLength(2)
-    expect(result.restoredFiles).toHaveLength(2)
-    expect(result.record.strategy).toBe('file_snapshot')
+    // shadow git reset already restores files, so file-level restore
+    // only counts files it actually touched (existing file overwrite)
+    expect(result.restoredFiles.length).toBeGreaterThanOrEqual(1)
+    expect(result.record.strategy).toBe('hybrid')
     expect(result.record.canUndo).toBe(true)
   })
 
@@ -329,7 +335,7 @@ function makeGitRepo(): string {
   return dir
 }
 
-describe('CheckpointManager — git-aware', () => {
+describe('CheckpointManager — shadow git', () => {
   const dirs: string[] = []
 
   afterEach(() => {
@@ -339,12 +345,11 @@ describe('CheckpointManager — git-aware', () => {
     dirs.length = 0
   })
 
-  it('beginBurst in git repo creates git checkpoint with stash when dirty', () => {
-    const cwd = makeGitRepo()
+  it('beginBurst creates shadow git checkpoint', () => {
+    const cwd = makeTmpDir()
     dirs.push(cwd)
 
-    // Make the repo dirty
-    writeFileSync(join(cwd, 'dirty.txt'), 'uncommitted', 'utf-8')
+    writeFileSync(join(cwd, 'file.txt'), 'content', 'utf-8')
 
     const mgr = new CheckpointManager({ cwd, sessionId: 'test' })
     const handlers = new Map<string, ToolHandler>([
@@ -353,41 +358,48 @@ describe('CheckpointManager — git-aware', () => {
         return { output: 'OK', isError: false }
       }],
     ])
-    const wrapped = mgr.wrapHandlers(handlers)
+    mgr.wrapHandlers(handlers)
 
     mgr.beginBurst()
-    // After beginBurst, dirty file should be stashed — verify it's gone from working tree
-    expect(existsSync(join(cwd, 'dirty.txt'))).toBe(false)
+    // file.txt should still exist (non-destructive)
+    expect(existsSync(join(cwd, 'file.txt'))).toBe(true)
+    expect(readFileSync(join(cwd, 'file.txt'), 'utf-8')).toBe('content')
 
-    // Simulate a bash-only burst (no file_write/file_edit)
     const checkpoint = mgr.endBurst()
     expect(checkpoint).not.toBeNull()
-    expect(checkpoint!.strategy).toBe('git_stash')
-    expect(checkpoint!.git).not.toBeNull()
-    expect(checkpoint!.git!.hadUncommittedChanges).toBe(true)
-    expect(checkpoint!.git!.stashRef).toBe('stash@{0}')
+    expect(checkpoint!.strategy).toBe('shadow_git')
+    expect(checkpoint!.shadowGit).not.toBeNull()
+    expect(checkpoint!.shadowGit!.commitHash).toMatch(/^[0-9a-f]{40}$/)
     expect(checkpoint!.files).toHaveLength(0)
   })
 
-  it('beginBurst in git repo records HEAD but no stash when clean', () => {
+  it('shadow git checkpoint is non-destructive', () => {
     const cwd = makeGitRepo()
     dirs.push(cwd)
+
+    // Create dirty state in user's git repo
+    writeFileSync(join(cwd, 'dirty.txt'), 'uncommitted', 'utf-8')
+    execSync('git add dirty.txt', { cwd, stdio: 'pipe' })
 
     const mgr = new CheckpointManager({ cwd, sessionId: 'test' })
-
     mgr.beginBurst()
-    // No file mutations, but git checkpoint should exist with no stash
-    const checkpoint = mgr.endBurst()
-    // Clean repo + no file mutations = no checkpoint needed
-    expect(checkpoint).toBeNull()
+
+    // User's staged file is untouched
+    expect(existsSync(join(cwd, 'dirty.txt'))).toBe(true)
+    expect(readFileSync(join(cwd, 'dirty.txt'), 'utf-8')).toBe('uncommitted')
+
+    // User's git staging area is untouched
+    const userStatus = execSync('git status --porcelain', { cwd, stdio: 'pipe' }).toString()
+    expect(userStatus).toContain('dirty.txt')
+
+    mgr.endBurst()
   })
 
-  it('hybrid strategy when git stash + file_write both present', () => {
-    const cwd = makeGitRepo()
+  it('undo restores via shadow git reset', () => {
+    const cwd = makeTmpDir()
     dirs.push(cwd)
 
-    // Make dirty
-    writeFileSync(join(cwd, 'dirty.txt'), 'uncommitted', 'utf-8')
+    writeFileSync(join(cwd, 'original.txt'), 'before', 'utf-8')
 
     const mgr = new CheckpointManager({ cwd, sessionId: 'test' })
     const handlers = new Map<string, ToolHandler>([
@@ -399,45 +411,53 @@ describe('CheckpointManager — git-aware', () => {
     const wrapped = mgr.wrapHandlers(handlers)
 
     mgr.beginBurst()
-    // file_write triggers file snapshot
-    wrapped.get('file_write')!({ file_path: 'new.txt', content: 'hello' }, { emitOutput: () => {} })
-
-    const checkpoint = mgr.endBurst()
-    expect(checkpoint).not.toBeNull()
-    expect(checkpoint!.strategy).toBe('hybrid')
-    expect(checkpoint!.git).not.toBeNull()
-    expect(checkpoint!.files.length).toBeGreaterThanOrEqual(1)
-  })
-
-  it('undo executes git stash pop', () => {
-    const cwd = makeGitRepo()
-    dirs.push(cwd)
-
-    // Make dirty
-    writeFileSync(join(cwd, 'dirty.txt'), 'uncommitted', 'utf-8')
-
-    const mgr = new CheckpointManager({ cwd, sessionId: 'test' })
-
-    mgr.beginBurst()
-    // dirty.txt is now stashed
-    expect(existsSync(join(cwd, 'dirty.txt'))).toBe(false)
-
+    // Simulate agent changes
+    wrapped.get('file_write')!({ file_path: 'original.txt', content: 'modified' }, { emitOutput: () => {} })
+    writeFileSync(join(cwd, 'new-by-bash.txt'), 'bash created', 'utf-8')
     const checkpoint = mgr.endBurst()
     expect(checkpoint).not.toBeNull()
 
-    // Undo should pop the stash
+    // Verify current state
+    expect(readFileSync(join(cwd, 'original.txt'), 'utf-8')).toBe('modified')
+    expect(existsSync(join(cwd, 'new-by-bash.txt'))).toBe(true)
+
+    // Undo
     const result = mgr.undo()
     expect(result).not.toBeNull()
     expect(result!.gitRestored).toBe(true)
-    expect(existsSync(join(cwd, 'dirty.txt'))).toBe(true)
-    expect(readFileSync(join(cwd, 'dirty.txt'), 'utf-8')).toBe('uncommitted')
+
+    // original.txt restored
+    expect(readFileSync(join(cwd, 'original.txt'), 'utf-8')).toBe('before')
+    // bash-created file removed
+    expect(existsSync(join(cwd, 'new-by-bash.txt'))).toBe(false)
   })
 
-  it('endBurst returns CheckpointRecord with correct shape', () => {
+  it('shadow repo coexists with user git repo', () => {
     const cwd = makeGitRepo()
     dirs.push(cwd)
 
-    writeFileSync(join(cwd, 'dirty.txt'), 'data', 'utf-8')
+    const userHead = execSync('git rev-parse HEAD', { cwd, stdio: 'pipe' }).toString().trim()
+
+    writeFileSync(join(cwd, 'work.txt'), 'data', 'utf-8')
+
+    const mgr = new CheckpointManager({ cwd, sessionId: 'test' })
+    mgr.beginBurst()
+    mgr.endBurst()
+
+    // User's HEAD is unchanged
+    const userHeadAfter = execSync('git rev-parse HEAD', { cwd, stdio: 'pipe' }).toString().trim()
+    expect(userHeadAfter).toBe(userHead)
+
+    // User's stash is empty (we never touched it)
+    const stashList = execSync('git stash list', { cwd, stdio: 'pipe' }).toString().trim()
+    expect(stashList).toBe('')
+  })
+
+  it('endBurst returns CheckpointRecord with correct shape', () => {
+    const cwd = makeTmpDir()
+    dirs.push(cwd)
+
+    writeFileSync(join(cwd, 'data.txt'), 'data', 'utf-8')
 
     const mgr = new CheckpointManager({ cwd, sessionId: 'test' })
     mgr.beginBurst()
@@ -448,29 +468,21 @@ describe('CheckpointManager — git-aware', () => {
     expect(record!.sessionId).toBe('test')
     expect(record!.burstIndex).toBe(1)
     expect(record!.canUndo).toBe(true)
-    expect(record!.git!.headCommit).toMatch(/^[0-9a-f]{40}$/)
+    expect(record!.shadowGit!.commitHash).toMatch(/^[0-9a-f]{40}$/)
   })
 
-  it('non-git repo falls back to pure file_snapshot', () => {
+  it('shadow git works even in non-git directory', () => {
     const cwd = makeTmpDir()
     dirs.push(cwd)
 
-    const mgr = new CheckpointManager({ cwd, sessionId: 'test' })
-    const handlers = new Map<string, ToolHandler>([
-      ['file_write', async (args) => {
-        writeFileSync(join(cwd, args.file_path as string), args.content as string, 'utf-8')
-        return { output: 'OK', isError: false }
-      }],
-    ])
-    const wrapped = mgr.wrapHandlers(handlers)
+    writeFileSync(join(cwd, 'file.txt'), 'data', 'utf-8')
 
+    const mgr = new CheckpointManager({ cwd, sessionId: 'test' })
     mgr.beginBurst()
-    wrapped.get('file_write')!({ file_path: 'test.txt', content: 'data' }, { emitOutput: () => {} })
     const checkpoint = mgr.endBurst()
 
     expect(checkpoint).not.toBeNull()
-    expect(checkpoint!.strategy).toBe('file_snapshot')
-    expect(checkpoint!.git).toBeNull()
-    expect(checkpoint!.files).toHaveLength(1)
+    expect(checkpoint!.shadowGit).not.toBeNull()
+    expect(checkpoint!.strategy).toBe('shadow_git')
   })
 })

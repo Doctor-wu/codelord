@@ -14,7 +14,7 @@ import { resolve, isAbsolute } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { execSync } from 'node:child_process'
 import type { ToolHandler } from '@agent/core'
-import type { CheckpointRecord, FileSnapshot, GitCheckpoint } from '@agent/core'
+import type { CheckpointRecord, FileSnapshot, ShadowGitCheckpoint } from '@agent/core'
 
 // ---------------------------------------------------------------------------
 // Mutating tool names that trigger checkpoint creation
@@ -32,7 +32,8 @@ export class CheckpointManager {
   private _stack: CheckpointRecord[] = []
   private _currentBurst: CheckpointRecord | null = null
   private _burstCounter = 0
-  private _gitCheckpoint: GitCheckpoint | null = null
+  private _shadowCheckpoint: ShadowGitCheckpoint | null = null
+  private _shadowReady = false
 
   constructor(opts: { cwd: string; sessionId: string; stack?: CheckpointRecord[] }) {
     this.cwd = opts.cwd
@@ -46,15 +47,23 @@ export class CheckpointManager {
   beginBurst(): void {
     this._burstCounter++
     this._currentBurst = null
-    this._gitCheckpoint = this.createGitCheckpoint()
+    this._shadowCheckpoint = this.createShadowCheckpoint()
   }
 
   /** Call at the end of each runtime burst — finalizes the checkpoint if one was created. Returns the record if created. */
   endBurst(): CheckpointRecord | null {
     const hasFiles = this._currentBurst && this._currentBurst.files.length > 0
-    const hasGitStash = this._gitCheckpoint !== null && this._gitCheckpoint.stashRef !== null
 
-    if (hasFiles || hasGitStash) {
+    // Check if working tree actually changed since the shadow checkpoint
+    let hasShadowDirty = false
+    if (this._shadowCheckpoint) {
+      try {
+        const status = this.shadowGit('status --porcelain')
+        hasShadowDirty = status.length > 0
+      } catch { /* shadow repo unavailable — treat as no change */ }
+    }
+
+    if (hasFiles || hasShadowDirty) {
       // Ensure a burst record exists
       if (!this._currentBurst) {
         this._currentBurst = {
@@ -62,22 +71,22 @@ export class CheckpointManager {
           sessionId: this.sessionId,
           createdAt: Date.now(),
           burstIndex: this._burstCounter,
-          strategy: 'git_stash',
+          strategy: 'shadow_git',
           files: [],
-          git: this._gitCheckpoint,
+          shadowGit: this._shadowCheckpoint,
           summary: '',
           canUndo: true,
           limitations: [],
         }
       } else {
-        this._currentBurst.git = this._gitCheckpoint
+        this._currentBurst.shadowGit = this._shadowCheckpoint
       }
 
       // Determine strategy
-      if (hasFiles && hasGitStash) {
+      if (hasFiles && hasShadowDirty) {
         this._currentBurst.strategy = 'hybrid'
-      } else if (hasGitStash) {
-        this._currentBurst.strategy = 'git_stash'
+      } else if (hasShadowDirty) {
+        this._currentBurst.strategy = 'shadow_git'
       }
       // else stays 'file_snapshot'
 
@@ -85,12 +94,12 @@ export class CheckpointManager {
       this._stack.push(this._currentBurst)
       const created = this._currentBurst
       this._currentBurst = null
-      this._gitCheckpoint = null
+      this._shadowCheckpoint = null
       return created
     }
 
     this._currentBurst = null
-    this._gitCheckpoint = null
+    this._shadowCheckpoint = null
     return null
   }
 
@@ -122,20 +131,23 @@ export class CheckpointManager {
       return null
     }
 
-    // --- Git restore (best effort) ---
+    // --- Shadow git restore (best effort) ---
     let gitRestored = false
-    if (record.git?.stashRef) {
+    if (record.shadowGit) {
       try {
-        execSync(`git stash pop ${record.git.stashRef}`, {
-          cwd: this.cwd,
-          timeout: 5000,
-          stdio: 'pipe',
-        })
+        const gitDir = record.shadowGit.shadowGitDir
+        const hash = record.shadowGit.commitHash
+        const sg = (args: string) => execSync(
+          `git --git-dir="${gitDir}" --work-tree="${this.cwd}" ${args}`,
+          { cwd: this.cwd, timeout: 10000, stdio: 'pipe' },
+        )
+        // Reset working tree to the checkpoint state
+        sg(`reset --hard ${hash}`)
+        // Remove files that were added after the checkpoint
+        sg('clean -fd')
         gitRestored = true
       } catch {
-        // Git stash pop failed (conflict, stash already gone, etc.)
-        // Record limitation but don't block file-level restore
-        record.limitations.push('git stash pop failed — manual recovery may be needed')
+        record.limitations.push('shadow git restore failed — manual recovery may be needed')
       }
     }
 
@@ -191,7 +203,7 @@ export class CheckpointManager {
         burstIndex: this._burstCounter,
         strategy: 'file_snapshot',
         files: [],
-        git: null,
+        shadowGit: null,
         summary: '',
         canUndo: true,
         limitations: [],
@@ -214,54 +226,67 @@ export class CheckpointManager {
     this._currentBurst.summary = `${this._currentBurst.files.length} file(s) protected`
   }
 
-  /** Create a git-level checkpoint if cwd is inside a git repo */
-  private createGitCheckpoint(): GitCheckpoint | null {
+  /** Get the shadow git-dir path */
+  private get shadowGitDir(): string {
+    return resolve(this.cwd, '.codelord', 'shadow')
+  }
+
+  /** Execute a git command against the shadow repo */
+  private shadowGit(args: string, timeout = 5000): string {
+    return execSync(
+      `git --git-dir="${this.shadowGitDir}" --work-tree="${this.cwd}" ${args}`,
+      { cwd: this.cwd, timeout, stdio: 'pipe' },
+    ).toString().trim()
+  }
+
+  /** Lazy-init the shadow git repo. Returns true if ready. */
+  private ensureShadowRepo(): boolean {
+    if (this._shadowReady) return true
     try {
-      const isGit = execSync('git rev-parse --is-inside-work-tree', {
-        cwd: this.cwd,
-        timeout: 3000,
-        stdio: 'pipe',
-      }).toString().trim()
+      const gitDir = this.shadowGitDir
+      mkdirSync(gitDir, { recursive: true })
+      // Init if not already a git repo
+      try {
+        this.shadowGit('rev-parse --git-dir')
+      } catch {
+        execSync(`git init --bare "${gitDir}"`, { timeout: 5000, stdio: 'pipe' })
+        // Exclude .codelord/ from shadow repo tracking
+        const excludeDir = resolve(gitDir, 'info')
+        mkdirSync(excludeDir, { recursive: true })
+        writeFileSync(resolve(excludeDir, 'exclude'), '.codelord/\n', 'utf-8')
+        // Configure for the shadow repo
+        this.shadowGit('config user.email "codelord-shadow@local"')
+        this.shadowGit('config user.name "codelord-shadow"')
+        // Initial commit so HEAD exists
+        this.shadowGit('commit --allow-empty -m "shadow-init"')
+      }
+      this._shadowReady = true
+      return true
+    } catch {
+      return false
+    }
+  }
 
-      if (isGit !== 'true') return null
+  /** Snapshot current working tree state into shadow repo */
+  private createShadowCheckpoint(): ShadowGitCheckpoint | null {
+    if (!this.ensureShadowRepo()) return null
+    try {
+      // Stage everything including untracked, excluding .codelord/
+      this.shadowGit('add -A')
 
-      const headCommit = execSync('git rev-parse HEAD', {
-        cwd: this.cwd,
-        timeout: 3000,
-        stdio: 'pipe',
-      }).toString().trim()
-
-      const status = execSync('git status --porcelain', {
-        cwd: this.cwd,
-        timeout: 3000,
-        stdio: 'pipe',
-      }).toString().trim()
-
-      const hadUncommittedChanges = status.length > 0
-      let stashRef: string | null = null
-
-      if (hadUncommittedChanges) {
-        const stashMsg = `codelord-checkpoint-${this._burstCounter}`
-        execSync(`git stash push -m "${stashMsg}" --include-untracked`, {
-          cwd: this.cwd,
-          timeout: 5000,
-          stdio: 'pipe',
-        })
-        // Verify stash was created by checking stash list
-        const stashList = execSync('git stash list --max-count=1', {
-          cwd: this.cwd,
-          timeout: 3000,
-          stdio: 'pipe',
-        }).toString().trim()
-
-        if (stashList.includes(stashMsg)) {
-          stashRef = 'stash@{0}'
-        }
+      // Check if there's anything to commit
+      const status = this.shadowGit('status --porcelain')
+      if (status.length === 0) {
+        // Working tree identical to last shadow commit — return current HEAD
+        const hash = this.shadowGit('rev-parse HEAD')
+        return { shadowGitDir: this.shadowGitDir, commitHash: hash }
       }
 
-      return { headCommit, hadUncommittedChanges, stashRef }
+      const msg = `checkpoint-${this._burstCounter}`
+      this.shadowGit(`commit -m "${msg}"`)
+      const hash = this.shadowGit('rev-parse HEAD')
+      return { shadowGitDir: this.shadowGitDir, commitHash: hash }
     } catch {
-      // Git not available or not a git repo — skip
       return null
     }
   }
@@ -271,8 +296,8 @@ export class CheckpointManager {
     if (record.files.length > 0) {
       parts.push(`${record.files.length} file(s) protected`)
     }
-    if (record.git) {
-      parts.push(record.git.stashRef ? 'git stash created' : 'git HEAD recorded')
+    if (record.shadowGit) {
+      parts.push(`shadow git: ${record.shadowGit.commitHash.slice(0, 7)}`)
     }
     return parts.join(', ') || 'empty checkpoint'
   }

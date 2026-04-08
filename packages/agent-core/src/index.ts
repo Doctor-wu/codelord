@@ -76,7 +76,7 @@ export type { ToolContract } from './tools/contracts.js'
 export { toSessionMeta, resolveResumeState } from './session-snapshot.js'
 export type { SessionSnapshot, SessionMeta } from './session-snapshot.js'
 
-export type { CheckpointRecord, FileSnapshot, GitCheckpoint } from './checkpoint.js'
+export type { CheckpointRecord, FileSnapshot, ShadowGitCheckpoint } from './checkpoint.js'
 
 export { redact, previewText, safePreview } from './redact.js'
 export type { RedactionHit, RedactionResult } from './redact.js'

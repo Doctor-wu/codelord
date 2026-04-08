@@ -378,7 +378,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
         checkpointId: checkpoint.checkpointId,
         strategy: checkpoint.strategy,
         fileCount: checkpoint.files.length,
-        hasGit: checkpoint.git !== null,
+        hasGit: checkpoint.shadowGit !== null,
         timestamp: Date.now(),
       })
     }
