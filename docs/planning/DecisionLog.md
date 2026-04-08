@@ -6,6 +6,35 @@
 
 ---
 
+## 2026-04-08 — M3 Eval 全局研究完成，RoadMap M3 重构
+
+### 背景
+
+M1/M1X/M2 全部关闭后，按大主题推进协议对 M3（Eval）启动全局研究冲刺。研究覆盖了 Anthropic "Demystifying evals for AI agents"、SWE-bench 系列、Aider Polyglot、Eval-driven development 实践（Claude Code / Codex / Bolt / Descript / v0 / AWS DevOps Agent）、LLM-as-Judge 方法论、行业 eval 框架生态。
+
+### 决策
+
+1. **RoadMap M3 从 M3a-M3f 功能分块重构为 M3-S1~S6 递进式冲刺**：原版按功能类型分块（基础设施 / Product Eval / Research Eval / LLM Judge / 实验平台 / RAG Eval），新版按递进交付顺序分步（外部 benchmark bootstrap → eval 基础设施 → 内部 golden set → 研究实验平台 → LLM judge → 全量 benchmark）。每步有明确的"做之前 vs 做之后"对比。
+2. **外部 Benchmark Fast Bootstrap 前置（M3-S1）**：先用 SWE-bench Verified + Aider Polyglot 获取第一批基线数据和失败模式分析，再建内部 eval 框架。理由：codelord 当前没有任何量化数据，外部 benchmark 是最快获取基线的方式。
+3. **SWE-bench 和 Aider Polyglot 都做**：SWE-bench 测 repo 级理解力和修复能力（更贴近真实使用），Aider Polyglot 测多语言编辑能力（更纯粹的工具链基线）。两者互补。
+4. **Eval 立场确立**：deterministic grader 优先、评结果不评路径、eval-driven development 工作流、capability eval 毕业为 regression eval。完整立场写入 `docs/planning/research/eval-position.md`。
+5. **M3f (RAG Eval) 移出 M3**：RAG eval 依赖 M4 的 retrieval 基础设施，在 M3 阶段做不了。保留在 M4 的 "Context Quality Eval 接入 M3" 子节中。
+6. **从上一轮移交的 4 项任务归入 M3-S5（LLM-as-Judge）**：reasoning quality eval / reasoning regression 套件 / reasoning diagnostics / route quality 指标——这些都需要 LLM judge 能力，放在 deterministic grader 基础打好之后。
+
+### 影响
+
+- M3 的推进顺序从"先建框架"变为"先拿数据"。第一个冲刺的产出是两个外部 benchmark 的基线数字和失败模式分析，而不是 eval 框架本身。
+- Eval 失败模式分析将直接影响 M4/M5 的优先级排序——这是 eval-driven development 的第一次落地。
+- 每步的"做之前 vs 做之后"格式使冲刺目标更明确，也方便归档时做前后对比。
+
+### 结果
+
+- 立场说明写入 `docs/planning/research/eval-position.md`
+- RoadMap M3 section 重构为 M3-S1~S6 递进式冲刺
+- 首次按"大主题推进协议"完整走完 Eval 主题的研究→立场流程
+
+---
+
 ## 2026-04-08 — M1/M1X/M2 尾部收口冲刺关闭
 
 ### 决策
