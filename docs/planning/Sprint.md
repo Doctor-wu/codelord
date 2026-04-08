@@ -29,7 +29,7 @@
 - [x] Reasoning v2 策略：capability 从 pi-ai Model 读取，settled 呈现策略已定义（keep/collapse/hide），tool-scoped rationale 边界明确
 - [x] 会话管理闭环：sessions show/prune CLI 可用，元数据含 git branch/title/summary
 - [x] Undo 补齐：git-aware checkpoint 可用（stash/hybrid/file_snapshot 三策略），checkpoint 事件进入 trace
-- [ ] Router v2：任务语义路由 + contracts 联动
+- [x] Router v2：任务语义路由（Rule E/F）+ contracts routeHints 联动
 - [ ] Trace 补齐：visible_tool_latency 诊断事实 + queue lifecycle 完整建模
 - [ ] `pnpm typecheck` 和 `pnpm test` 全部通过
 
@@ -60,11 +60,11 @@
 - [x] git-aware checkpoint：git repo 中自动 stash，支持 git_stash / hybrid / file_snapshot 三策略
 - [x] Checkpoint 信息与 undo 事件接入 trace（checkpoint_created / checkpoint_undone lifecycle events）
 
-### A5. Tool Router 补强
+### A5. Tool Router 补强 ✅
 
-- [ ] 基于任务语义的更强确定性路由（已知路径读 / 未知位置搜 / 精确编辑 / 新建文件）— Router v2
+- [x] 基于任务语义的路由：Rule E（file_read glob → search）+ Rule F（search exact path → file_read）+ contract-based 规则生成
 - ~~route quality 指标、trace 对齐、可解释 fallback~~ → 移交 M3
-- [ ] contracts 与 router 的更紧密联动
+- [x] contracts 与 router 联动：ToolContract.routeHints.argMisusePatterns 自动生成路由规则
 
 ---
 
