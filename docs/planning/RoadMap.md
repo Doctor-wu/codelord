@@ -481,6 +481,9 @@ M9   多体协作            ──→ Multi-Agent
 
 **明确不做项：** OTEL 导出（当前）、Replay 实现（当前）、streaming 中间态持久化、trace check 当前形态、跨 session 聚合分析。
 
+**未来可选路径（不进当前主线，但保留接口意识）：**
+- **OTel 兼容导出：** codelord 的三层 trace 模型比行业通用的 flat span 树更丰富（provider / agent-core / user 层分离、跨层 identity、queue lifecycle、operator action 等一等事实在通用 OTel schema 里没有对应物）。当前强行适配 OTel 会丢信息、增加维护负担。但未来如果需要接入外部可观测性平台（LangSmith、Langfuse、Arize 等），OTel 是通用接口。**策略：trace 持久化 schema 设计时保持"可投影为 OTel span"的意识，但不为此牺牲 codelord 自有的三层语义。真正需要时再写一个 lossy exporter。**
+
 **基于立场的实现顺序：**
 1. ✅ 补齐 Provider 层记录（当前最大的诊断盲区）
 2. ✅ 为 tool call 建立跨层稳定 identity
@@ -609,7 +612,11 @@ M9   多体协作            ──→ Multi-Agent
 - [ ] 正反两面覆盖：该触发 ask_user 时触发 + 不该触发时不触发；该用 file_edit 时用 + 不该用时不用
 - [ ] 每个 case 有 reference solution（证明可解且 grader 正确）
 - [ ] smoke / core 两层 suite 划分
-- [ ] dogfooding 失败 → eval case 的标准转化流程
+- [ ] dogfooding 失败 → eval case 的标准转化工作流（借鉴 LangSmith 的 "trace → dataset" 模式）：
+  - 从 trace 中标记有问题的 run（手动标记 或 自动检测失败/低质量 run）
+  - 一键从标记的 trace 中提取 input + expected output，生成 eval case 草稿
+  - 人工审核确认后进入 eval suite
+  - 目标：让每一次 dogfooding 发现的问题都能沉淀为可回归测试的 eval case，形成 "使用 → 发现问题 → eval case → 改进 → 验证" 的飞轮
 - [ ] 记录产品指标：pass@1 / avg_steps / avg_cost / tool_router_accuracy / ask_user_precision
 
 **完成标志**：有一套稳定的内部 golden set。每次 prompt/skill/context 改动都能在 < 10 分钟（smoke）或 < 1 小时（core）内得到量化反馈。
