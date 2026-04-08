@@ -475,6 +475,7 @@ export class AgentRuntime<TApi extends Api = Api> {
               const pc = event.partial.content[event.contentIndex]
               if (pc?.type === 'toolCall') {
                 this.emit({ type: 'toolcall_start', contentIndex: event.contentIndex, toolName: pc.name, args: pc.arguments ?? {} })
+                this.emitLifecycle({ type: 'tool_call_streaming_start', contentIndex: event.contentIndex, toolName: pc.name, args: pc.arguments ?? {}, timestamp: Date.now() })
               }
               break
             }
@@ -482,11 +483,13 @@ export class AgentRuntime<TApi extends Api = Api> {
               const pc = event.partial.content[event.contentIndex]
               if (pc?.type === 'toolCall') {
                 this.emit({ type: 'toolcall_delta', contentIndex: event.contentIndex, toolName: pc.name, args: pc.arguments ?? {} })
+                this.emitLifecycle({ type: 'tool_call_streaming_delta', contentIndex: event.contentIndex, toolName: pc.name, args: pc.arguments ?? {}, timestamp: Date.now() })
               }
               break
             }
             case 'toolcall_end':
               this.emit({ type: 'toolcall_end', contentIndex: event.contentIndex, toolCall: event.toolCall })
+              this.emitLifecycle({ type: 'tool_call_streaming_end', contentIndex: event.contentIndex, toolCallId: event.toolCall.id, toolName: event.toolCall.name, args: event.toolCall.arguments, timestamp: Date.now() })
               toolCalls.push(event.toolCall)
               this._partial.toolCalls.push(event.toolCall)
               break

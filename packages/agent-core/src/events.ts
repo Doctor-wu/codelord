@@ -198,7 +198,11 @@ export type LifecycleEvent =
   // --- Assistant ---
   | { type: 'assistant_turn_start'; id: string; reasoning: AssistantReasoningState; timestamp: number }
   | { type: 'assistant_turn_end'; id: string; reasoning: AssistantReasoningState; timestamp: number }
-  // --- Tool call lifecycle ---
+  // --- Tool call lifecycle (streaming phase — provisional, before tool_call_created) ---
+  | { type: 'tool_call_streaming_start'; contentIndex: number; toolName: string; args: Record<string, unknown>; timestamp: number }
+  | { type: 'tool_call_streaming_delta'; contentIndex: number; toolName: string; args: Record<string, unknown>; timestamp: number }
+  | { type: 'tool_call_streaming_end'; contentIndex: number; toolCallId: string; toolName: string; args: Record<string, unknown>; timestamp: number }
+  // --- Tool call lifecycle (stable — after streaming completes) ---
   | { type: 'tool_call_created'; toolCall: ToolCallLifecycle }
   | { type: 'tool_call_updated'; toolCall: ToolCallLifecycle }
   | { type: 'tool_call_completed'; toolCall: ToolCallLifecycle }

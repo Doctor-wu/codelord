@@ -10,9 +10,6 @@ import {
   reduceLifecycleEvent,
   applyThinkingDelta,
   applyTextDelta,
-  applyToolCallStart,
-  applyToolCallDelta,
-  applyToolCallEnd,
   captureTimelineSnapshot,
   hydrateTimelineState,
 } from './timeline-projection.js'
@@ -89,25 +86,16 @@ export class TimelineStore {
         this.state = applyTextDelta(this.state, event.delta)
         this.notify()
         break
-      case 'toolcall_start':
-        this.flushPendingDelta()
-        this.state = applyToolCallStart(this.state, event.contentIndex, event.toolName, event.args)
-        this.notify()
-        break
-      case 'toolcall_delta':
-        this.notifyThrottled(
-          applyToolCallDelta(this._pendingDeltaState ?? this.state, event.contentIndex, event.toolName, event.args),
-        )
-        break
-      case 'toolcall_end':
-        this.flushPendingDelta()
-        this.state = applyToolCallEnd(this.state, event.contentIndex, event.toolCall.id, event.toolCall.name, event.toolCall.arguments)
-        this.notify()
-        break
+      // toolcall_start/delta/end now handled via lifecycle events (tool_call_streaming_*)
     }
   }
 
   onLifecycleEvent(event: LifecycleEvent): void {
+    // tool_call_streaming_delta is high-frequency — throttle like raw deltas
+    if (event.type === 'tool_call_streaming_delta') {
+      this.notifyThrottled(reduceLifecycleEvent(this._pendingDeltaState ?? this.state, event))
+      return
+    }
     this.state = this._pendingDeltaState ?? this.state
     this._pendingDeltaState = null
     if (this._deltaFlushTimer) {

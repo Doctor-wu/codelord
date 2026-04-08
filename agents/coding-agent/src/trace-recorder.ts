@@ -94,9 +94,6 @@ export class TraceRecorder {
   onProviderStreamEvent(event: ProviderStreamTraceEvent): void {
     this.totalProviderStream++
     event = { ...event, seq: ++this._globalSeq }
-    if (event.type === 'toolcall_start') {
-      this._toolcallStartTimestamps.push(event.timestamp)
-    }
     // Redact previews
     if (event.deltaPreview) {
       const { text, hits } = safePreview(event.deltaPreview, 300)
@@ -270,6 +267,17 @@ export class TraceRecorder {
           const { hits } = safePreview(msg.content)
           this.mergeHits(hits)
         }
+        break
+      case 'tool_call_streaming_start':
+        le.toolName = event.toolName
+        this._toolcallStartTimestamps.push(event.timestamp)
+        break
+      case 'tool_call_streaming_delta':
+        le.toolName = event.toolName
+        break
+      case 'tool_call_streaming_end':
+        le.toolCallId = event.toolCallId
+        le.toolName = event.toolName
         break
       case 'queue_enqueued':
         le.question = event.content.slice(0, 200)

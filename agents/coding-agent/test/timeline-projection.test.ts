@@ -1066,4 +1066,50 @@ describe('Settled Reasoning Policy', () => {
     // reasoningSnapshot should be preserved (set by applyThinkingDelta)
     expect(assistant.reasoningSnapshot).not.toBeNull()
   })
+
+  describe('tool_call_streaming_* lifecycle events', () => {
+    it('tool_call_streaming_start creates provisional via lifecycle', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_streaming_start', contentIndex: 0, toolName: 'bash', args: { command: 'ls' }, timestamp: 1010 })
+      const toolItems = state.items.filter(i => i.type === 'tool_call')
+      expect(toolItems).toHaveLength(1)
+      expect((toolItems[0] as any).toolCall.toolName).toBe('bash')
+      expect((toolItems[0] as any).toolCall.phase).toBe('generating')
+    })
+
+    it('tool_call_streaming_delta updates provisional args via lifecycle', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_streaming_start', contentIndex: 0, toolName: 'file_write', args: { file_path: 'x.ts' }, timestamp: 1010 })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_streaming_delta', contentIndex: 0, toolName: 'file_write', args: { file_path: 'x.ts', content: 'hello' }, timestamp: 1020 })
+      const toolItems = state.items.filter(i => i.type === 'tool_call')
+      expect(toolItems).toHaveLength(1)
+      expect((toolItems[0] as any).toolCall.args.content).toBe('hello')
+    })
+
+    it('tool_call_streaming_end finalizes provisional with real id via lifecycle', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_streaming_start', contentIndex: 0, toolName: 'bash', args: { command: 'ls' }, timestamp: 1010 })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_streaming_end', contentIndex: 0, toolCallId: 'tc-real', toolName: 'bash', args: { command: 'ls -la' }, timestamp: 1020 })
+      const toolItems = state.items.filter(i => i.type === 'tool_call')
+      expect(toolItems).toHaveLength(1)
+      expect((toolItems[0] as any).toolCall.id).toBe('tc-real')
+    })
+
+    it('tool_call_created handoffs provisional created by streaming lifecycle', () => {
+      let state = createInitialTimelineState()
+      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_streaming_start', contentIndex: 0, toolName: 'bash', args: { command: 'ls' }, timestamp: 1010 })
+      state = reduceLifecycleEvent(state, { type: 'tool_call_streaming_end', contentIndex: 0, toolCallId: 'tc-real', toolName: 'bash', args: { command: 'ls' }, timestamp: 1020 })
+      // Now tool_call_created should handoff
+      const stableTc = createToolCallLifecycle({ id: 'tc-real', toolName: 'bash', args: { command: 'ls' }, command: 'ls' })
+      stableTc.phase = 'generating'
+      state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: stableTc })
+      const toolItems = state.items.filter(i => i.type === 'tool_call')
+      expect(toolItems).toHaveLength(1)
+      expect((toolItems[0] as any).toolCall.id).toBe('tc-real')
+    })
+  })
 })

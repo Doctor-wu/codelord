@@ -299,11 +299,11 @@ describe('TraceRecorder v2', () => {
   it('computes toolVisibility when toolcall_start and tool_call_created are present', () => {
     const rec = new TraceRecorder(recorderOpts)
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
-    rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'toolcall_start', timestamp: 1010, toolName: 'bash', contentIndex: 0 }))
+    rec.onLifecycleEvent({ type: 'tool_call_streaming_start', contentIndex: 0, toolName: 'bash', args: {}, timestamp: 1010 })
     const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: {}, command: 'echo' })
     tc.createdAt = 1060
     rec.onLifecycleEvent({ type: 'tool_call_created', toolCall: tc })
-    rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'toolcall_start', timestamp: 1100, toolName: 'file_read', contentIndex: 1 }))
+    rec.onLifecycleEvent({ type: 'tool_call_streaming_start', contentIndex: 1, toolName: 'file_read', args: {}, timestamp: 1100 })
     const tc2 = createToolCallLifecycle({ id: 'tc-2', toolName: 'file_read', args: {}, command: 'foo.ts' })
     tc2.createdAt = 1120
     rec.onLifecycleEvent({ type: 'tool_call_created', toolCall: tc2 })
@@ -711,7 +711,7 @@ describe('formatTraceShow debugger view', () => {
   it('header shows toolVisibility when present', () => {
     const rec = new TraceRecorder(recorderOpts)
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
-    rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'toolcall_start', timestamp: 1010, toolName: 'bash', contentIndex: 0 }))
+    rec.onLifecycleEvent({ type: 'tool_call_streaming_start', contentIndex: 0, toolName: 'bash', args: {}, timestamp: 1010 })
     const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: {}, command: 'echo' })
     tc.createdAt = 1060
     rec.onLifecycleEvent({ type: 'tool_call_created', toolCall: tc })
