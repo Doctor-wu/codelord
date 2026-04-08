@@ -36,6 +36,8 @@ export interface SessionSnapshot {
   cwd: string
   provider: string
   model: string
+  /** Current git branch at session creation (null if not a git repo) */
+  gitBranch: string | null
 
   // --- Runtime FSM ---
   /** State at time of snapshot. STREAMING/TOOL_EXEC are recorded but
@@ -88,6 +90,12 @@ export interface SessionMeta {
   messageCount: number
   pendingInboundCount: number
   hasPendingQuestion: boolean
+  /** Current git branch at session creation (null if not a git repo) */
+  gitBranch: string | null
+  /** Auto-generated session title from first user message (truncated to 60 chars) */
+  title: string | null
+  /** Auto-generated summary: last assistant response preview (truncated to 100 chars) */
+  summary: string | null
 }
 
 /** Extract lightweight metadata from a full snapshot */
@@ -104,7 +112,37 @@ export function toSessionMeta(snapshot: SessionSnapshot): SessionMeta {
     messageCount: snapshot.messages.length,
     pendingInboundCount: snapshot.pendingInbound.length,
     hasPendingQuestion: snapshot.pendingQuestion !== null,
+    gitBranch: snapshot.gitBranch ?? null,
+    title: extractTitle(snapshot.messages),
+    summary: extractSummary(snapshot.messages),
   }
+}
+
+/** Extract title from first user message, truncated to 60 chars */
+function extractTitle(messages: Message[]): string | null {
+  const first = messages.find(m => m.role === 'user')
+  if (!first) return null
+  const text = typeof first.content === 'string' ? first.content : ''
+  if (!text) return null
+  const line = text.split('\n')[0]!.trim()
+  return line.length > 60 ? line.slice(0, 57) + '...' : line
+}
+
+/** Extract summary from last assistant text content, truncated to 100 chars */
+function extractSummary(messages: Message[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]!
+    if (msg.role !== 'assistant') continue
+    const content = (msg as any).content
+    if (!Array.isArray(content)) continue
+    for (const block of content) {
+      if (block.type === 'text' && typeof block.text === 'string' && block.text.trim()) {
+        const text = block.text.trim()
+        return text.length > 100 ? text.slice(0, 97) + '...' : text
+      }
+    }
+  }
+  return null
 }
 
 // ---------------------------------------------------------------------------

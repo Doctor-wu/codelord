@@ -22,6 +22,7 @@ function makeSnapshot(overrides: Partial<SessionSnapshot> = {}): SessionSnapshot
     cwd: '/tmp/project',
     provider: 'openai',
     model: 'gpt-4',
+    gitBranch: null,
     runtimeState: 'READY',
     wasInFlight: false,
     messages: [{ role: 'user', content: 'hello', timestamp: Date.now() }],

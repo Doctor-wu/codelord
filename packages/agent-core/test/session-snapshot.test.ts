@@ -254,6 +254,7 @@ describe('Session snapshot: in-flight state handling', () => {
       cwd: '/tmp',
       provider: 'openai',
       model: 'gpt-4',
+      gitBranch: null,
       runtimeState: 'STREAMING',
       wasInFlight: true,
       messages: [{ role: 'user', content: 'hi', timestamp: Date.now() }],
@@ -292,6 +293,7 @@ describe('Session snapshot: in-flight state handling', () => {
       cwd: '/tmp',
       provider: 'openai',
       model: 'gpt-4',
+      gitBranch: null,
       runtimeState: 'TOOL_EXEC',
       wasInFlight: true,
       messages: [
@@ -356,6 +358,7 @@ describe('toSessionMeta', () => {
       cwd: '/home/user/project',
       provider: 'anthropic',
       model: 'claude-3',
+      gitBranch: 'main',
       runtimeState: 'BLOCKED',
       wasInFlight: false,
       messages: [{ role: 'user', content: 'hi', timestamp: 1000 }],
@@ -377,6 +380,93 @@ describe('toSessionMeta', () => {
     expect(meta.pendingInboundCount).toBe(1)
     expect(meta.hasPendingQuestion).toBe(true)
     expect(meta.runtimeState).toBe('BLOCKED')
+    expect(meta.gitBranch).toBe('main')
+    expect(meta.title).toBe('hi')
+  })
+
+  const metaBase: SessionSnapshot = {
+    version: 1,
+    sessionId: 'x',
+    createdAt: 0,
+    updatedAt: 0,
+    cwd: '/',
+    provider: 'p',
+    model: 'm',
+    gitBranch: null,
+    runtimeState: 'READY',
+    wasInFlight: false,
+    messages: [],
+    pendingInbound: [],
+    pendingQuestion: null,
+    resolvedQuestions: [],
+    lastOutcome: null,
+    routeRecords: [],
+    safetyRecords: [],
+    sessionStepCount: 0,
+    checkpoints: [],
+    usageAggregate: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, llmCalls: 0, lastCall: null },
+  }
+
+  it('extracts title from first user message', () => {
+    const snapshot: SessionSnapshot = {
+      ...metaBase,
+      messages: [
+        { role: 'user', content: 'Fix the bug in utils.ts', timestamp: 1000 },
+        { role: 'assistant', content: [{ type: 'text', text: 'Done!' }], stopReason: 'stop', timestamp: 2000 } as any,
+      ],
+    }
+    const meta = toSessionMeta(snapshot)
+    expect(meta.title).toBe('Fix the bug in utils.ts')
+  })
+
+  it('truncates long titles to 60 chars', () => {
+    const snapshot: SessionSnapshot = {
+      ...metaBase,
+      messages: [
+        { role: 'user', content: 'x'.repeat(100), timestamp: 1000 },
+      ],
+    }
+    const meta = toSessionMeta(snapshot)
+    expect(meta.title!.length).toBeLessThanOrEqual(60)
+    expect(meta.title!.endsWith('...')).toBe(true)
+  })
+
+  it('extracts summary from last assistant text', () => {
+    const snapshot: SessionSnapshot = {
+      ...metaBase,
+      messages: [
+        { role: 'user', content: 'hi', timestamp: 1000 },
+        { role: 'assistant', content: [{ type: 'text', text: 'I fixed the import statement.' }], stopReason: 'stop', timestamp: 2000 } as any,
+      ],
+    }
+    const meta = toSessionMeta(snapshot)
+    expect(meta.summary).toBe('I fixed the import statement.')
+  })
+
+  it('truncates long summaries to 100 chars', () => {
+    const snapshot: SessionSnapshot = {
+      ...metaBase,
+      messages: [
+        { role: 'user', content: 'hi', timestamp: 1000 },
+        { role: 'assistant', content: [{ type: 'text', text: 'y'.repeat(200) }], stopReason: 'stop', timestamp: 2000 } as any,
+      ],
+    }
+    const meta = toSessionMeta(snapshot)
+    expect(meta.summary!.length).toBeLessThanOrEqual(100)
+    expect(meta.summary!.endsWith('...')).toBe(true)
+  })
+
+  it('returns null title/summary when no messages', () => {
+    const snapshot: SessionSnapshot = { ...metaBase, messages: [] }
+    const meta = toSessionMeta(snapshot)
+    expect(meta.title).toBeNull()
+    expect(meta.summary).toBeNull()
+  })
+
+  it('returns null gitBranch when not set in snapshot', () => {
+    const snapshot: SessionSnapshot = { ...metaBase, gitBranch: null }
+    const meta = toSessionMeta(snapshot)
+    expect(meta.gitBranch).toBeNull()
   })
 })
 
@@ -393,6 +483,7 @@ describe('resolveResumeState', () => {
     cwd: '/',
     provider: 'p',
     model: 'm',
+    gitBranch: null,
     runtimeState: 'READY',
     wasInFlight: false,
     messages: [],

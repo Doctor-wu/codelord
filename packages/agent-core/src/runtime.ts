@@ -200,7 +200,7 @@ export class AgentRuntime<TApi extends Api = Api> {
 
   // --- Snapshot export / import ---
 
-  exportSnapshot(meta: { sessionId: string; cwd: string; provider: string; model: string; createdAt?: number; checkpoints?: import('./checkpoint.js').CheckpointRecord[] }): SessionSnapshot {
+  exportSnapshot(meta: { sessionId: string; cwd: string; provider: string; model: string; createdAt?: number; checkpoints?: import('./checkpoint.js').CheckpointRecord[]; gitBranch?: string | null }): SessionSnapshot {
     const now = Date.now()
     const isInFlight = this._state === 'STREAMING' || this._state === 'TOOL_EXEC'
     return {
@@ -211,6 +211,7 @@ export class AgentRuntime<TApi extends Api = Api> {
       cwd: meta.cwd,
       provider: meta.provider,
       model: meta.model,
+      gitBranch: meta.gitBranch ?? null,
       runtimeState: this._state,
       wasInFlight: isInFlight,
       messages: [...this.messages],

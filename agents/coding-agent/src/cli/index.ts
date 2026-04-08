@@ -46,23 +46,33 @@ function readFlags(options: Record<string, unknown>): CliFlags {
 // Session list formatting
 // ---------------------------------------------------------------------------
 
+function relativeTime(ms: number): string {
+  const seconds = Math.floor((Date.now() - ms) / 1000)
+  if (seconds < 60) return `${seconds}s ago`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}min ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
 function formatSessionList(store: SessionStore): string {
   const metas = store.listAll()
   if (metas.length === 0) return 'No sessions found.'
 
   const lines: string[] = ['Sessions (most recent first):', '']
   for (const meta of metas.slice(0, 20)) {
-    const created = new Date(meta.createdAt).toLocaleString()
-    const updated = new Date(meta.updatedAt).toLocaleString()
     const state = meta.wasInFlight ? `${meta.runtimeState} (interrupted)` : meta.runtimeState
     const question = meta.hasPendingQuestion ? ' [waiting_user]' : ''
     const queue = meta.pendingInboundCount > 0 ? ` [queue: ${meta.pendingInboundCount}]` : ''
+    const branch = meta.gitBranch ? ` · ${meta.gitBranch}` : ''
+
     lines.push(`  ${meta.sessionId}`)
-    lines.push(`    cwd:     ${meta.cwd}`)
-    lines.push(`    state:   ${state}${question}${queue}`)
-    lines.push(`    msgs:    ${meta.messageCount}`)
-    lines.push(`    created: ${created}`)
-    lines.push(`    updated: ${updated}`)
+    if (meta.title) lines.push(`    "${meta.title}"`)
+    lines.push(`    ${meta.cwd}${branch}`)
+    lines.push(`    ${state}${question}${queue} · ${meta.messageCount} msgs · ${relativeTime(meta.updatedAt)}`)
+    if (meta.summary) lines.push(`    Last: "${meta.summary.length > 80 ? meta.summary.slice(0, 77) + '...' : meta.summary}"`)
     lines.push('')
   }
   if (metas.length > 20) {
@@ -70,6 +80,84 @@ function formatSessionList(store: SessionStore): string {
   }
   lines.push('To resume: codelord --resume <id>')
   lines.push('           codelord --resume latest')
+  return lines.join('\n')
+}
+
+function formatSessionShow(store: SessionStore, sessionId: string): string {
+  // Prefix match
+  const metas = store.listAll()
+  const matches = metas.filter(m => m.sessionId.startsWith(sessionId))
+  if (matches.length === 0) return `Session not found: ${sessionId}`
+  if (matches.length > 1) {
+    const lines = [`Session id prefix is ambiguous: ${sessionId}`, 'Candidates:']
+    for (const m of matches) lines.push(`  ${m.sessionId}  ${relativeTime(m.updatedAt)}`)
+    return lines.join('\n')
+  }
+
+  const meta = matches[0]!
+  const snapshot = store.loadSnapshot(meta.sessionId)
+  const state = meta.wasInFlight ? `${meta.runtimeState} (interrupted)` : meta.runtimeState
+  const branch = meta.gitBranch ? ` · ${meta.gitBranch}` : ''
+
+  const lines: string[] = [
+    `Session: ${meta.sessionId}`,
+    '',
+    `  Title:    ${meta.title ?? '(none)'}`,
+    `  CWD:      ${meta.cwd}${branch}`,
+    `  Provider:  ${meta.provider} / ${meta.model}`,
+    `  State:    ${state}`,
+    `  Messages: ${meta.messageCount}`,
+    `  Created:  ${new Date(meta.createdAt).toLocaleString()} (${relativeTime(meta.createdAt)})`,
+    `  Updated:  ${new Date(meta.updatedAt).toLocaleString()} (${relativeTime(meta.updatedAt)})`,
+  ]
+
+  // Usage telemetry
+  if (snapshot?.usageAggregate && snapshot.usageAggregate.totalTokens > 0) {
+    const u = snapshot.usageAggregate
+    lines.push('')
+    lines.push(`  Usage:`)
+    lines.push(`    Tokens:  ${u.totalTokens} total (${u.input} in / ${u.output} out)`)
+    lines.push(`    LLM calls: ${u.llmCalls}`)
+    if (u.cost.total > 0) lines.push(`    Cost:    $${u.cost.total.toFixed(4)}`)
+  }
+
+  // Tool stats
+  if (snapshot?.toolStats) {
+    const tools = Object.entries(snapshot.toolStats.tools)
+    if (tools.length > 0) {
+      lines.push('')
+      lines.push(`  Tool stats:`)
+      for (const [name, stats] of tools.sort((a, b) => b[1].attempts - a[1].attempts).slice(0, 10)) {
+        const errSuffix = stats.failures > 0 ? ` (${stats.failures} errors)` : ''
+        lines.push(`    ${name}: ${stats.attempts} calls${errSuffix}`)
+      }
+    }
+  }
+
+  // Recent messages
+  if (snapshot && snapshot.messages.length > 0) {
+    lines.push('')
+    lines.push(`  Recent messages:`)
+    const recent = snapshot.messages.slice(-5)
+    for (const msg of recent) {
+      const role = msg.role
+      let preview = ''
+      if (typeof msg.content === 'string') {
+        preview = msg.content
+      } else if (Array.isArray((msg as any).content)) {
+        const textBlock = (msg as any).content.find((b: any) => b.type === 'text')
+        preview = textBlock?.text ?? `[${(msg as any).content.length} blocks]`
+      }
+      if (preview.length > 80) preview = preview.slice(0, 77) + '...'
+      lines.push(`    [${role}] ${preview}`)
+    }
+  }
+
+  if (meta.summary) {
+    lines.push('')
+    lines.push(`  Summary: ${meta.summary}`)
+  }
+
   return lines.join('\n')
 }
 
@@ -96,13 +184,6 @@ function createCli() {
     .action(async (options) => {
       const config = loadConfig(toConfigOverrides(readFlags(options)))
       console.log(JSON.stringify(config, null, 2))
-    })
-
-  cli
-    .command('sessions', 'List saved sessions')
-    .action(() => {
-      const store = new SessionStore()
-      console.log(formatSessionList(store))
     })
 
   cli
@@ -206,12 +287,87 @@ function handleTraceCommand(args: string[]): void {
 // Exported for testing
 export { handleTraceCommand }
 
+function handleSessionsCommand(args: string[]): void {
+  const positional = args.filter(a => !a.startsWith('-'))
+  const flags = new Set(args.filter(a => a.startsWith('-')))
+  const sub = positional[0] ?? 'list'
+  const store = new SessionStore()
+
+  if (sub === 'list' || (!positional[0] && args.length === 0)) {
+    console.log(formatSessionList(store))
+  } else if (sub === 'show') {
+    const id = positional[1]
+    if (!id) {
+      console.error('Usage: codelord sessions show <id>')
+      process.exitCode = 1
+      return
+    }
+    console.log(formatSessionShow(store, id))
+  } else if (sub === 'prune') {
+    const daysIdx = args.indexOf('--days')
+    const days = daysIdx >= 0 && args[daysIdx + 1] ? Number(args[daysIdx + 1]) : 7
+    const all = flags.has('--all')
+    const force = flags.has('--force')
+
+    const metas = store.listAll()
+    const cutoff = all ? Infinity : Date.now() - days * 24 * 60 * 60 * 1000
+    const toDelete = all ? metas : metas.filter(m => m.updatedAt < cutoff)
+
+    if (toDelete.length === 0) {
+      console.log(all ? 'No sessions found.' : `No sessions older than ${days} days.`)
+      return
+    }
+
+    console.log(`Will delete ${toDelete.length} session(s):`)
+    for (const m of toDelete.slice(0, 10)) {
+      const title = m.title ? ` "${m.title}"` : ''
+      console.log(`  ${m.sessionId.slice(0, 8)}...${title}  ${relativeTime(m.updatedAt)}`)
+    }
+    if (toDelete.length > 10) console.log(`  ... and ${toDelete.length - 10} more`)
+
+    if (!force) {
+      process.stdout.write('\nConfirm? [y/N] ')
+      const answer = readLineSync()
+      if (answer.toLowerCase() !== 'y') {
+        console.log('Aborted.')
+        return
+      }
+    }
+
+    for (const m of toDelete) store.delete(m.sessionId)
+    console.log(`Deleted ${toDelete.length} session(s).`)
+  } else {
+    console.error(`Unknown sessions subcommand: ${sub}\nUsage: codelord sessions [list|show <id>|prune [--days N|--all] [--force]]`)
+    process.exitCode = 1
+  }
+}
+
+function readLineSync(): string {
+  const buf = Buffer.alloc(256)
+  try {
+    const fd = require('node:fs').openSync('/dev/stdin', 'r')
+    const n = require('node:fs').readSync(fd, buf, 0, 256)
+    require('node:fs').closeSync(fd)
+    return buf.slice(0, n).toString('utf-8').trim()
+  } catch {
+    return ''
+  }
+}
+
+// Exported for testing
+export { handleSessionsCommand }
+
 export async function runCli(argv = process.argv): Promise<void> {
-  // --- Handle trace subcommands before cac parsing ---
+  // --- Handle subcommands before cac parsing ---
   // cac doesn't support multi-word commands well, so we intercept here.
   const rawArgs = argv.slice(2) // strip 'node' and script path
   if (rawArgs[0] === 'trace') {
     handleTraceCommand(rawArgs.slice(1))
+    return
+  }
+
+  if (rawArgs[0] === 'sessions') {
+    handleSessionsCommand(rawArgs.slice(1))
     return
   }
 

@@ -22,6 +22,7 @@ function makeSnapshot(overrides: Partial<SessionSnapshot> = {}): SessionSnapshot
     cwd: '/tmp',
     provider: 'test',
     model: 'test',
+    gitBranch: null,
     runtimeState: 'READY',
     wasInFlight: false,
     messages: [{ role: 'user', content: 'hi', timestamp: 1000 }],
