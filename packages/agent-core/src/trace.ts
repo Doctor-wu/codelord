@@ -139,6 +139,13 @@ export interface TraceRunV2 {
   runEvents: TraceEventEntry[]
   /** Tool call success/failure stats for this run */
   toolStats?: { tools: Record<string, { attempts: number; successes: number; failures: number; errorCodes: Record<string, number> }>; routes: Record<string, { hits: number; successes: number; failures: number }> }
+  /** Diagnostic: tool visibility latency metrics (computed at finalize time) */
+  toolVisibility?: {
+    avgProviderToLifecycleMs: number
+    maxProviderToLifecycleMs: number
+    measuredCount: number
+    provisionalHitCount: number
+  }
 }
 
 // ---------------------------------------------------------------------------

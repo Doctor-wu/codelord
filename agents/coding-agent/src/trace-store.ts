@@ -238,6 +238,10 @@ export function formatTraceShow(rawTrace: TraceRunV2, mode: TraceShowMode = 'sum
   if (trace.redactionSummary.length > 0) {
     L.push(`Redactions: ${trace.redactionSummary.map(r => `${r.type}×${r.count}`).join(', ')}`)
   }
+  if (trace.toolVisibility) {
+    const tv = trace.toolVisibility
+    L.push(`Tool visibility: avg ${tv.avgProviderToLifecycleMs}ms provider→lifecycle, max ${tv.maxProviderToLifecycleMs}ms, ${tv.provisionalHitCount}/${tv.measuredCount} had provisional`)
+  }
   L.push('')
 
   // --- Body (mode-specific) ---

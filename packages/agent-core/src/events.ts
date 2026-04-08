@@ -205,6 +205,7 @@ export type LifecycleEvent =
   // --- Usage telemetry ---
   | { type: 'usage_updated'; usage: UsageAggregate; timestamp: number }
   // --- Queue ---
+  | { type: 'queue_enqueued'; content: string; timestamp: number }
   | { type: 'queue_drained'; count: number; messages: { content: string; enqueuedAt: number }[]; injectedAt: number }
   // --- Question ---
   | { type: 'question_answered'; question: string; whyAsk: string; askedAt: number; answer: string; answeredAt: number }

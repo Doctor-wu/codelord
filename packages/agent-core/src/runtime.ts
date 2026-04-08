@@ -252,8 +252,15 @@ export class AgentRuntime<TApi extends Api = Api> {
 
   // --- Inbound message injection (delegates to MessageManager) ---
 
-  enqueue(message: Message): void { this.msgMgr.enqueue(message) }
-  enqueueUserMessage(content: string): void { this.msgMgr.enqueueUserMessage(content) }
+  enqueue(message: Message): void {
+    this.msgMgr.enqueue(message)
+    const content = typeof message.content === 'string' ? message.content.slice(0, 200) : '[non-text]'
+    this.emitLifecycle({ type: 'queue_enqueued', content, timestamp: Date.now() })
+  }
+  enqueueUserMessage(content: string): void {
+    this.msgMgr.enqueueUserMessage(content)
+    this.emitLifecycle({ type: 'queue_enqueued', content: content.slice(0, 200), timestamp: Date.now() })
+  }
 
   // --- Interrupt control (delegates to InterruptController) ---
 
@@ -700,8 +707,11 @@ export class AgentRuntime<TApi extends Api = Api> {
 
         this.transition('STREAMING')
       } else if (assistantMsg.stopReason === 'stop') {
-        this.drainPending()
-        this.transition('READY')
+        const hadPending = this.drainPending()
+        if (!hadPending) {
+          this.transition('READY')
+        }
+        // If hadPending, stay in STREAMING — the while loop continues and LLM sees the new messages
       } else {
         this.transition('READY')
         const error = `Unexpected stop reason: ${assistantMsg.stopReason}`

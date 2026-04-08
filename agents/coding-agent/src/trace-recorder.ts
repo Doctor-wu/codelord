@@ -39,6 +39,8 @@ export class TraceRecorder {
   private totalProviderStream = 0
   private totalAgentEvents = 0
   private totalLifecycleEvents = 0
+  private _toolcallStartTimestamps: number[] = []
+  private _toolCallCreatedTimestamps: number[] = []
 
   constructor(opts: TraceRecorderOptions) {
     this.runId = randomUUID()
@@ -92,6 +94,9 @@ export class TraceRecorder {
   onProviderStreamEvent(event: ProviderStreamTraceEvent): void {
     this.totalProviderStream++
     event = { ...event, seq: ++this._globalSeq }
+    if (event.type === 'toolcall_start') {
+      this._toolcallStartTimestamps.push(event.timestamp)
+    }
     // Redact previews
     if (event.deltaPreview) {
       const { text, hits } = safePreview(event.deltaPreview, 300)
@@ -237,6 +242,9 @@ export class TraceRecorder {
         le.toolCallId = event.toolCall.id
         le.toolName = event.toolCall.toolName
         le.phase = event.toolCall.phase
+        if (event.type === 'tool_call_created') {
+          this._toolCallCreatedTimestamps.push(event.toolCall.createdAt)
+        }
         break
       case 'usage_updated':
         this.recordUsage(event.usage)
@@ -262,6 +270,9 @@ export class TraceRecorder {
           const { hits } = safePreview(msg.content)
           this.mergeHits(hits)
         }
+        break
+      case 'queue_enqueued':
+        le.question = event.content.slice(0, 200)
         break
       case 'question_answered':
         le.question = event.question
@@ -314,6 +325,25 @@ export class TraceRecorder {
       this.currentStep = null
     }
 
+    let toolVisibility: TraceRunV2['toolVisibility']
+    const pairCount = Math.min(this._toolcallStartTimestamps.length, this._toolCallCreatedTimestamps.length)
+    if (pairCount > 0) {
+      const gaps: number[] = []
+      let provisionalHits = 0
+      for (let i = 0; i < pairCount; i++) {
+        const gap = this._toolCallCreatedTimestamps[i]! - this._toolcallStartTimestamps[i]!
+        gaps.push(Math.max(0, gap))
+        if (gap > 0) provisionalHits++
+      }
+      const sum = gaps.reduce((a, b) => a + b, 0)
+      toolVisibility = {
+        avgProviderToLifecycleMs: Math.round(sum / gaps.length),
+        maxProviderToLifecycleMs: Math.max(...gaps),
+        measuredCount: pairCount,
+        provisionalHitCount: provisionalHits,
+      }
+    }
+
     return {
       version: 2,
       runId: this.runId,
@@ -343,6 +373,7 @@ export class TraceRecorder {
       steps: this.steps,
       runEvents: this.runEvents,
       ...(opts?.toolStats ? { toolStats: opts.toolStats } : {}),
+      ...(toolVisibility ? { toolVisibility } : {}),
     }
   }
 

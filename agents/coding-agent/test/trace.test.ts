@@ -283,6 +283,48 @@ describe('TraceRecorder v2', () => {
     expect(trace.runEvents.filter(e => e.type === 'interrupt_requested')).toHaveLength(0)
     expect(trace.runEvents.filter(e => e.type === 'interrupt_observed')).toHaveLength(0)
   })
+
+  it('records queue_enqueued event', () => {
+    const rec = new TraceRecorder(recorderOpts)
+    rec.onLifecycleEvent({ type: 'queue_enqueued', content: 'hello from queue', timestamp: 500 })
+    rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
+    rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1100 })
+    const trace = rec.finalize({ type: 'success', text: '' })
+    const enqueued = trace.runEvents.find(e => e.type === 'queue_enqueued')
+    expect(enqueued).toBeDefined()
+    expect(enqueued!.source).toBe('lifecycle_event')
+    expect((enqueued as any).question).toBe('hello from queue')
+  })
+
+  it('computes toolVisibility when toolcall_start and tool_call_created are present', () => {
+    const rec = new TraceRecorder(recorderOpts)
+    rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
+    rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'toolcall_start', timestamp: 1010, toolName: 'bash', contentIndex: 0 }))
+    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: {}, command: 'echo' })
+    tc.createdAt = 1060
+    rec.onLifecycleEvent({ type: 'tool_call_created', toolCall: tc })
+    rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'toolcall_start', timestamp: 1100, toolName: 'file_read', contentIndex: 1 }))
+    const tc2 = createToolCallLifecycle({ id: 'tc-2', toolName: 'file_read', args: {}, command: 'foo.ts' })
+    tc2.createdAt = 1120
+    rec.onLifecycleEvent({ type: 'tool_call_created', toolCall: tc2 })
+    rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1200 })
+    const trace = rec.finalize({ type: 'success', text: '' })
+    expect(trace.toolVisibility).toBeDefined()
+    expect(trace.toolVisibility!.measuredCount).toBe(2)
+    expect(trace.toolVisibility!.avgProviderToLifecycleMs).toBe(35)
+    expect(trace.toolVisibility!.maxProviderToLifecycleMs).toBe(50)
+    expect(trace.toolVisibility!.provisionalHitCount).toBe(2)
+  })
+
+  it('toolVisibility is undefined when no toolcall_start events', () => {
+    const rec = new TraceRecorder(recorderOpts)
+    rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
+    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: {}, command: 'echo' })
+    rec.onLifecycleEvent({ type: 'tool_call_created', toolCall: tc })
+    rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1200 })
+    const trace = rec.finalize({ type: 'success', text: '' })
+    expect(trace.toolVisibility).toBeUndefined()
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -664,5 +706,19 @@ describe('formatTraceShow debugger view', () => {
     expect(output).toContain('provider:')
     expect(output).toContain('agent:')
     expect(output).toContain('lifecycle:')
+  })
+
+  it('header shows toolVisibility when present', () => {
+    const rec = new TraceRecorder(recorderOpts)
+    rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
+    rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'toolcall_start', timestamp: 1010, toolName: 'bash', contentIndex: 0 }))
+    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: {}, command: 'echo' })
+    tc.createdAt = 1060
+    rec.onLifecycleEvent({ type: 'tool_call_created', toolCall: tc })
+    rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1200 })
+    const trace = rec.finalize({ type: 'success', text: '' })
+    const output = formatTraceShow(trace)
+    expect(output).toContain('Tool visibility:')
+    expect(output).toContain('had provisional')
   })
 })

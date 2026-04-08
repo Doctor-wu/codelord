@@ -399,42 +399,6 @@ export async function startRepl(options: ReplOptions): Promise<void> {
 
     saveSession()
 
-    // If runtime has pending inbound (queued during this run), re-run
-    while (runtime.pendingInboundCount > 0) {
-      renderer.setRunning(true, queueInfo())
-      activeRecorder = newRecorder()
-      checkpointManager.beginBurst()
-      running = true
-      let rerunOutcome: import('@agent/core').RunOutcome
-      try {
-        rerunOutcome = await runtime.run()
-      } catch {
-        rerunOutcome = { type: 'error', error: 'Unhandled runtime error' }
-      }
-      running = false
-      const rerunCheckpoint = checkpointManager.endBurst()
-      if (rerunCheckpoint) {
-        fanOutLifecycle({
-          type: 'checkpoint_created',
-          checkpointId: rerunCheckpoint.checkpointId,
-          strategy: rerunCheckpoint.strategy,
-          fileCount: rerunCheckpoint.files.length,
-          hasGit: rerunCheckpoint.git !== null,
-          timestamp: Date.now(),
-        })
-      }
-      if (rerunOutcome.type === 'interrupted') {
-        renderer.onLifecycleEvent?.({
-          type: 'command_feedback',
-          success: true,
-          message: '⏸ Interrupted — ready for your next input',
-          timestamp: Date.now(),
-        })
-      }
-      try { traceStore.save(activeRecorder.finalize(rerunOutcome, { toolStats: runtime.toolStats.exportSnapshot() })) } catch { /* best effort */ }
-      activeRecorder = null
-      saveSession()
-    }
   }
 
   saveSession()

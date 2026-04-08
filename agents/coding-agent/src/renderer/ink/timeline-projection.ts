@@ -257,6 +257,7 @@ export function reduceLifecycleEvent(state: TimelineState, event: LifecycleEvent
 
     // Events consumed by trace recorder, not by timeline projection
     case 'queue_drained':
+    case 'queue_enqueued':
     case 'question_answered':
     case 'interrupt_requested':
     case 'interrupt_observed':
