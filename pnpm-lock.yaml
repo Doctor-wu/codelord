@@ -23,15 +23,15 @@ importers:
 
   agents/coding-agent:
     dependencies:
-      '@agent/config':
-        specifier: workspace:*
-        version: link:../../packages/config
-      '@agent/core':
-        specifier: workspace:*
-        version: link:../../packages/agent-core
       '@clack/prompts':
         specifier: ^1.1.0
         version: 1.1.0
+      '@codelord/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@codelord/core':
+        specifier: workspace:*
+        version: link:../../packages/agent-core
       '@mariozechner/pi-ai':
         specifier: ^0.64.0
         version: 0.64.0(ws@8.20.0)(zod@4.3.6)
@@ -51,6 +51,21 @@ importers:
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.14
+
+  evals/polyglot:
+    dependencies:
+      '@codelord/coding-agent':
+        specifier: workspace:*
+        version: link:../../agents/coding-agent
+      '@codelord/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@codelord/core':
+        specifier: workspace:*
+        version: link:../../packages/agent-core
+      '@mariozechner/pi-ai':
+        specifier: ^0.64.0
+        version: 0.64.0(ws@8.20.0)(zod@4.3.6)
 
   packages/agent-core:
     dependencies:

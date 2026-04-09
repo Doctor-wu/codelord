@@ -1,8 +1,16 @@
 {
-  "name": "@agent/coding-agent",
+  "name": "@codelord/coding-agent",
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "bin": {
     "codelord": "./dist/bin.js"
   },
@@ -14,8 +22,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agent/config": "workspace:*",
-    "@agent/core": "workspace:*",
+    "@codelord/config": "workspace:*",
+    "@codelord/core": "workspace:*",
     "@clack/prompts": "^1.1.0",
     "@mariozechner/pi-ai": "^0.64.0",
     "cac": "^7.0.0",

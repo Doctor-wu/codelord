@@ -1,0 +1,16 @@
+{
+  "name": "@codelord/evals-polyglot",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "polyglot": "tsx src/runners/run-polyglot.ts"
+  },
+  "dependencies": {
+    "@codelord/coding-agent": "workspace:*",
+    "@codelord/config": "workspace:*",
+    "@codelord/core": "workspace:*",
+    "@mariozechner/pi-ai": "^0.64.0"
+  }
+}
