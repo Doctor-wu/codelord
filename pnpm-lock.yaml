@@ -67,6 +67,21 @@ importers:
         specifier: ^0.64.0
         version: 0.64.0(ws@8.20.0)(zod@4.3.6)
 
+  evals/swe-bench:
+    dependencies:
+      '@codelord/coding-agent':
+        specifier: workspace:*
+        version: link:../../agents/coding-agent
+      '@codelord/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@codelord/core':
+        specifier: workspace:*
+        version: link:../../packages/agent-core
+      '@mariozechner/pi-ai':
+        specifier: ^0.64.0
+        version: 0.64.0(ws@8.20.0)(zod@4.3.6)
+
   packages/agent-core:
     dependencies:
       '@mariozechner/pi-ai':
