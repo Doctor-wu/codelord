@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "polyglot": "tsx src/runners/run-polyglot.ts"
+    "polyglot": "tsx src/runners/run-polyglot.ts",
+    "docker:build": "./scripts/docker-build.sh",
+    "docker:run": "./scripts/docker-run.sh"
   },
   "dependencies": {
     "@codelord/coding-agent": "workspace:*",

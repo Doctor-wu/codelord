@@ -5,3 +5,4 @@ dist/
 .oauth-credentials.json
 *.tsbuildinfo
 .alma-snapshots
+.pnpm-store
