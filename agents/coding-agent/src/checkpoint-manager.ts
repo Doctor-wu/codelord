@@ -13,6 +13,7 @@ import { readFileSync, writeFileSync, existsSync, unlinkSync, mkdirSync } from '
 import { resolve, isAbsolute } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { execSync } from 'node:child_process'
+import { homedir } from 'node:os'
 import type { ToolHandler } from '@codelord/core'
 import type { CheckpointRecord, FileSnapshot, ShadowGitCheckpoint } from '@codelord/core'
 
@@ -226,9 +227,11 @@ export class CheckpointManager {
     this._currentBurst.summary = `${this._currentBurst.files.length} file(s) protected`
   }
 
-  /** Get the shadow git-dir path */
+  /** Get the shadow git-dir path under ~/.codelord/shadow-git/<workspace>/ */
   private get shadowGitDir(): string {
-    return resolve(this.cwd, '.codelord', 'shadow')
+    // Flatten absolute path into a single directory name: /a/b/c → a-b-c
+    const dirName = this.cwd.replace(/^\//, '').replaceAll('/', '-')
+    return resolve(homedir(), '.codelord', 'shadow-git', dirName)
   }
 
   /** Execute a git command against the shadow repo */
@@ -250,10 +253,6 @@ export class CheckpointManager {
         this.shadowGit('rev-parse --git-dir')
       } catch {
         execSync(`git init --bare "${gitDir}"`, { timeout: 5000, stdio: 'pipe' })
-        // Exclude .codelord/ from shadow repo tracking
-        const excludeDir = resolve(gitDir, 'info')
-        mkdirSync(excludeDir, { recursive: true })
-        writeFileSync(resolve(excludeDir, 'exclude'), '.codelord/\n', 'utf-8')
         // Configure for the shadow repo
         this.shadowGit('config user.email "codelord-shadow@local"')
         this.shadowGit('config user.name "codelord-shadow"')
