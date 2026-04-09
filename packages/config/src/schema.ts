@@ -31,6 +31,8 @@ export interface CodelordConfig {
     maxTokens?: number
     reservedOutputTokens?: number
   }
+  /** Optional custom base URL for the provider API (for proxies/third-party endpoints). */
+  baseUrl?: string
 }
 
 export const DEFAULT_CONFIG: CodelordConfig = {

@@ -24,6 +24,11 @@ export function resolveModel(config: CodelordConfig): Model<Api> {
     )
   }
 
+  // Apply baseUrl override for proxies/third-party endpoints
+  if (config.baseUrl) {
+    return { ...model, baseUrl: config.baseUrl }
+  }
+
   return model
 }
 
