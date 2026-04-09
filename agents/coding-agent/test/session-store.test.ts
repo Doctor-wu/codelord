@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import { SessionStore } from '../src/session-store.js'
-import type { SessionSnapshot } from '@agent/core'
+import type { SessionSnapshot } from '@codelord/core'
 import type { TimelineSnapshot } from '../src/renderer/ink/timeline-projection.js'
 
 function makeTmpDir(): string {

@@ -1,4 +1,4 @@
-import type { AgentEvent, LifecycleEvent } from '@agent/core'
+import type { AgentEvent, LifecycleEvent } from '@codelord/core'
 import type { TimelineSnapshot } from './ink/timeline-projection.js'
 
 // ---------------------------------------------------------------------------

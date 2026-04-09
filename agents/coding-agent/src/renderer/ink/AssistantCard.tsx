@@ -4,8 +4,8 @@
 
 import { Box, Text } from 'ink'
 import type { AssistantItem } from './timeline-projection.js'
-import type { ReasoningStatus } from '@agent/core'
-import { projectDisplayReason } from '@agent/core'
+import type { ReasoningStatus } from '@codelord/core'
+import { projectDisplayReason } from '@codelord/core'
 import { summarizeThought, extractThoughtViewport } from './summarize.js'
 import { LANE, GLYPH } from './theme.js'
 

@@ -2,8 +2,8 @@
 // Timeline Projection — reduces LifecycleEvents into a stable view model
 // ---------------------------------------------------------------------------
 
-import type { LifecycleEvent, ToolCallLifecycle, AssistantReasoningState, QuestionDetail, UsageAggregate, SessionSnapshot, PendingQuestion } from '@agent/core'
-import { createToolCallLifecycle } from '@agent/core'
+import type { LifecycleEvent, ToolCallLifecycle, AssistantReasoningState, QuestionDetail, UsageAggregate, SessionSnapshot, PendingQuestion } from '@codelord/core'
+import { createToolCallLifecycle } from '@codelord/core'
 
 // ---------------------------------------------------------------------------
 // Timeline item types

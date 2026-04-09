@@ -5,7 +5,7 @@
 import React from 'react'
 import { render } from 'ink'
 import type { Instance } from 'ink'
-import type { AgentEvent, LifecycleEvent, ReasoningLevel } from '@agent/core'
+import type { AgentEvent, LifecycleEvent, ReasoningLevel } from '@codelord/core'
 import type { InteractiveRenderer, RuntimeQueueInfo } from './types.js'
 import { App } from './ink/App.js'
 import { TimelineStore } from './ink/timeline-store.js'

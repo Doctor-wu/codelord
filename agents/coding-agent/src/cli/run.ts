@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { getModels } from '@mariozechner/pi-ai'
 import type { Api, Model } from '@mariozechner/pi-ai'
-import type { CodelordConfig } from '@agent/config'
+import type { CodelordConfig } from '@codelord/config'
 import { InkRenderer } from '../renderer/index.js'
 import type { InteractiveRenderer } from '../renderer/index.js'
 

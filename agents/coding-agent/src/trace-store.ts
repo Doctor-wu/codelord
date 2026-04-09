@@ -10,8 +10,8 @@ import { mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync } from 
 import { join, basename } from 'node:path'
 import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
-import type { TraceRunV2, TraceEventEntry, ProviderStreamTraceEvent, AgentTraceEvent, LifecycleTraceEvent } from '@agent/core'
-import { normalizeTrace } from '@agent/core'
+import type { TraceRunV2, TraceEventEntry, ProviderStreamTraceEvent, AgentTraceEvent, LifecycleTraceEvent } from '@codelord/core'
+import { normalizeTrace } from '@codelord/core'
 
 const TRACES_DIR = join(homedir(), '.codelord', 'traces')
 

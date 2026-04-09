@@ -1,4 +1,4 @@
-import type { ToolContract } from '@agent/core'
+import type { ToolContract } from '@codelord/core'
 
 // ---------------------------------------------------------------------------
 // System prompt builder — shared by single-shot and REPL

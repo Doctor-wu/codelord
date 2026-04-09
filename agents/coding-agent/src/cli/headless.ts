@@ -3,12 +3,12 @@
 // ---------------------------------------------------------------------------
 
 import type { Api, Model } from '@mariozechner/pi-ai'
-import { AgentRuntime } from '@agent/core'
-import type { AgentEvent, LifecycleEvent, RunOutcome, ToolCallStats, RouteHitStats } from '@agent/core'
-import type { TraceRunV2 } from '@agent/core'
-import { estimateTokens, DEFAULT_CONTEXT_WINDOW } from '@agent/core'
-import type { ContextWindowConfig } from '@agent/core'
-import type { CodelordConfig } from '@agent/config'
+import { AgentRuntime } from '@codelord/core'
+import type { AgentEvent, LifecycleEvent, RunOutcome, ToolCallStats, RouteHitStats } from '@codelord/core'
+import type { TraceRunV2 } from '@codelord/core'
+import { estimateTokens, DEFAULT_CONTEXT_WINDOW } from '@codelord/core'
+import type { ContextWindowConfig } from '@codelord/core'
+import type { CodelordConfig } from '@codelord/config'
 import { createToolKernel } from './tool-kernel.js'
 import { buildSystemPrompt } from './system-prompt.js'
 import { TraceRecorder } from '../trace-recorder.js'

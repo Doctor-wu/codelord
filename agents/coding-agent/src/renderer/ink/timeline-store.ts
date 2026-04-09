@@ -2,8 +2,8 @@
 // TimelineStore — event → state bridge (pure logic, no React)
 // ---------------------------------------------------------------------------
 
-import type { AgentEvent, LifecycleEvent, ReasoningLevel } from '@agent/core'
-import { resolveReasoningVisibility } from '@agent/core'
+import type { AgentEvent, LifecycleEvent, ReasoningLevel } from '@codelord/core'
+import { resolveReasoningVisibility } from '@codelord/core'
 import type { TimelineState } from './timeline-projection.js'
 import {
   createInitialTimelineState,

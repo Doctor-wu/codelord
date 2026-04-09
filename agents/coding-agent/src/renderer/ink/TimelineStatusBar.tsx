@@ -4,7 +4,7 @@
 
 import { Box, Text, useStdout } from 'ink'
 import type { TimelineState, ToolCallItem, ToolBatchItem } from './timeline-projection.js'
-import type { ToolCallLifecycle, UsageAggregate } from '@agent/core'
+import type { ToolCallLifecycle, UsageAggregate } from '@codelord/core'
 import type { StepCategory } from './theme.js'
 import { STEP_COLORS, GLYPH } from './theme.js'
 import { classifyCommand, classifyToolName } from './classify.js'

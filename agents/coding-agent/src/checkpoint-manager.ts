@@ -13,8 +13,8 @@ import { readFileSync, writeFileSync, existsSync, unlinkSync, mkdirSync } from '
 import { resolve, isAbsolute } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { execSync } from 'node:child_process'
-import type { ToolHandler } from '@agent/core'
-import type { CheckpointRecord, FileSnapshot, ShadowGitCheckpoint } from '@agent/core'
+import type { ToolHandler } from '@codelord/core'
+import type { CheckpointRecord, FileSnapshot, ShadowGitCheckpoint } from '@codelord/core'
 
 // ---------------------------------------------------------------------------
 // Mutating tool names that trigger checkpoint creation

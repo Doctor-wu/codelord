@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import { execSync } from 'node:child_process'
 import { CheckpointManager } from '../src/checkpoint-manager.js'
-import type { ToolHandler } from '@agent/core'
+import type { ToolHandler } from '@codelord/core'
 
 function makeTmpDir(): string {
   const dir = join(tmpdir(), `codelord-ckpt-test-${randomUUID()}`)

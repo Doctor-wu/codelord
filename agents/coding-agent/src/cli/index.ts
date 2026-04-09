@@ -1,5 +1,5 @@
-import { loadConfig } from '@agent/config'
-import type { CodelordConfig } from '@agent/config'
+import { loadConfig } from '@codelord/config'
+import type { CodelordConfig } from '@codelord/config'
 import { readFileSync } from 'node:fs'
 import { cac } from 'cac'
 import { runInit } from './init.js'

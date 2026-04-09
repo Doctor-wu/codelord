@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildSystemPrompt } from '../src/cli/system-prompt.js'
-import { builtinContracts } from '@agent/core'
+import { builtinContracts } from '@codelord/core'
 
 describe('buildSystemPrompt', () => {
   const prompt = buildSystemPrompt({ cwd: '/test/project', contracts: builtinContracts })

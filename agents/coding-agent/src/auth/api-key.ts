@@ -1,4 +1,4 @@
-import type { CodelordConfig } from '@agent/config'
+import type { CodelordConfig } from '@codelord/config'
 
 // ---------------------------------------------------------------------------
 // API key strategy — for providers that use static API keys

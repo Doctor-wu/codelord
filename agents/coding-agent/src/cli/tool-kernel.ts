@@ -15,9 +15,9 @@ import {
   builtinContracts,
   ToolRouter,
   ToolSafetyPolicy,
-} from '@agent/core'
-import type { ToolHandler, ToolContract } from '@agent/core'
-import type { CodelordConfig } from '@agent/config'
+} from '@codelord/core'
+import type { ToolHandler, ToolContract } from '@codelord/core'
+import type { CodelordConfig } from '@codelord/config'
 
 // ---------------------------------------------------------------------------
 // Tool Kernel — shared assembly for single-shot and REPL

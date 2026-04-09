@@ -14,8 +14,8 @@ import { mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { randomUUID } from 'node:crypto'
-import type { SessionSnapshot, SessionMeta } from '@agent/core'
-import { toSessionMeta } from '@agent/core'
+import type { SessionSnapshot, SessionMeta } from '@codelord/core'
+import { toSessionMeta } from '@codelord/core'
 import type { TimelineSnapshot } from './renderer/ink/timeline-projection.js'
 
 // ---------------------------------------------------------------------------

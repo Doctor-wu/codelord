@@ -1,5 +1,5 @@
 {
-  "name": "@agent/monorepo",
+  "name": "@codelord/monorepo",
   "private": true,
   "type": "module",
   "scripts": {

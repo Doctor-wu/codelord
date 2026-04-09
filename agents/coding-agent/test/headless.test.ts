@@ -13,7 +13,7 @@ vi.mock('@mariozechner/pi-ai', async (importOriginal) => {
 })
 
 import { runHeadless } from '../src/cli/headless.js'
-import type { CodelordConfig } from '@agent/config'
+import type { CodelordConfig } from '@codelord/config'
 
 function makeAssistantMessage(text = 'Hello!') {
   return {

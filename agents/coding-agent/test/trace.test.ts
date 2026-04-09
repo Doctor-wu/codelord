@@ -5,9 +5,9 @@ import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import { TraceRecorder } from '../src/trace-recorder.js'
 import { TraceStore, workspaceSlug, workspaceId, workspaceDirName, formatTraceShow } from '../src/trace-store.js'
-import type { LifecycleEvent, AgentEvent, ProviderStreamTraceEvent } from '@agent/core'
-import { createReasoningState, createToolCallLifecycle, createUsageAggregate } from '@agent/core'
-import type { UsageAggregate } from '@agent/core'
+import type { LifecycleEvent, AgentEvent, ProviderStreamTraceEvent } from '@codelord/core'
+import { createReasoningState, createToolCallLifecycle, createUsageAggregate } from '@codelord/core'
+import type { UsageAggregate } from '@codelord/core'
 
 function makeTmpDir(): string {
   const dir = join(tmpdir(), `codelord-trace-test-${randomUUID()}`)

@@ -5,7 +5,7 @@
 import React, { useEffect, useState } from 'react'
 import { Box, Text, useStdout } from 'ink'
 import type { ToolCallItem } from './timeline-projection.js'
-import type { ToolCallLifecycle } from '@agent/core'
+import type { ToolCallLifecycle } from '@codelord/core'
 import { classifyCommand, classifyToolName } from './classify.js'
 import { STEP_COLORS, META_COLOR, GLYPH, LANE } from './theme.js'
 import type { StepCategory } from './theme.js'

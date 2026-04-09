@@ -7,9 +7,9 @@ import type {
   LifecycleEvent, AgentEvent, RunOutcome, UsageAggregate,
   ProviderStreamTraceEvent, AgentTraceEvent, LifecycleTraceEvent,
   TraceRunV2, TraceStepV2, TraceEventEntry,
-} from '@agent/core'
-import { safePreview } from '@agent/core'
-import type { RedactionHit } from '@agent/core'
+} from '@codelord/core'
+import { safePreview } from '@codelord/core'
+import type { RedactionHit } from '@codelord/core'
 
 export interface TraceRecorderOptions {
   sessionId: string

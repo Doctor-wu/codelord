@@ -6,7 +6,7 @@ import { classifyCommand, classifyToolName } from '../src/renderer/ink/classify.
 import { createInitialTimelineState, captureTimelineSnapshot } from '../src/renderer/ink/timeline-projection.js'
 import type { TimelineState } from '../src/renderer/ink/timeline-projection.js'
 import { TimelineStore } from '../src/renderer/ink/timeline-store.js'
-import { createToolCallLifecycle } from '@agent/core'
+import { createToolCallLifecycle } from '@codelord/core'
 import { derivePhaseFeedback } from '../src/renderer/tool-display.js'
 
 function storeFromState(state: TimelineState): TimelineStore {

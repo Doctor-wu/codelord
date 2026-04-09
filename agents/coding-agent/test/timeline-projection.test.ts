@@ -11,8 +11,8 @@ import {
   hydrateTimelineState,
 } from '../src/renderer/ink/timeline-projection.js'
 import type { TimelineState, AssistantItem, ToolCallItem, ToolBatchItem, UserItem, QuestionItem, StatusItem } from '../src/renderer/ink/timeline-projection.js'
-import { createToolCallLifecycle, _resetProvisionalIdCounter, createReasoningState } from '@agent/core'
-import type { LifecycleEvent, ToolCallLifecycle, AssistantReasoningState } from '@agent/core'
+import { createToolCallLifecycle, _resetProvisionalIdCounter, createReasoningState } from '@codelord/core'
+import type { LifecycleEvent, ToolCallLifecycle, AssistantReasoningState } from '@codelord/core'
 
 describe('Timeline Projection', () => {
   beforeEach(() => {

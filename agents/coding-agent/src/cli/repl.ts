@@ -1,9 +1,9 @@
 import type { Api, Model } from '@mariozechner/pi-ai'
-import { AgentRuntime } from '@agent/core'
-import type { AgentEvent, LifecycleEvent, ReasoningLevel } from '@agent/core'
-import type { CodelordConfig } from '@agent/config'
-import { estimateTokens, DEFAULT_CONTEXT_WINDOW } from '@agent/core'
-import type { ContextWindowConfig } from '@agent/core'
+import { AgentRuntime } from '@codelord/core'
+import type { AgentEvent, LifecycleEvent, ReasoningLevel } from '@codelord/core'
+import type { CodelordConfig } from '@codelord/config'
+import { estimateTokens, DEFAULT_CONTEXT_WINDOW } from '@codelord/core'
+import type { ContextWindowConfig } from '@codelord/core'
 import { createToolKernel } from './tool-kernel.js'
 import { buildSystemPrompt } from './system-prompt.js'
 import { createRenderer } from './run.js'
@@ -364,7 +364,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     activeRecorder = newRecorder()
     checkpointManager.beginBurst()
     running = true
-    let outcome: import('@agent/core').RunOutcome
+    let outcome: import('@codelord/core').RunOutcome
     try {
       outcome = await runtime.run()
     } catch {

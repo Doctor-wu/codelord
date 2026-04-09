@@ -1,4 +1,4 @@
-import type { CodelordConfig } from '@agent/config'
+import type { CodelordConfig } from '@codelord/config'
 import { resolveStaticApiKey } from './api-key.js'
 import { isOAuthProvider, resolveOAuthApiKey } from './oauth.js'
 
