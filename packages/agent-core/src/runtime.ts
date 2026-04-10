@@ -34,6 +34,7 @@ import { DEFAULT_CONTEXT_WINDOW, estimateTokens, truncateMessages } from './cont
 import { ToolStatsTracker } from './tool-stats.js'
 import { resolveModelCapabilities } from './model-capabilities.js'
 import type { ModelCapabilities } from './model-capabilities.js'
+import { assertUniqueToolNames } from './tool-registry.js'
 
 // Re-export ReasoningLevel so external consumers don't break
 export type { ReasoningLevel } from './reasoning-manager.js'
@@ -153,9 +154,12 @@ export class AgentRuntime<TApi extends Api = Api> {
   private readonly _safetyRecords: ToolSafetyDecision[] = []
 
   constructor(options: RuntimeOptions<TApi>) {
+    const tools = [...options.tools]
+    assertUniqueToolNames([...tools, askUserQuestionTool], 'runtime tool set')
+
     this.model = options.model
     this.systemPrompt = options.systemPrompt
-    this.tools = options.tools
+    this.tools = tools
     this.toolHandlers = options.toolHandlers
     this.apiKey = options.apiKey
     this.maxSteps = options.maxSteps ?? 10

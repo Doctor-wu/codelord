@@ -1,15 +1,16 @@
 import { readFile } from 'node:fs/promises'
 import { resolve, isAbsolute } from 'node:path'
-import { Type } from '@mariozechner/pi-ai'
-import type { Tool } from '@mariozechner/pi-ai'
-import type { ToolHandler } from '../react-loop.js'
-import type { ToolContract } from './tool-contract.js'
+import { Type } from '@codelord/core'
+import type { Tool } from '@codelord/core'
+import type { ToolPlugin, ToolPluginContext } from '@codelord/core'
+import type { ToolHandler, ToolExecutionResult } from '@codelord/core'
+import type { ToolContract } from '@codelord/core'
 
 // ---------------------------------------------------------------------------
 // file_read — tool definition
 // ---------------------------------------------------------------------------
 
-export const fileReadTool: Tool = {
+const tool: Tool = {
   name: 'file_read',
   description: [
     'Read the contents of a file at a known path.',
@@ -34,13 +35,7 @@ export const fileReadTool: Tool = {
 // file_read — handler factory
 // ---------------------------------------------------------------------------
 
-export interface FileReadOptions {
-  cwd?: string
-}
-
-export function createFileReadHandler(options: FileReadOptions = {}): ToolHandler {
-  const { cwd = process.cwd() } = options
-
+function createFileReadHandler(cwd: string): ToolHandler {
   return async (args) => {
     const filePath = args.file_path as string | undefined
     if (!filePath || typeof filePath !== 'string') {
@@ -91,7 +86,7 @@ export function createFileReadHandler(options: FileReadOptions = {}): ToolHandle
 // file_read — contract
 // ---------------------------------------------------------------------------
 
-export const fileReadContract: ToolContract = {
+const contract: ToolContract = {
   toolName: 'file_read',
   whenToUse: [
     'Reading file contents when you already know the path.',
@@ -118,6 +113,19 @@ export const fileReadContract: ToolContract = {
       { argName: 'file_path', pattern: /[*?[\]]/, suggestTool: 'search', reason: 'glob pattern in file_path' },
     ],
   },
+}
+
+// ---------------------------------------------------------------------------
+// Plugin export
+// ---------------------------------------------------------------------------
+
+export const fileReadPlugin: ToolPlugin = {
+  id: 'file_read',
+  tool,
+  createHandler: (ctx) => createFileReadHandler(ctx.cwd),
+  contract,
+  riskLevel: 'safe',
+  category: 'core',
 }
 
 // ---------------------------------------------------------------------------

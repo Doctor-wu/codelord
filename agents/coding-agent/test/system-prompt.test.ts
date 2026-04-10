@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { buildSystemPrompt } from '../src/cli/system-prompt.js'
-import { builtinContracts } from '@codelord/core'
+import { askUserQuestionContract } from '@codelord/core'
+import type { ToolContract } from '@codelord/core'
+import { corePlugins } from '@codelord/tools'
+
+const allContracts: readonly ToolContract[] = [
+  ...corePlugins.map(p => p.contract),
+  askUserQuestionContract,
+]
 
 describe('buildSystemPrompt', () => {
-  const prompt = buildSystemPrompt({ cwd: '/test/project', contracts: builtinContracts })
+  const prompt = buildSystemPrompt({ cwd: '/test/project', contracts: allContracts })
 
   it('includes the working directory', () => {
     expect(prompt).toContain('/test/project')
@@ -40,13 +47,13 @@ describe('buildSystemPrompt', () => {
   })
 
   it('is deterministic (same input produces same output)', () => {
-    const prompt2 = buildSystemPrompt({ cwd: '/test/project', contracts: builtinContracts })
+    const prompt2 = buildSystemPrompt({ cwd: '/test/project', contracts: allContracts })
     expect(prompt).toBe(prompt2)
   })
 
   it('does not import contracts itself — uses only what is passed in', () => {
     // Pass a subset — only that subset should appear
-    const subset = builtinContracts.slice(0, 2)
+    const subset = allContracts.slice(0, 2)
     const limited = buildSystemPrompt({ cwd: '/x', contracts: subset })
     expect(limited).toContain('### bash')
     expect(limited).toContain('### file_read')

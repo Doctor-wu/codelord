@@ -22,10 +22,10 @@ export interface ToolSafetyDecision {
 }
 
 // ---------------------------------------------------------------------------
-// Static tool risk map
+// Default tool risk map (used when no riskMap is provided)
 // ---------------------------------------------------------------------------
 
-const STATIC_RISK: Record<string, RiskLevel> = {
+const DEFAULT_RISK: Record<string, RiskLevel> = {
   file_read: 'safe',
   search: 'safe',
   ls: 'safe',
@@ -202,20 +202,25 @@ function bashTouchesSensitivePath(command: string, cwd: string): { hit: boolean;
 
 export interface ToolSafetyPolicyOptions {
   cwd?: string
+  /** Per-tool risk levels, typically built from ToolPlugin.riskLevel */
+  riskMap?: Record<string, RiskLevel>
 }
 
 export class ToolSafetyPolicy {
   private readonly cwd: string
+  private readonly riskMap: Record<string, RiskLevel>
 
   constructor(options: ToolSafetyPolicyOptions = {}) {
     this.cwd = options.cwd ?? process.cwd()
+    // AskUserQuestion is always 'control' regardless of what's passed in
+    this.riskMap = { ...DEFAULT_RISK, ...options.riskMap, AskUserQuestion: 'control' }
   }
 
   assess(toolName: string, args: Record<string, unknown>): ToolSafetyDecision {
     const base = { toolName, args }
 
     // --- Static risk tools ---
-    const staticRisk = STATIC_RISK[toolName]
+    const staticRisk = this.riskMap[toolName]
     if (staticRisk) {
       // For write tools, check sensitive path
       if ((toolName === 'file_write' || toolName === 'file_edit') && typeof args.file_path === 'string') {

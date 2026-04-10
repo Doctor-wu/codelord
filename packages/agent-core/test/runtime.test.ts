@@ -63,6 +63,22 @@ describe('AgentRuntime', () => {
     expect(rt.messages).toEqual([])
   })
 
+  it('throws when runtime is constructed with duplicate final tool names', () => {
+    expect(() => new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [
+        {
+          name: ASK_USER_QUESTION_TOOL_NAME,
+          description: 'duplicate control tool',
+          parameters: { type: 'object', properties: {} },
+        } as never,
+      ],
+      toolHandlers: new Map(),
+      apiKey: 'test-key',
+    })).toThrow(`Duplicate tool name "${ASK_USER_QUESTION_TOOL_NAME}" in runtime tool set.`)
+  })
+
   it('runs a single-turn conversation to success', async () => {
     const assistantMessage = makeAssistantMessage({
       content: [{ type: 'text', text: 'Hello world' }],

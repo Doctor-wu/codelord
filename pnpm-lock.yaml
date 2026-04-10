@@ -32,6 +32,9 @@ importers:
       '@codelord/core':
         specifier: workspace:*
         version: link:../../packages/agent-core
+      '@codelord/tools':
+        specifier: workspace:*
+        version: link:../../packages/tools
       '@mariozechner/pi-ai':
         specifier: ^0.64.0
         version: 0.64.0(ws@8.20.0)(zod@4.3.6)
@@ -96,6 +99,12 @@ importers:
       smol-toml:
         specifier: ^1.3.1
         version: 1.6.1
+
+  packages/tools:
+    dependencies:
+      '@codelord/core':
+        specifier: workspace:*
+        version: link:../agent-core
 
 packages:
 

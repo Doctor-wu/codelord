@@ -1,14 +1,15 @@
 import { spawn } from 'node:child_process'
-import { Type } from '@mariozechner/pi-ai'
-import type { Tool } from '@mariozechner/pi-ai'
-import type { ToolExecutionContext, ToolExecutionResult, ToolHandler } from '../react-loop.js'
-import type { ToolContract } from './tool-contract.js'
+import { Type } from '@codelord/core'
+import type { Tool } from '@codelord/core'
+import type { ToolPlugin, ToolPluginContext } from '@codelord/core'
+import type { ToolExecutionContext, ToolExecutionResult, ToolHandler } from '@codelord/core'
+import type { ToolContract } from '@codelord/core'
 
 // ---------------------------------------------------------------------------
 // Bash tool definition
 // ---------------------------------------------------------------------------
 
-export const bashTool: Tool = {
+const tool: Tool = {
   name: 'bash',
   description: [
     'Execute a shell command and return its stdout and stderr.',
@@ -29,22 +30,7 @@ export const bashTool: Tool = {
 // Bash tool handler factory
 // ---------------------------------------------------------------------------
 
-export interface BashToolOptions {
-  /** Working directory for command execution. Defaults to process.cwd(). */
-  cwd?: string
-  /** Timeout in milliseconds. Defaults to 30_000 (30s). */
-  timeout?: number
-  /** Max output characters before truncation. Defaults to 10_000. */
-  maxOutput?: number
-}
-
-export function createBashToolHandler(options: BashToolOptions = {}): ToolHandler {
-  const {
-    cwd = process.cwd(),
-    timeout = 30_000,
-    maxOutput = 10_000,
-  } = options
-
+function createBashHandler(cwd: string, timeout: number, maxOutput: number): ToolHandler {
   return async (
     args: Record<string, unknown>,
     context: ToolExecutionContext,
@@ -149,7 +135,7 @@ export function createBashToolHandler(options: BashToolOptions = {}): ToolHandle
 // Bash tool contract
 // ---------------------------------------------------------------------------
 
-export const bashContract: ToolContract = {
+const contract: ToolContract = {
   toolName: 'bash',
   whenToUse: [
     'Shell pipelines, git commands, build tools, test runners, package managers.',
@@ -173,4 +159,24 @@ export const bashContract: ToolContract = {
     'Check stderr output for error details.',
     'For permission errors, consider if the command needs elevated privileges.',
   ],
+}
+
+// ---------------------------------------------------------------------------
+// Plugin export
+// ---------------------------------------------------------------------------
+
+const DEFAULT_TIMEOUT = 30_000
+const DEFAULT_MAX_OUTPUT = 10_000
+
+export const bashPlugin: ToolPlugin = {
+  id: 'bash',
+  tool,
+  createHandler: (ctx) => createBashHandler(
+    ctx.cwd,
+    (ctx.config.timeout as number | undefined) ?? DEFAULT_TIMEOUT,
+    (ctx.config.maxOutput as number | undefined) ?? DEFAULT_MAX_OUTPUT,
+  ),
+  contract,
+  riskLevel: 'dangerous',
+  category: 'core',
 }

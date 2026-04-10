@@ -33,6 +33,11 @@ export interface CodelordConfig {
   }
   /** Optional custom base URL for the provider API (for proxies/third-party endpoints). */
   baseUrl?: string
+  /** Per-tool configuration for optional tools */
+  tools?: Record<string, {
+    enabled?: boolean
+    [key: string]: unknown
+  }>
 }
 
 export const DEFAULT_CONFIG: CodelordConfig = {

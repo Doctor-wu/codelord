@@ -42,6 +42,7 @@ The product shell then assembles these into a `ToolKernel`.
 | `packages/agent-core/src/tools/ls.ts` | directory listing tool |
 | `packages/agent-core/src/tools/ask-user.ts` | blocking question primitive |
 | `packages/agent-core/src/tools/contracts.ts` | colocated contract export surface |
+| `packages/agent-core/src/tool-registry.ts` | tool name uniqueness guards |
 | `packages/agent-core/src/tool-router.ts` | deterministic routing rules |
 | `packages/agent-core/src/tool-safety.ts` | risk classification and blocking |
 | `agents/coding-agent/src/cli/tool-kernel.ts` | app-shell assembly of tool kernel |
@@ -54,6 +55,7 @@ The product shell then assembles these into a `ToolKernel`.
 - Safety decides whether execution is allowed.
 - `bash` is the fallback primitive, not the default preferred path.
 - `AskUserQuestion` is a control primitive, not a generic escape hatch for model uncertainty.
+- Duplicate tool names must be rejected locally during assembly/runtime validation, not deferred to provider-side request errors.
 
 ## Common Edit Entry Points
 

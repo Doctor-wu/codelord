@@ -14,6 +14,7 @@ import { TraceRecorder } from '../trace-recorder.js'
 import { TraceStore, workspaceSlug, workspaceId } from '../trace-store.js'
 import { reconcileTimelineForResume } from '../renderer/ink/timeline-projection.js'
 import { getGitBranch } from './git-utils.js'
+import { withProviderAuthEnv } from '../auth/provider-env.js'
 
 // ---------------------------------------------------------------------------
 // REPL — interactive shell with Ink as sole stdout owner
@@ -382,7 +383,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     running = true
     let outcome: import('@codelord/core').RunOutcome
     try {
-      outcome = await runtime.run()
+      outcome = await withProviderAuthEnv(config, apiKey, () => runtime.run())
     } catch {
       outcome = { type: 'error', error: 'Unhandled runtime error' }
     }

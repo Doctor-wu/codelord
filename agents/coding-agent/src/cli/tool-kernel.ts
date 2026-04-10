@@ -1,22 +1,7 @@
 import type { Tool } from '@mariozechner/pi-ai'
-import {
-  bashTool,
-  createBashToolHandler,
-  fileReadTool,
-  createFileReadHandler,
-  fileWriteTool,
-  createFileWriteHandler,
-  fileEditTool,
-  createFileEditHandler,
-  searchTool,
-  createSearchHandler,
-  lsTool,
-  createLsHandler,
-  builtinContracts,
-  ToolRouter,
-  ToolSafetyPolicy,
-} from '@codelord/core'
-import type { ToolHandler, ToolContract } from '@codelord/core'
+import type { ToolPlugin, ToolPluginContext, ToolHandler, ToolContract, RiskLevel } from '@codelord/core'
+import { askUserQuestionContract, ToolRouter, ToolSafetyPolicy } from '@codelord/core'
+import { corePlugins } from '@codelord/tools'
 import type { CodelordConfig } from '@codelord/config'
 
 // ---------------------------------------------------------------------------
@@ -36,37 +21,68 @@ export interface ToolKernelOptions {
   config: CodelordConfig
 }
 
+function assertUniqueNames(
+  names: readonly string[],
+  label: string,
+  scope: string,
+): void {
+  const seen = new Set<string>()
+
+  for (const name of names) {
+    if (seen.has(name)) {
+      throw new Error(`Duplicate ${label} "${name}" in ${scope}.`)
+    }
+    seen.add(name)
+  }
+}
+
 /**
- * Assemble the built-in tool kernel.
+ * Assemble the tool kernel from plugins.
  * startRepl() calls this to get the tool set, handler wiring, contracts, and router.
  */
 export function createToolKernel(options: ToolKernelOptions): ToolKernel {
   const { cwd, config } = options
 
-  const tools: Tool[] = [
-    bashTool,
-    fileReadTool,
-    fileWriteTool,
-    fileEditTool,
-    searchTool,
-    lsTool,
-  ]
+  // Collect enabled plugins
+  const plugins: ToolPlugin[] = [...corePlugins]
+  // TODO: future optional plugins will be filtered by config.tools here
 
-  const toolHandlers: Map<string, ToolHandler> = new Map([
-    ['bash', createBashToolHandler({
+  // Build context and instantiate handlers
+  const tools: Tool[] = []
+  const toolHandlers = new Map<string, ToolHandler>()
+  const contracts: ToolContract[] = []
+  const riskMap: Record<string, RiskLevel> = {}
+
+  for (const plugin of plugins) {
+    const ctx: ToolPluginContext = {
       cwd,
-      timeout: config.bash.timeout,
-      maxOutput: config.bash.maxOutput,
-    })],
-    ['file_read', createFileReadHandler({ cwd })],
-    ['file_write', createFileWriteHandler({ cwd })],
-    ['file_edit', createFileEditHandler({ cwd })],
-    ['search', createSearchHandler({ cwd })],
-    ['ls', createLsHandler({ cwd })],
-  ])
+      config: resolvePluginConfig(plugin.id, config),
+      env: process.env as Record<string, string | undefined>,
+    }
+    tools.push(plugin.tool)
+    toolHandlers.set(plugin.id, plugin.createHandler(ctx))
+    contracts.push(plugin.contract)
+    riskMap[plugin.id] = plugin.riskLevel
+  }
 
-  const router = new ToolRouter(builtinContracts)
-  const safetyPolicy = new ToolSafetyPolicy({ cwd })
+  // AskUserQuestion is appended by AgentRuntime as a control tool.
+  // Keep only the contract here so the system prompt documents it once.
+  contracts.push(askUserQuestionContract)
 
-  return { tools, toolHandlers, contracts: builtinContracts, router, safetyPolicy }
+  assertUniqueNames(tools.map((tool) => tool.name), 'tool name', 'tool kernel assembly')
+  assertUniqueNames(contracts.map((contract) => contract.toolName), 'tool contract', 'tool kernel assembly')
+
+  const router = new ToolRouter(contracts)
+  const safetyPolicy = new ToolSafetyPolicy({ cwd, riskMap })
+
+  return { tools, toolHandlers, contracts, router, safetyPolicy }
+}
+
+/** Resolve per-tool config from CodelordConfig */
+function resolvePluginConfig(toolId: string, config: CodelordConfig): Record<string, unknown> {
+  if (toolId === 'bash') {
+    return { timeout: config.bash.timeout, maxOutput: config.bash.maxOutput }
+  }
+  // For optional tools, will come from config.tools?.[toolId] in the future
+  return {}
 }

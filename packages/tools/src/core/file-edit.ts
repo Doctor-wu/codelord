@@ -1,15 +1,16 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { resolve, isAbsolute } from 'node:path'
-import { Type } from '@mariozechner/pi-ai'
-import type { Tool } from '@mariozechner/pi-ai'
-import type { ToolHandler } from '../react-loop.js'
-import type { ToolContract } from './tool-contract.js'
+import { Type } from '@codelord/core'
+import type { Tool } from '@codelord/core'
+import type { ToolPlugin, ToolPluginContext } from '@codelord/core'
+import type { ToolHandler, ToolExecutionResult } from '@codelord/core'
+import type { ToolContract } from '@codelord/core'
 
 // ---------------------------------------------------------------------------
 // file_edit — tool definition
 // ---------------------------------------------------------------------------
 
-export const fileEditTool: Tool = {
+const tool: Tool = {
   name: 'file_edit',
   description: [
     'Perform a precise search-and-replace edit in a file.',
@@ -31,13 +32,7 @@ export const fileEditTool: Tool = {
 // file_edit — handler factory
 // ---------------------------------------------------------------------------
 
-export interface FileEditOptions {
-  cwd?: string
-}
-
-export function createFileEditHandler(options: FileEditOptions = {}): ToolHandler {
-  const { cwd = process.cwd() } = options
-
+function createFileEditHandler(cwd: string): ToolHandler {
   return async (args) => {
     const filePath = args.file_path as string | undefined
     if (!filePath || typeof filePath !== 'string') {
@@ -95,7 +90,7 @@ export function createFileEditHandler(options: FileEditOptions = {}): ToolHandle
 // file_edit — contract
 // ---------------------------------------------------------------------------
 
-export const fileEditContract: ToolContract = {
+const contract: ToolContract = {
   toolName: 'file_edit',
   whenToUse: [
     'Making a targeted change in an existing file.',
@@ -122,6 +117,19 @@ export const fileEditContract: ToolContract = {
     'On MULTI_MATCH: include more surrounding lines in old_string to make the match unique.',
     'If the change is too complex for search-and-replace, use file_write to rewrite the entire file.',
   ],
+}
+
+// ---------------------------------------------------------------------------
+// Plugin export
+// ---------------------------------------------------------------------------
+
+export const fileEditPlugin: ToolPlugin = {
+  id: 'file_edit',
+  tool,
+  createHandler: (ctx) => createFileEditHandler(ctx.cwd),
+  contract,
+  riskLevel: 'write',
+  category: 'core',
 }
 
 // ---------------------------------------------------------------------------

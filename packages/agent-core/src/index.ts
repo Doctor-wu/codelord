@@ -35,6 +35,10 @@ export type { ToolRouteDecision, ContractRouteHints, ArgMisusePattern } from './
 export { ToolSafetyPolicy } from './tool-safety.js'
 export type { RiskLevel, ToolSafetyDecision } from './tool-safety.js'
 
+export { assertUniqueToolNames, assertUniqueContractToolNames } from './tool-registry.js'
+
+export type { ToolPlugin, ToolPluginContext } from './tool-plugin.js'
+
 export { createToolCallLifecycle, _resetProvisionalIdCounter, createReasoningState, projectDisplayReason, createUsageAggregate } from './events.js'
 export type {
   ToolCallLifecycle,
@@ -49,28 +53,9 @@ export type {
   UsageCostBreakdown,
 } from './events.js'
 
-export { bashTool, createBashToolHandler, bashContract } from './tools/bash.js'
-export type { BashToolOptions } from './tools/bash.js'
-
-export { fileReadTool, createFileReadHandler, fileReadContract } from './tools/file-read.js'
-export type { FileReadOptions } from './tools/file-read.js'
-
-export { fileWriteTool, createFileWriteHandler, fileWriteContract } from './tools/file-write.js'
-export type { FileWriteOptions } from './tools/file-write.js'
-
-export { fileEditTool, createFileEditHandler, fileEditContract } from './tools/file-edit.js'
-export type { FileEditOptions } from './tools/file-edit.js'
-
-export { searchTool, createSearchHandler, searchContract } from './tools/search.js'
-export type { SearchOptions } from './tools/search.js'
-
-export { lsTool, createLsHandler, lsContract } from './tools/ls.js'
-export type { LsOptions } from './tools/ls.js'
-
 export { askUserQuestionTool, ASK_USER_QUESTION_TOOL_NAME, askUserQuestionContract } from './tools/ask-user.js'
 export type { PendingQuestion, ResolvedQuestion } from './tools/ask-user.js'
 
-export { builtinContracts } from './tools/contracts.js'
 export type { ToolContract } from './tools/contracts.js'
 
 export { toSessionMeta, resolveResumeState } from './session-snapshot.js'
@@ -94,3 +79,7 @@ export type { ContextWindowConfig, TruncationResult } from './context-window.js'
 
 export { ToolStatsTracker } from './tool-stats.js'
 export type { ToolCallStats, RouteHitStats } from './tool-stats.js'
+
+// Re-export pi-ai primitives for tool plugin authors
+export { Type } from '@mariozechner/pi-ai'
+export type { Tool } from '@mariozechner/pi-ai'

@@ -13,6 +13,7 @@ import { createToolKernel } from './tool-kernel.js'
 import { buildSystemPrompt } from './system-prompt.js'
 import { TraceRecorder } from '../trace-recorder.js'
 import { TraceStore, workspaceSlug, workspaceId } from '../trace-store.js'
+import { withProviderAuthEnv } from '../auth/provider-env.js'
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -90,7 +91,7 @@ export async function runHeadless(options: HeadlessRunOptions): Promise<Headless
 
   let outcome: RunOutcome
   try {
-    outcome = await runtime.run()
+    outcome = await withProviderAuthEnv(config, apiKey, () => runtime.run())
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     outcome = { type: 'error', error: msg }

@@ -46,6 +46,7 @@ It covers:
 - The product shell composes core; it does not redefine core semantics.
 - `buildSystemPrompt()` is the single system-prompt assembly point.
 - `createToolKernel()` is the single tool-kernel assembly point for the product shell.
+- `createToolKernel()` owns user-visible tool contracts; runtime-owned control tools must not be duplicated there.
 - REPL is the main product path.
 - Trace subcommands consume trace data; they do not invent trace facts.
 

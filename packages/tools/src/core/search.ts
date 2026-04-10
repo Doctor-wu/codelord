@@ -1,15 +1,16 @@
 import { spawn } from 'node:child_process'
 import { resolve, isAbsolute } from 'node:path'
-import { Type } from '@mariozechner/pi-ai'
-import type { Tool } from '@mariozechner/pi-ai'
-import type { ToolExecutionResult, ToolHandler } from '../react-loop.js'
-import type { ToolContract } from './tool-contract.js'
+import { Type } from '@codelord/core'
+import type { Tool } from '@codelord/core'
+import type { ToolPlugin, ToolPluginContext } from '@codelord/core'
+import type { ToolExecutionResult, ToolHandler } from '@codelord/core'
+import type { ToolContract } from '@codelord/core'
 
 // ---------------------------------------------------------------------------
 // search — tool definition
 // ---------------------------------------------------------------------------
 
-export const searchTool: Tool = {
+const tool: Tool = {
   name: 'search',
   description: [
     'Search for text patterns across files in a directory tree.',
@@ -44,16 +45,11 @@ export const searchTool: Tool = {
 // search — handler factory
 // ---------------------------------------------------------------------------
 
-export interface SearchOptions {
-  cwd?: string
-  timeout?: number
-}
-
 const DEFAULT_MAX_RESULTS = 100
 const MAX_OUTPUT_CHARS = 30_000
 
-export function createSearchHandler(options: SearchOptions = {}): ToolHandler {
-  const { cwd = process.cwd(), timeout = 15_000 } = options
+function createSearchHandler(cwd: string): ToolHandler {
+  const timeout = 15_000
 
   return async (args) => {
     const query = args.query as string | undefined
@@ -71,7 +67,7 @@ export function createSearchHandler(options: SearchOptions = {}): ToolHandler {
 
     const rgArgs = buildRgArgs({ query, searchPath, useRegex, contextLines, maxResults, glob })
 
-    return new Promise<ToolExecutionResult>((resolve) => {
+    return new Promise<ToolExecutionResult>((resolvePromise) => {
       const child = spawn('rg', rgArgs, { cwd, env: { ...process.env } })
 
       let output = ''
@@ -94,15 +90,14 @@ export function createSearchHandler(options: SearchOptions = {}): ToolHandler {
 
       const timeoutId = setTimeout(() => {
         child.kill('SIGTERM')
-        resolve({ output: 'ERROR: Search timed out.', isError: true })
+        resolvePromise({ output: 'ERROR: Search timed out.', isError: true })
       }, timeout)
 
       child.on('close', (code) => {
         clearTimeout(timeoutId)
 
-        // rg exit codes: 0=matches found, 1=no matches, 2=error
         if (code === 1 || (!output.trim() && code === 0)) {
-          resolve({ output: `No matches found for: ${query}`, isError: false })
+          resolvePromise({ output: `No matches found for: ${query}`, isError: false })
           return
         }
 
@@ -110,16 +105,16 @@ export function createSearchHandler(options: SearchOptions = {}): ToolHandler {
         if (truncated) {
           result += `\n[output truncated at ${MAX_OUTPUT_CHARS} chars]`
         }
-        resolve({ output: result || `No matches found for: ${query}`, isError: false })
+        resolvePromise({ output: result || `No matches found for: ${query}`, isError: false })
       })
 
       child.on('error', (err) => {
         clearTimeout(timeoutId)
         if (isNodeError(err) && err.code === 'ENOENT') {
-          resolve(grepFallback({ query, searchPath, useRegex, contextLines, maxResults, cwd, timeout }))
+          resolvePromise(grepFallback({ query, searchPath, useRegex, contextLines, maxResults, cwd, timeout }))
           return
         }
-        resolve({ output: `ERROR: Search failed: ${err.message}`, isError: true })
+        resolvePromise({ output: `ERROR: Search failed: ${err.message}`, isError: true })
       })
     })
   }
@@ -189,7 +184,7 @@ function grepFallback(params: GrepFallbackParams): Promise<ToolExecutionResult> 
 
   grepArgs.push('--', params.query, params.searchPath)
 
-  return new Promise<ToolExecutionResult>((resolve) => {
+  return new Promise<ToolExecutionResult>((resolvePromise) => {
     const child = spawn('grep', grepArgs, { cwd: params.cwd, env: { ...process.env } })
 
     let output = ''
@@ -209,21 +204,21 @@ function grepFallback(params: GrepFallbackParams): Promise<ToolExecutionResult> 
 
     const timeoutId = setTimeout(() => {
       child.kill('SIGTERM')
-      resolve({ output: 'ERROR: Search timed out.', isError: true })
+      resolvePromise({ output: 'ERROR: Search timed out.', isError: true })
     }, params.timeout)
 
     child.on('close', (code) => {
       clearTimeout(timeoutId)
       if (code === 1 || !output.trim()) {
-        resolve({ output: `No matches found for: ${params.query}`, isError: false })
+        resolvePromise({ output: `No matches found for: ${params.query}`, isError: false })
         return
       }
-      resolve({ output: output.trim(), isError: false })
+      resolvePromise({ output: output.trim(), isError: false })
     })
 
     child.on('error', () => {
       clearTimeout(timeoutId)
-      resolve({ output: 'ERROR: Neither rg nor grep is available.', isError: true })
+      resolvePromise({ output: 'ERROR: Neither rg nor grep is available.', isError: true })
     })
   })
 }
@@ -232,7 +227,7 @@ function grepFallback(params: GrepFallbackParams): Promise<ToolExecutionResult> 
 // search — contract
 // ---------------------------------------------------------------------------
 
-export const searchContract: ToolContract = {
+const contract: ToolContract = {
   toolName: 'search',
   whenToUse: [
     'Locating code, symbols, error messages, or config values across the codebase.',
@@ -255,6 +250,19 @@ export const searchContract: ToolContract = {
     'Use ls first to understand the directory structure, then narrow the search path.',
     'Try regex mode for more flexible pattern matching.',
   ],
+}
+
+// ---------------------------------------------------------------------------
+// Plugin export
+// ---------------------------------------------------------------------------
+
+export const searchPlugin: ToolPlugin = {
+  id: 'search',
+  tool,
+  createHandler: (ctx) => createSearchHandler(ctx.cwd),
+  contract,
+  riskLevel: 'safe',
+  category: 'core',
 }
 
 // ---------------------------------------------------------------------------

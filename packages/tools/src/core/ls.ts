@@ -1,15 +1,16 @@
 import { readdir, stat } from 'node:fs/promises'
 import { join, resolve, isAbsolute } from 'node:path'
-import { Type } from '@mariozechner/pi-ai'
-import type { Tool } from '@mariozechner/pi-ai'
-import type { ToolHandler } from '../react-loop.js'
-import type { ToolContract } from './tool-contract.js'
+import { Type } from '@codelord/core'
+import type { Tool } from '@codelord/core'
+import type { ToolPlugin, ToolPluginContext } from '@codelord/core'
+import type { ToolHandler, ToolExecutionResult } from '@codelord/core'
+import type { ToolContract } from '@codelord/core'
 
 // ---------------------------------------------------------------------------
 // ls — tool definition
 // ---------------------------------------------------------------------------
 
-export const lsTool: Tool = {
+const tool: Tool = {
   name: 'ls',
   description: [
     'List directory contents to explore project structure.',
@@ -42,15 +43,9 @@ export const lsTool: Tool = {
 // ls — handler factory
 // ---------------------------------------------------------------------------
 
-export interface LsOptions {
-  cwd?: string
-}
-
 const DEFAULT_MAX_ENTRIES = 200
 
-export function createLsHandler(options: LsOptions = {}): ToolHandler {
-  const { cwd = process.cwd() } = options
-
+function createLsHandler(cwd: string): ToolHandler {
   return async (args) => {
     const dirPath = typeof args.path === 'string'
       ? (isAbsolute(args.path) ? resolve(args.path) : resolve(cwd, args.path))
@@ -65,7 +60,6 @@ export function createLsHandler(options: LsOptions = {}): ToolHandler {
     }
 
     const entries: string[] = []
-    let truncated = false
 
     try {
       await collectEntries(dirPath, dirPath, recursive, glob, typeFilter as 'file' | 'dir' | undefined, entries, maxEntries)
@@ -82,9 +76,7 @@ export function createLsHandler(options: LsOptions = {}): ToolHandler {
       return { output: `ERROR: Failed to list directory: ${err instanceof Error ? err.message : String(err)}`, isError: true }
     }
 
-    if (entries.length >= maxEntries) {
-      truncated = true
-    }
+    const truncated = entries.length >= maxEntries
 
     if (entries.length === 0) {
       return { output: `${dirPath}: (empty)`, isError: false }
@@ -115,7 +107,6 @@ async function collectEntries(
 
   const dirEntries = await readdir(currentPath, { withFileTypes: true })
 
-  // Sort for stable output
   dirEntries.sort((a, b) => a.name.localeCompare(b.name))
 
   for (const entry of dirEntries) {
@@ -125,9 +116,7 @@ async function collectEntries(
     const relativePath = fullPath.slice(basePath.length + 1)
     const isDir = entry.isDirectory()
 
-    // Type filter
     if (typeFilter === 'file' && isDir) {
-      // Still recurse into dirs even if filtering for files
       if (recursive) {
         await collectEntries(basePath, fullPath, recursive, glob, typeFilter, entries, maxEntries)
       }
@@ -135,7 +124,6 @@ async function collectEntries(
     }
     if (typeFilter === 'dir' && !isDir) continue
 
-    // Glob filter (simple suffix matching)
     if (glob && !matchGlob(entry.name, glob)) {
       if (isDir && recursive) {
         await collectEntries(basePath, fullPath, recursive, glob, typeFilter, entries, maxEntries)
@@ -157,17 +145,13 @@ async function collectEntries(
 // ---------------------------------------------------------------------------
 
 function matchGlob(name: string, pattern: string): boolean {
-  // Handle *.ext patterns
   if (pattern.startsWith('*.')) {
     return name.endsWith(pattern.slice(1))
   }
-  // Handle exact match
   if (pattern === name) return true
-  // Handle simple wildcard at start
   if (pattern.startsWith('*')) {
     return name.endsWith(pattern.slice(1))
   }
-  // Handle simple wildcard at end
   if (pattern.endsWith('*')) {
     return name.startsWith(pattern.slice(0, -1))
   }
@@ -178,7 +162,7 @@ function matchGlob(name: string, pattern: string): boolean {
 // ls — contract
 // ---------------------------------------------------------------------------
 
-export const lsContract: ToolContract = {
+const contract: ToolContract = {
   toolName: 'ls',
   whenToUse: [
     'Exploring project structure and understanding what files exist.',
@@ -199,6 +183,19 @@ export const lsContract: ToolContract = {
     'Use recursive=true to see nested structure.',
     'Use glob filter to narrow results in large directories.',
   ],
+}
+
+// ---------------------------------------------------------------------------
+// Plugin export
+// ---------------------------------------------------------------------------
+
+export const lsPlugin: ToolPlugin = {
+  id: 'ls',
+  tool,
+  createHandler: (ctx) => createLsHandler(ctx.cwd),
+  contract,
+  riskLevel: 'safe',
+  category: 'core',
 }
 
 // ---------------------------------------------------------------------------

@@ -48,6 +48,7 @@ const testConfig: CodelordConfig = {
 describe('runHeadless', () => {
   afterEach(() => {
     streamSimpleMock.mockReset()
+    delete process.env.ANTHROPIC_AUTH_TOKEN
   })
 
   it('returns outcome, trace, text, and duration', async () => {
@@ -123,5 +124,41 @@ describe('runHeadless', () => {
 
     expect(result.outcome.type).toBe('error')
     expect(result.text).toBe('')
+  })
+
+  it('isolates Anthropic auth token env when using an explicit API key', async () => {
+    process.env.ANTHROPIC_AUTH_TOKEN = 'env-oauth-token'
+
+    streamSimpleMock.mockImplementation(() => {
+      expect(process.env.ANTHROPIC_AUTH_TOKEN).toBeUndefined()
+      return makeEventStream('ok')
+    })
+
+    const result = await runHeadless({
+      model: { id: 'test-model' } as never,
+      apiKey: 'test-key',
+      config: testConfig,
+      prompt: 'test',
+    })
+
+    expect(result.outcome.type).toBe('success')
+    expect(process.env.ANTHROPIC_AUTH_TOKEN).toBe('env-oauth-token')
+  })
+
+  it('sends AskUserQuestion only once in the tool list', async () => {
+    streamSimpleMock.mockImplementation((_model, context) => {
+      const names = context.tools.map((tool: { name: string }) => tool.name)
+      expect(names.filter((name: string) => name === 'AskUserQuestion')).toHaveLength(1)
+      return makeEventStream('ok')
+    })
+
+    const result = await runHeadless({
+      model: { id: 'test-model' } as never,
+      apiKey: 'test-key',
+      config: testConfig,
+      prompt: 'test',
+    })
+
+    expect(result.outcome.type).toBe('success')
   })
 })

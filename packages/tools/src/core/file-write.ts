@@ -1,15 +1,16 @@
 import { writeFile, mkdir } from 'node:fs/promises'
 import { resolve, isAbsolute, dirname } from 'node:path'
-import { Type } from '@mariozechner/pi-ai'
-import type { Tool } from '@mariozechner/pi-ai'
-import type { ToolHandler } from '../react-loop.js'
-import type { ToolContract } from './tool-contract.js'
+import { Type } from '@codelord/core'
+import type { Tool } from '@codelord/core'
+import type { ToolPlugin, ToolPluginContext } from '@codelord/core'
+import type { ToolHandler, ToolExecutionResult } from '@codelord/core'
+import type { ToolContract } from '@codelord/core'
 
 // ---------------------------------------------------------------------------
 // file_write — tool definition
 // ---------------------------------------------------------------------------
 
-export const fileWriteTool: Tool = {
+const tool: Tool = {
   name: 'file_write',
   description: [
     'Write content to a file, creating it if it does not exist or overwriting if it does.',
@@ -32,13 +33,7 @@ export const fileWriteTool: Tool = {
 // file_write — handler factory
 // ---------------------------------------------------------------------------
 
-export interface FileWriteOptions {
-  cwd?: string
-}
-
-export function createFileWriteHandler(options: FileWriteOptions = {}): ToolHandler {
-  const { cwd = process.cwd() } = options
-
+function createFileWriteHandler(cwd: string): ToolHandler {
   return async (args) => {
     const filePath = args.file_path as string | undefined
     if (!filePath || typeof filePath !== 'string') {
@@ -76,7 +71,7 @@ export function createFileWriteHandler(options: FileWriteOptions = {}): ToolHand
 // file_write — contract
 // ---------------------------------------------------------------------------
 
-export const fileWriteContract: ToolContract = {
+const contract: ToolContract = {
   toolName: 'file_write',
   whenToUse: [
     'Creating a new file.',
@@ -98,6 +93,19 @@ export const fileWriteContract: ToolContract = {
     'On NOT_FOUND, retry with create_directories=true.',
     'If only changing part of a file, switch to file_edit.',
   ],
+}
+
+// ---------------------------------------------------------------------------
+// Plugin export
+// ---------------------------------------------------------------------------
+
+export const fileWritePlugin: ToolPlugin = {
+  id: 'file_write',
+  tool,
+  createHandler: (ctx) => createFileWriteHandler(ctx.cwd),
+  contract,
+  riskLevel: 'write',
+  category: 'core',
 }
 
 // ---------------------------------------------------------------------------

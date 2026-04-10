@@ -11,6 +11,7 @@ It is the boundary between config-selected provider/model and the concrete crede
 - static API key resolution from config
 - OAuth login / refresh flow
 - provider-specific credential persistence and refresh handling
+- provider runtime auth isolation when third-party SDK env fallbacks would conflict with explicit credentials
 
 ## Does Not Own
 
@@ -26,6 +27,7 @@ It is the boundary between config-selected provider/model and the concrete crede
 | `agents/coding-agent/src/auth/index.ts` | unified auth dispatch |
 | `agents/coding-agent/src/auth/api-key.ts` | static-key resolution |
 | `agents/coding-agent/src/auth/oauth.ts` | OAuth flow and refresh |
+| `agents/coding-agent/src/auth/provider-env.ts` | provider SDK env sanitization during runtime calls |
 
 ## Invariants
 
@@ -33,12 +35,14 @@ It is the boundary between config-selected provider/model and the concrete crede
 - Config may say which provider to use; auth decides how credentials are resolved.
 - OAuth handling must stay outside `packages/config`.
 - Auth should return usable credentials, not mutate runtime semantics.
+- When explicit credentials are selected, the app shell must not let provider SDK env auto-discovery silently add a second auth mechanism.
 
 ## Common Edit Entry Points
 
 - Change provider dispatch → `auth/index.ts`.
 - Change static-key resolution → `auth/api-key.ts`.
 - Change OAuth behavior → `auth/oauth.ts`.
+- Change provider env sanitization → `auth/provider-env.ts`.
 
 ## Boundary Rules
 
