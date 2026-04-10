@@ -550,25 +550,33 @@ M9   多体协作            ──→ Multi-Agent
 
 ### M3-S1：外部 Benchmark Fast Bootstrap
 
-> 用 SWE-bench + Aider Polyglot 获取 codelord 的第一批基线数据，建立 eval 飞轮的起点。
+> 用 SWE-bench + Aider Polyglot + BrowseComp + Terminal-Bench 2.0 获取 codelord 的第一批基线数据，建立 eval 飞轮的起点。
+> codelord 的 coding-agent 本质上是 general agent（bash / file edit / web 等通用能力），eval 覆盖面必须反映这一点，不能只测 coding。
 
 **做之前**：codelord 从未被量化评估过。不知道它在真实任务上的 pass rate、平均步数、平均成本。所有关于"codelord 表现如何"的判断都是感觉。
 
 **做之后**：
 - SWE-bench Verified 上有 codelord 的 pass@1 基线（预期 < 20%，没有 M4/M5 是正常的）
 - Aider Polyglot 上有 codelord 的 pass_rate_1 / pass_rate_2 基线
+- BrowseComp 上有 codelord 的 accuracy 基线（测 persistent multi-hop web browsing + reasoning）
+- Terminal-Bench 2.0 上有 codelord 的 task resolution rate 基线（测 bash + file edit 的 terminal 任务）
 - 每个 trial 有完整的 trace 数据
 - 第一批"codelord 为什么失败"的结构化分析，直接指导后续优先级
+- 四套 benchmark 覆盖 coding + general terminal + web browsing 三个能力面，避免只用 coding 视角评估 general agent
 
 **具体任务**：
 - [ ] SWE-bench adapter：`runHeadless()` → Docker 环境 → patch 提取 → predictions JSONL → SWE-bench eval harness 评判
 - [ ] Aider Polyglot adapter：`runHeadless()` → Exercism 项目环境 → 代码修改 → 测试运行评判
+- [ ] BrowseComp adapter：`runHeadless()` → web search/fetch 工具 → 短答案提取 → BrowseComp grader 评判（1,266 题，OpenAI 出品，答案短且唯一，"easy to verify, hard to solve"）
+- [ ] Terminal-Bench 2.0 adapter：`runHeadless()` → Harbor harness Docker 环境 → bash + file edit 完成任务 → 测试脚本评判（89 题，涵盖 ML 训练、Linux 编译、安全漏洞修复等真实终端任务）
 - [ ] 在 SWE-bench Verified 上跑 20 题子集，获取第一个基线
 - [ ] 在 Aider Polyglot 上跑 50 题子集，获取第一个基线
-- [ ] 对失败 case 做 trace 分析，归类失败模式（context 不够 / tool 选错 / 推理错误 / 环境问题）
+- [ ] 在 BrowseComp 上跑 50 题子集，获取第一个基线
+- [ ] 在 Terminal-Bench 2.0 上跑 20 题子集，获取第一个基线
+- [ ] 对失败 case 做 trace 分析，归类失败模式（context 不够 / tool 选错 / 推理错误 / 环境问题 / 搜索策略不足）
 - [ ] 基于失败模式分析，输出后续 roadmap 优先级建议
 
-**完成标志**：有两个外部 benchmark 的基线数字。有第一批结构化的失败模式分析。后续每次改动都可以在这些子集上快速验证。
+**完成标志**：有四个外部 benchmark 的基线数字（SWE-bench / Aider Polyglot 覆盖 coding，BrowseComp 覆盖 web browsing + reasoning，Terminal-Bench 覆盖 terminal 任务）。有第一批结构化的失败模式分析。后续每次改动都可以在这些子集上快速验证。
 
 ### M3-S2：Eval 基础设施最小闭环
 
@@ -581,7 +589,7 @@ M9   多体协作            ──→ Multi-Agent
 - `codelord eval compare <run1> <run2>` 对比两次 run 的 pass rate / 步数 / 成本
 - eval case 有标准格式，支持 deterministic grader
 - 每次 run 自动绑定：prompt version + model + active config + trace
-- S1 的 SWE-bench / Aider Polyglot adapter 迁移为内置 suite
+- S1 的 SWE-bench / Aider Polyglot / BrowseComp / Terminal-Bench adapter 迁移为内置 suite
 
 **具体任务**：
 - [ ] eval case 格式定义：`{ id, description, setup, input, expected, graders, maxSteps, timeoutMs }`
@@ -590,7 +598,7 @@ M9   多体协作            ──→ Multi-Agent
 - [ ] `codelord eval run <suite>` CLI 命令
 - [ ] eval run 产出格式：`{ runId, config, results: [{ taskId, pass, score, traceId, steps, cost, durationMs }] }`
 - [ ] `codelord eval compare <run1> <run2>` CLI 命令：`case | pass_rate_delta | steps_delta | cost_delta`
-- [ ] 把 S1 的 SWE-bench / Aider Polyglot adapter 迁移到 eval 框架内，成为内置 suite
+- [ ] 把 S1 的 SWE-bench / Aider Polyglot / BrowseComp / Terminal-Bench adapter 迁移到 eval 框架内，成为内置 suite
 - [ ] OTel 兼容导出（trace 对外输出的标准通道）：
   - 实现 lossy OTel span exporter：将 codelord 三层 trace 投影为 OTel span 树（丢失跨层 identity / queue lifecycle / operator action 等 codelord 特有语义，保留 LLM call + tool call + step 级别信息）
   - 支持导出到 LangSmith / Langfuse / Arize 等外部可观测性平台，用于跨工具对比和行业基准对齐
@@ -670,23 +678,28 @@ M9   多体协作            ──→ Multi-Agent
 
 ### M3-S6：外部 Benchmark 全量运行与持续跟踪
 
-> 扩展到 SWE-bench / Aider Polyglot 全量运行，建立持续跟踪基线。
+> 扩展到 SWE-bench / Aider Polyglot / BrowseComp / Terminal-Bench 2.0 全量运行，建立持续跟踪基线。
 
 **做之前**：只在子集上有基线，无法与行业 leaderboard 对比。
 
 **做之后**：
 - SWE-bench Verified 全量 500 题有 codelord 的 pass@1
 - Aider Polyglot 全量 225 题有 codelord 的 pass_rate_1 / pass_rate_2
+- BrowseComp 全量 1,266 题有 codelord 的 accuracy（测 general agent 的 web browsing + multi-hop reasoning 能力）
+- Terminal-Bench 2.0 全量 89 题有 codelord 的 task resolution rate（测 general agent 的终端任务能力）
 - 每次大版本升级后自动跑全量，跟踪趋势
 - 有行业绝对坐标，知道 codelord 在哪个水位
+- 四套 benchmark 提供 coding / browsing / terminal 三维能力画像，而非单维分数
 
 **具体任务**：
 - [ ] SWE-bench Verified 全量运行（500 题，预计 2-4 小时 with 8 并发）
 - [ ] Aider Polyglot 全量运行（225 题）
+- [ ] BrowseComp 全量运行（1,266 题，需 web search/fetch 工具；注意成本——参考 o1 约 $350-400/run）
+- [ ] Terminal-Bench 2.0 全量运行（89 题，通过 Harbor harness 在 Docker 容器中执行）
 - [ ] 建立外部 benchmark 跟踪报告
 - [ ] 每次大改动后的 re-run 流程
 
-**完成标志**：有行业绝对坐标。能用一个数字告诉别人 "codelord 在 SWE-bench Verified 上 pass@1 = X%"。
+**完成标志**：有行业绝对坐标。能用数字告诉别人 "codelord 在 SWE-bench Verified 上 pass@1 = X%，BrowseComp 上 accuracy = Y%，Terminal-Bench 2.0 上 resolution rate = Z%"。
 
 > **🧠 你不知道你不知道的：**
 >
@@ -698,7 +711,7 @@ M9   多体协作            ──→ Multi-Agent
 > - **Agent scaffold 对 benchmark 分数的影响可能大于模型选择。** 同一模型不同 scaffold 可以产生 22+ 分差距。这意味着 codelord 的 eval 分数很大程度上是在评估我们的 agent core + tool system + context strategy，而不只是在评估 LLM。
 > - **外部 benchmark 分数的第一次跑可能会很难看。** 这完全正常——我们还没有 M4/M5。难看的分数正是 eval 的价值：它指向接下来该做什么。
 >
-> **✅ 完成标志：** `eval run / compare / experiment` 可用。拥有内部 golden set + 两个外部 benchmark 基线。可以用数据比较不同 prompt / skill / context / model 策略的优劣。后续每个 milestone 的改动都通过 eval 验证。
+> **✅ 完成标志：** `eval run / compare / experiment` 可用。拥有内部 golden set + 四个外部 benchmark 基线（SWE-bench / Aider Polyglot / BrowseComp / Terminal-Bench 2.0）。可以用数据比较不同 prompt / skill / context / model 策略的优劣。后续每个 milestone 的改动都通过 eval 验证。
 
 ---
 
