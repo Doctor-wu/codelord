@@ -6,7 +6,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import type {
   LifecycleEvent, AgentEvent, RunOutcome, UsageAggregate,
   ProviderStreamTraceEvent, AgentTraceEvent, LifecycleTraceEvent,
-  TraceRunV2, TraceStepV2, TraceEventEntry,
+  TraceRunV2, TraceStepV2, TraceEventEntry, TraceSegment,
 } from '@codelord/core'
 import { safePreview } from '@codelord/core'
 import type { RedactionHit } from '@codelord/core'
@@ -41,6 +41,9 @@ export class TraceRecorder {
   private totalLifecycleEvents = 0
   private _toolcallStartTimestamps: number[] = []
   private _toolCallCreatedTimestamps: number[] = []
+  private segments: TraceSegment[] = []
+  private currentSegmentStart: number | null = null
+  private currentSegmentStepStart: number = 0
 
   constructor(opts: TraceRecorderOptions) {
     this.runId = randomUUID()
@@ -50,6 +53,43 @@ export class TraceRecorder {
   }
 
   get traceRunId(): string { return this.runId }
+
+  /** Call before each runtime.run() burst to mark segment start */
+  beginSegment(): void {
+    this.currentSegmentStart = Date.now()
+    // Record the step count at segment start (steps are 1-based, so next step is steps.length + 1)
+    this.currentSegmentStepStart = this.steps.length + 1
+  }
+
+  /** Call after each runtime.run() burst to close the segment */
+  endSegment(outcome: RunOutcome, _opts?: { toolStats?: TraceRunV2['toolStats'] }): void {
+    if (this.currentSegmentStart === null) return
+
+    // If there's a dangling currentStep, flush it
+    if (this.currentStep) {
+      this.currentStep.endedAt = Date.now()
+      this.steps.push(this.currentStep)
+      this.currentStep = null
+    }
+
+    const lastStep = this.steps.length
+    const firstStep = this.currentSegmentStepStart
+
+    this.segments.push({
+      segmentIndex: this.segments.length,
+      startedAt: this.currentSegmentStart,
+      endedAt: Date.now(),
+      outcome: {
+        type: outcome.type,
+        ...(outcome.type === 'success' ? { text: outcome.text } : {}),
+        ...(outcome.type === 'error' ? { error: outcome.error } : {}),
+        ...(outcome.type === 'blocked' ? { reason: outcome.reason } : {}),
+      },
+      stepRange: [firstStep, Math.max(firstStep, lastStep)],
+    })
+
+    this.currentSegmentStart = null
+  }
 
   recordInterruptRequest(source: 'sigint' | 'api' = 'sigint'): void {
     this.interruptRequestedAt = Date.now()
@@ -382,6 +422,7 @@ export class TraceRecorder {
       runEvents: this.runEvents,
       ...(opts?.toolStats ? { toolStats: opts.toolStats } : {}),
       ...(toolVisibility ? { toolVisibility } : {}),
+      ...(this.segments.length > 0 ? { segments: this.segments } : {}),
     }
   }
 

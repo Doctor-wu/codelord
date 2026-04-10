@@ -106,6 +106,20 @@ export interface TraceStepV2 {
 }
 
 // ---------------------------------------------------------------------------
+// TraceSegment — per-burst boundary within a session-level trace
+// ---------------------------------------------------------------------------
+
+export interface TraceSegment {
+  /** 0-based segment index */
+  segmentIndex: number
+  startedAt: number
+  endedAt: number
+  outcome: { type: string; text?: string; error?: string; reason?: string }
+  /** Step indices belonging to this segment: [firstStep, lastStep] inclusive (1-based, matching TraceStepV2.step) */
+  stepRange: [number, number]
+}
+
+// ---------------------------------------------------------------------------
 // TraceRunV2 — top-level trace
 // ---------------------------------------------------------------------------
 
@@ -146,6 +160,8 @@ export interface TraceRunV2 {
     measuredCount: number
     provisionalHitCount: number
   }
+  /** For session-level traces: per-burst segment boundaries */
+  segments?: TraceSegment[]
 }
 
 // ---------------------------------------------------------------------------

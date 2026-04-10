@@ -83,12 +83,26 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   const traceStore = new TraceStore()
   const wsSlug = workspaceSlug(cwd)
   const wsId = workspaceId(cwd)
-  let activeRecorder: TraceRecorder | null = null
 
   const newRecorder = () => new TraceRecorder({
     sessionId, cwd, workspaceRoot: cwd, workspaceSlug: wsSlug, workspaceId: wsId,
     provider: config.provider, model: config.model, systemPrompt,
   })
+
+  // Session-level recorder: one trace per session, not per burst
+  const sessionRecorder = newRecorder()
+  let activeRecorder: TraceRecorder | null = sessionRecorder
+
+  let sessionTraceSaved = false
+  const saveSessionTrace = (finalOutcome?: import('@codelord/core').RunOutcome) => {
+    if (sessionTraceSaved) return
+    sessionTraceSaved = true
+    try {
+      const outcome = finalOutcome ?? { type: 'success' as const, text: '' }
+      const trace = sessionRecorder.finalize(outcome, { toolStats: runtime.toolStats.exportSnapshot() })
+      traceStore.save(trace)
+    } catch { /* best effort */ }
+  }
 
   // Fan-out lifecycle events to renderer + active trace recorder
   const fanOutLifecycle = (event: LifecycleEvent) => {
@@ -202,6 +216,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
       runtime.requestInterrupt()
     } else {
       saveSession()
+      saveSessionTrace()
       renderer.cleanup()
       printResumeHint()
       process.exit(0)
@@ -215,6 +230,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
       runtime.requestInterrupt()
     } else {
       saveSession()
+      saveSessionTrace()
       renderer.cleanup()
       printResumeHint()
       process.exit(0)
@@ -361,7 +377,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     saveSession()
 
     // --- Drive runtime ---
-    activeRecorder = newRecorder()
+    sessionRecorder.beginSegment()
     checkpointManager.beginBurst()
     running = true
     let outcome: import('@codelord/core').RunOutcome
@@ -371,6 +387,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
       outcome = { type: 'error', error: 'Unhandled runtime error' }
     }
     running = false
+    sessionRecorder.endSegment(outcome)
     const checkpoint = checkpointManager.endBurst()
     if (checkpoint) {
       fanOutLifecycle({
@@ -393,15 +410,12 @@ export async function startRepl(options: ReplOptions): Promise<void> {
       })
     }
 
-    // Finalize and persist trace
-    try { traceStore.save(activeRecorder.finalize(outcome, { toolStats: runtime.toolStats.exportSnapshot() })) } catch { /* best effort */ }
-    activeRecorder = null
-
     saveSession()
 
   }
 
   saveSession()
+  saveSessionTrace()
   renderer.cleanup()
   printResumeHint()
   process.exit(0)

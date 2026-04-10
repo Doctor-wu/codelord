@@ -51,6 +51,7 @@ export interface TraceSummary {
   totalTokens: number
   totalCost: number
   promptPreview: string
+  segmentCount?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -174,6 +175,7 @@ export class TraceStore {
               totalTokens: trace.usageSummary.totalTokens,
               totalCost: trace.usageSummary.cost.total,
               promptPreview: extractPromptPreview(trace),
+              segmentCount: trace.segments?.length,
             })
           } catch { /* skip corrupt files */ }
         }
@@ -210,7 +212,8 @@ export function formatTraceList(summaries: TraceSummary[]): string {
     const dur = Math.round((s.endedAt - s.startedAt) / 1000)
     const cost = s.totalCost > 0 ? `$${s.totalCost.toFixed(4)}` : '$0'
     const prompt = s.promptPreview ? `  "${s.promptPreview}"` : ''
-    lines.push(`  ${s.runId.slice(0, 8)}  ${time}  ${s.outcome.padEnd(7)}  ${s.stepCount}steps  ${s.llmCalls}llm  ${s.totalTokens}tok  ${cost}  ${dur}s${prompt}`)
+    const seg = s.segmentCount && s.segmentCount > 1 ? `  ${s.segmentCount}seg` : ''
+    lines.push(`  ${s.runId.slice(0, 8)}  ${time}  ${s.outcome.padEnd(7)}  ${s.stepCount}steps  ${s.llmCalls}llm  ${s.totalTokens}tok  ${cost}  ${dur}s${seg}${prompt}`)
     lines.push(`    ${s.cwd}  ${s.provider}/${s.model}`)
     lines.push('')
   }
@@ -266,6 +269,14 @@ export function formatTraceShow(rawTrace: TraceRunV2, mode: TraceShowMode = 'sum
 
 function formatSummaryBody(trace: TraceRunV2, L: string[]): void {
   for (const step of trace.steps) {
+    // Segment separator: show boundary line at the first step of each segment
+    if (trace.segments && trace.segments.length > 1) {
+      const seg = trace.segments.find(s => step.step >= s.stepRange[0] && step.step <= s.stepRange[1])
+      if (seg && step.step === seg.stepRange[0]) {
+        L.push(`── Segment ${seg.segmentIndex} (${seg.outcome.type})  ${new Date(seg.startedAt).toLocaleTimeString()} ──`)
+      }
+    }
+
     const dur = step.endedAt ? `${((step.endedAt - step.startedAt) / 1000).toFixed(1)}s` : 'in-flight'
     L.push(`══ Step ${step.step} (${step.turnId?.slice(0, 12) ?? '?'})  ${new Date(step.startedAt).toLocaleTimeString()}  ${dur} ══`)
 
