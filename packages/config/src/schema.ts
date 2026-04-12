@@ -44,7 +44,7 @@ export const DEFAULT_CONFIG: CodelordConfig = {
   provider: 'openai-codex',
   model: 'gpt-5.4',
   apiKey: '',
-  maxSteps: 100,
+  maxSteps: 200,
   reasoningLevel: 'high',
   bash: {
     timeout: 30_000,

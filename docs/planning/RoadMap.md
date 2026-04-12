@@ -548,64 +548,55 @@ M9   多体协作            ──→ Multi-Agent
 4. **新模型上线的快速验证：** 换 model → 跑 eval → 几小时内知道该不该切
 5. **Capability eval 标记未来押注：** 为当前做不到的任务写 eval case，新模型/skill 上线后快速验证
 
-### M3-S1：外部 Benchmark Fast Bootstrap
+### M3-S1：外部 Benchmark Fast Bootstrap ✅
 
-> 用 SWE-bench + Aider Polyglot + BrowseComp + Terminal-Bench 2.0 获取 codelord 的第一批基线数据，建立 eval 飞轮的起点。
-> codelord 的 coding-agent 本质上是 general agent（bash / file edit / web 等通用能力），eval 覆盖面必须反映这一点，不能只测 coding。
+> 已完成。归档见 `docs/planning/archive/sprints/sprint-m3s1-benchmark-bootstrap.md`，失败模式分析见 `docs/planning/research/failure-analysis-m3s1.md`。
 
-**做之前**：codelord 从未被量化评估过。不知道它在真实任务上的 pass rate、平均步数、平均成本。所有关于"codelord 表现如何"的判断都是感觉。
+**基线数据**：Polyglot 100%/93.3% | SWE-bench 20% | BrowseComp 40% | Terminal-Bench 33%
+**核心结论**：36% 失败归因 context 不足 → M4 最高优先级；27% 归因推理/执行问题 → M5；36% 环境问题 → infra
+**附带产出**：`@codelord/tools` 可插拔工具包 + web_search/web_fetch + `codelord -p` CLI headless + trace per-session
 
-**做之后**：
-- SWE-bench Verified 上有 codelord 的 pass@1 基线（预期 < 20%，没有 M4/M5 是正常的）
-- Aider Polyglot 上有 codelord 的 pass_rate_1 / pass_rate_2 基线
-- BrowseComp 上有 codelord 的 accuracy 基线（测 persistent multi-hop web browsing + reasoning）
-- Terminal-Bench 2.0 上有 codelord 的 task resolution rate 基线（测 bash + file edit 的 terminal 任务）
-- 每个 trial 有完整的 trace 数据
-- 第一批"codelord 为什么失败"的结构化分析，直接指导后续优先级
-- 四套 benchmark 覆盖 coding + general terminal + web browsing 三个能力面，避免只用 coding 视角评估 general agent
+### M3-S2：Eval 规范化 + CI + 成绩看板
 
-**具体任务**：
-- [ ] SWE-bench adapter：`runHeadless()` → Docker 环境 → patch 提取 → predictions JSONL → SWE-bench eval harness 评判
-- [ ] Aider Polyglot adapter：`runHeadless()` → Exercism 项目环境 → 代码修改 → 测试运行评判
-- [ ] BrowseComp adapter：`runHeadless()` → web search/fetch 工具 → 短答案提取 → BrowseComp grader 评判（1,266 题，OpenAI 出品，答案短且唯一，"easy to verify, hard to solve"）
-- [ ] Terminal-Bench 2.0 adapter：`runHeadless()` → Harbor harness Docker 环境 → bash + file edit 完成任务 → 测试脚本评判（89 题，涵盖 ML 训练、Linux 编译、安全漏洞修复等真实终端任务）
-- [ ] 在 SWE-bench Verified 上跑 20 题子集，获取第一个基线
-- [ ] 在 Aider Polyglot 上跑 50 题子集，获取第一个基线
-- [ ] 在 BrowseComp 上跑 50 题子集，获取第一个基线
-- [ ] 在 Terminal-Bench 2.0 上跑 20 题子集，获取第一个基线
-- [ ] 对失败 case 做 trace 分析，归类失败模式（context 不够 / tool 选错 / 推理错误 / 环境问题 / 搜索策略不足）
-- [ ] 基于失败模式分析，输出后续 roadmap 优先级建议
+> 让 eval 从"本地手动跑脚本"升级为"CI 一键触发 + 分数自动更新"，建立对 agent 能力的持续感知。
 
-**完成标志**：有四个外部 benchmark 的基线数字（SWE-bench / Aider Polyglot 覆盖 coding，BrowseComp 覆盖 web browsing + reasoning，Terminal-Bench 覆盖 terminal 任务）。有第一批结构化的失败模式分析。后续每次改动都可以在这些子集上快速验证。
-
-### M3-S2：Eval 基础设施最小闭环
-
-> 让 `codelord eval run / compare` 可用，建立 eval-driven development 的工作流。
-
-**做之前**：跑 eval 需要手动写脚本，结果散落在各处，无法快速对比两次 run 的差异。S1 的 adapter 是一次性脚本，不可复用。
+**做之前**：四个 eval adapter 是 M3-S1 快速搭建的一次性脚本，只能本地跑，没有统一的入口/输出格式/错误处理。跑完的分数散落在对话记录和 Sprint 文档里，没有一个固定的地方展示当前 agent 能力。无法在 CI 中自动化运行。
 
 **做之后**：
-- `codelord eval run <suite>` 一行命令跑完一个 eval suite
-- `codelord eval compare <run1> <run2>` 对比两次 run 的 pass rate / 步数 / 成本
-- eval case 有标准格式，支持 deterministic grader
-- 每次 run 自动绑定：prompt version + model + active config + trace
-- S1 的 SWE-bench / Aider Polyglot / BrowseComp / Terminal-Bench adapter 迁移为内置 suite
+- 四个 eval adapter 有统一的入口脚本、JSON 结果输出、标准化退出码和错误处理
+- 每个 eval 有独立的 GitHub Actions workflow（workflow_dispatch），可配置跑哪些用例、语言、模式（subset / full）
+- 有一个统一的成绩看板（`docs/scores.md` 或 README section），展示当前各 benchmark 的最新分数
+- full mode 跑完后 CI 自动提 PR 更新成绩看板
+- Secrets 管理：API keys 通过 GitHub Secrets 注入，不硬编码
 
 **具体任务**：
-- [ ] eval case 格式定义：`{ id, description, setup, input, expected, graders, maxSteps, timeoutMs }`
-- [ ] eval runner：调用 `runHeadless()`，环境初始化/清理/隔离，并发控制
-- [ ] deterministic grader 框架：测试通过判定、文件 diff 匹配、关键输出匹配、环境状态检查
-- [ ] `codelord eval run <suite>` CLI 命令
-- [ ] eval run 产出格式：`{ runId, config, results: [{ taskId, pass, score, traceId, steps, cost, durationMs }] }`
-- [ ] `codelord eval compare <run1> <run2>` CLI 命令：`case | pass_rate_delta | steps_delta | cost_delta`
-- [ ] 把 S1 的 SWE-bench / Aider Polyglot / BrowseComp / Terminal-Bench adapter 迁移到 eval 框架内，成为内置 suite
-- [ ] OTel 兼容导出（trace 对外输出的标准通道）：
-  - 实现 lossy OTel span exporter：将 codelord 三层 trace 投影为 OTel span 树（丢失跨层 identity / queue lifecycle / operator action 等 codelord 特有语义，保留 LLM call + tool call + step 级别信息）
-  - 支持导出到 LangSmith / Langfuse / Arize 等外部可观测性平台，用于跨工具对比和行业基准对齐
-  - `codelord trace export <id> --format otel` CLI 命令
-  - 设计原则：codelord 原生 trace schema 始终是主口径，OTel 是有损投影，不为 OTel 兼容牺牲三层模型设计
 
-**完成标志**：`eval run / compare` 端到端可用。改一行 prompt → 跑 eval → 看分数变化，整个流程 < 30 分钟（在子集上）。trace 可导出为 OTel 格式。
+*Eval 代码规范化：*
+- [ ] 统一四个 adapter 的运行入口：每个 eval 有 `scripts/run.sh`，接受统一的环境变量（MODEL / LIMIT / API keys）
+- [ ] 统一结果输出：每个 eval 运行后输出 `results.json`，格式为 `{ benchmark, model, timestamp, subset, metrics: { pass_rate, ... }, cases: [...] }`
+- [ ] 统一退出码：0=全部通过，1=有失败 case，2=运行错误
+- [ ] 错误处理：超时、API 错误、环境问题 → 结构化错误输出，不静默失败
+- [ ] 各 adapter 的 Docker 化确认：SWE-bench / Polyglot 已有 Docker，BrowseComp 需确认，Terminal-Bench 通过 Harbor
+
+*GitHub CI Workflows：*
+- [ ] `eval-polyglot.yml`：workflow_dispatch，inputs 选择语言（python/rust/go/js/all）和模式（subset/full）
+- [ ] `eval-swe-bench.yml`：workflow_dispatch，inputs 选择题目数量和模式
+- [ ] `eval-browsecomp.yml`：workflow_dispatch，inputs 选择题目数量和模式
+- [ ] `eval-terminal-bench.yml`：workflow_dispatch，inputs 选择题目数量和模式（需要 Docker-in-Docker 或 Harbor 云环境）
+- [ ] Secrets 配置：`CODELORD_API_KEY` / `CODELORD_BASE_URL` / `TAVILY_API_KEY` 等
+- [ ] 每个 workflow 运行结束后上传 `results.json` 为 artifact
+
+*成绩看板 + Auto-PR：*
+- [ ] `docs/scores.md`：统一展示各 benchmark 当前最新分数，包含模型、日期、子集大小、关键指标
+- [ ] full mode workflow 跑完后自动提 PR 更新 `docs/scores.md`（用 GitHub Actions 的 create-pull-request action）
+- [ ] PR 标题格式：`[eval] Update <benchmark> scores: <metric> = <value>`
+
+*延期到后续的（原 M3-S2 内容）：*
+- `codelord eval run/compare` CLI → 推迟到 M3-S3 需要内部 golden set 时再建
+- eval case 标准格式 / deterministic grader 框架 → 同上
+- OTel 导出 → 推迟到真正需要接外部平台时
+
+**完成标志**：在 GitHub Actions 里 dispatch 一个 eval workflow → CI 跑完 → 结果 artifact 可下载 → full mode 自动 PR 更新成绩看板。整个闭环不需要本地操作。
 
 ### M3-S3：内部 Golden Set（Product Eval）
 

@@ -162,7 +162,7 @@ export class AgentRuntime<TApi extends Api = Api> {
     this.tools = tools
     this.toolHandlers = options.toolHandlers
     this.apiKey = options.apiKey
-    this.maxSteps = options.maxSteps ?? 10
+    this.maxSteps = options.maxSteps ?? 100
     this.streamOptions = options.streamOptions
     this.emit = options.onEvent ?? (() => {})
     this.emitLifecycle = options.onLifecycleEvent ?? (() => {})
