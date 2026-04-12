@@ -9,6 +9,7 @@ import { resolveApiKey } from '../auth/index.js'
 import { SessionStore } from '../session-store.js'
 import { TraceStore, workspaceId, formatTraceList, formatTraceShow } from '../trace-store.js'
 import { runHeadless } from './headless.js'
+import type { HeadlessProgressEvent } from './headless.js'
 
 interface CliFlags {
   model?: string
@@ -172,6 +173,8 @@ function createCli() {
     .option('--provider <name>', 'Override provider')
     .option('--max-steps <n>', 'Override max steps', { type: [Number] })
     .option('--resume [id]', 'Resume a session (use "latest" or a session id)')
+    .option('-p, --print <prompt>', 'Run headless with the given prompt, then exit. Use - to read from stdin.')
+    .option('--output-format <format>', 'Output format for -p mode: text (default), json, stream-json')
 
   cli
     .command('init', 'Initialize configuration')
@@ -196,7 +199,94 @@ function createCli() {
 }
 
 // ---------------------------------------------------------------------------
-// Run subcommand handler — headless single-shot execution
+// Pipe mode (-p flag) — headless single-shot with streaming progress
+// ---------------------------------------------------------------------------
+
+type OutputFormat = 'text' | 'json' | 'stream-json'
+
+async function readStdin(): Promise<string> {
+  if (process.stdin.isTTY) return ''
+  const chunks: Buffer[] = []
+  for await (const chunk of process.stdin) {
+    chunks.push(chunk as Buffer)
+  }
+  return Buffer.concat(chunks).toString('utf-8').trim()
+}
+
+function buildProgressCallback(format: OutputFormat): ((event: HeadlessProgressEvent) => void) | undefined {
+  switch (format) {
+    case 'text':
+      return (event) => {
+        switch (event.type) {
+          case 'step_start':
+            process.stderr.write(`[Step ${event.step}]\n`)
+            break
+          case 'tool_call':
+            if (event.phase === 'started') {
+              process.stderr.write(`  → ${event.toolName}...`)
+            } else {
+              process.stderr.write(event.isError ? ' ✗\n' : ' ✓\n')
+            }
+            break
+          case 'done':
+            process.stderr.write(`\n[Done] ${event.outcome} in ${(event.durationMs / 1000).toFixed(1)}s | ${event.totalTokens} tokens | $${event.cost.toFixed(4)}\n`)
+            break
+        }
+      }
+    case 'json':
+      return undefined
+    case 'stream-json':
+      return (event) => {
+        process.stdout.write(JSON.stringify(event) + '\n')
+      }
+  }
+}
+
+async function handlePipeMode(prompt: string, outputFormat: OutputFormat, cliFlags: CliFlags): Promise<void> {
+  const config = loadConfig(toConfigOverrides(cliFlags))
+  const model = resolveModel(config)
+  const apiKey = await resolveApiKey(config)
+
+  const onProgress = buildProgressCallback(outputFormat)
+  const result = await runHeadless({ model, apiKey, config, prompt, onProgress })
+
+  switch (outputFormat) {
+    case 'text':
+      if (result.text) process.stdout.write(result.text + '\n')
+      break
+    case 'json':
+      process.stdout.write(JSON.stringify({
+        outcome: result.outcome,
+        text: result.text,
+        durationMs: result.durationMs,
+        toolStats: result.toolStats,
+        traceRunId: result.trace.runId,
+        usage: {
+          totalTokens: result.trace.usageSummary.totalTokens,
+          cost: result.trace.usageSummary.cost.total,
+        },
+      }, null, 2) + '\n')
+      break
+    case 'stream-json':
+      process.stdout.write(JSON.stringify({
+        type: 'result',
+        outcome: result.outcome.type,
+        text: result.text,
+        durationMs: result.durationMs,
+        traceRunId: result.trace.runId,
+      }) + '\n')
+      break
+  }
+
+  switch (result.outcome.type) {
+    case 'success': process.exitCode = 0; break
+    case 'error': process.exitCode = 1; break
+    default: process.exitCode = 2; break
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Run subcommand handler — headless single-shot execution (legacy)
 // ---------------------------------------------------------------------------
 
 async function handleRunCommand(args: string[]): Promise<void> {
@@ -385,6 +475,25 @@ export async function runCli(argv = process.argv): Promise<void> {
 
   if (cli.matchedCommand) {
     await cli.runMatchedCommand()
+    return
+  }
+
+  // Handle -p / --print (headless pipe mode)
+  if (cli.options.print) {
+    let prompt = String(cli.options.print)
+
+    // If prompt is empty or '-', read from stdin
+    if (!prompt || prompt === '-' || prompt === 'true') {
+      prompt = await readStdin()
+      if (!prompt) {
+        console.error('Error: no prompt provided. Usage: codelord -p "prompt" or echo "prompt" | codelord -p')
+        process.exitCode = 1
+        return
+      }
+    }
+
+    const outputFormat = (cli.options.outputFormat ?? 'text') as OutputFormat
+    await handlePipeMode(prompt, outputFormat, readFlags(cli.options))
     return
   }
 

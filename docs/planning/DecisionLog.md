@@ -6,6 +6,32 @@
 
 ---
 
+## 2026-04-12 — M3-S1 关闭：eval 数据驱动 roadmap 优先级确认
+
+### 背景
+
+M3-S1（外部 Benchmark Fast Bootstrap）冲刺完成。四套 benchmark 端到端可用，第一批基线数据和结构化失败模式分析已产出。
+
+### 决策
+
+1. **M4 Context Engineering 确认为最高优先级**：SWE-bench 4/4 失败全部归因于 context 不足（大型 repo 中无法定位和理解相关代码），占总失败的 36%。这是 codelord 与行业领先 scaffold 的核心差距。
+2. **M5 Skill System 确认为第二优先级**：推理错误 + 执行不完整占总失败的 27%，均可通过 prompt fragment 注入改善。
+3. **ToolPlugin 可插拔架构已落地**：从本冲刺需要补 web tools 的经验中确认，工具系统必须是可插拔的。`@codelord/tools` 包 + ToolPlugin 接口已建立，后续新工具不再侵入 agent-core。
+4. **CLI headless 模式是 eval 生态的基础**：`codelord -p` 不仅服务于 Terminal-Bench Harbor 集成，也是 CI/CD eval pipeline 的入口。
+5. **reasoning level 对 eval 结果有巨大影响**：BrowseComp 的 reasoning=high 导致 60% 假阴性（代理超时），切到 low 后消除。eval 配置中 reasoning level 应作为显式参数。
+
+### 影响
+
+roadmap 优先级确认为 M4 > M5 > Infra 优化。下一个冲刺从 M4 或 M3-S2 中选取。
+
+### 结果
+
+- Sprint 归档到 `docs/planning/archive/sprints/sprint-m3s1-benchmark-bootstrap.md`
+- 失败模式分析写入 `docs/planning/research/failure-analysis-m3s1.md`
+- Top 3 unknown unknowns：tool 选择偏好需显式阻断 / 代理 API 超时是 eval 假阴性主因 / 容器内 Node.js 安装复杂度超预期
+
+---
+
 ## 2026-04-08 — Checkpoint 从 git stash 迁移到 shadow git repo
 
 ### 背景

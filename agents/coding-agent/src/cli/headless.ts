@@ -19,6 +19,13 @@ import { withProviderAuthEnv } from '../auth/provider-env.js'
 // Public types
 // ---------------------------------------------------------------------------
 
+export type HeadlessProgressEvent =
+  | { type: 'step_start'; step: number }
+  | { type: 'tool_call'; step: number; toolName: string; phase: 'started' | 'completed'; isError?: boolean }
+  | { type: 'text_delta'; text: string }
+  | { type: 'thinking'; preview: string }
+  | { type: 'done'; outcome: string; durationMs: number; totalTokens: number; cost: number }
+
 export interface HeadlessRunOptions {
   model: Model<Api>
   apiKey: string
@@ -27,6 +34,8 @@ export interface HeadlessRunOptions {
   prompt: string
   /** Working directory (defaults to process.cwd()) */
   cwd?: string
+  /** Optional callback for streaming progress events */
+  onProgress?: (event: HeadlessProgressEvent) => void
 }
 
 export interface HeadlessRunResult {
@@ -44,7 +53,7 @@ export interface HeadlessRunResult {
 // ---------------------------------------------------------------------------
 
 export async function runHeadless(options: HeadlessRunOptions): Promise<HeadlessRunResult> {
-  const { model, apiKey, config, prompt } = options
+  const { model, apiKey, config, prompt, onProgress } = options
   const cwd = options.cwd ?? process.cwd()
   const startTime = Date.now()
 
@@ -80,8 +89,33 @@ export async function runHeadless(options: HeadlessRunOptions): Promise<Headless
     maxSteps: config.maxSteps,
     reasoningLevel: config.reasoningLevel,
     contextWindow: contextWindowConfig,
-    onEvent: (event: AgentEvent) => recorder.onAgentEvent(event),
-    onLifecycleEvent: (event: LifecycleEvent) => recorder.onLifecycleEvent(event),
+    onEvent: (event: AgentEvent) => {
+      recorder.onAgentEvent(event)
+      if (onProgress) {
+        switch (event.type) {
+          case 'step_start':
+            onProgress({ type: 'step_start', step: event.step })
+            break
+          case 'text_delta':
+            onProgress({ type: 'text_delta', text: event.delta })
+            break
+          case 'thinking_delta':
+            onProgress({ type: 'thinking', preview: event.delta })
+            break
+          case 'tool_result':
+            onProgress({ type: 'tool_call', step: 0, toolName: event.toolName, phase: 'completed', isError: event.isError })
+            break
+        }
+      }
+    },
+    onLifecycleEvent: (event: LifecycleEvent) => {
+      recorder.onLifecycleEvent(event)
+      if (onProgress) {
+        if (event.type === 'tool_call_created') {
+          onProgress({ type: 'tool_call', step: 0, toolName: event.toolCall.toolName, phase: 'started' })
+        }
+      }
+    },
     onProviderStreamEvent: (event) => recorder.onProviderStreamEvent(event),
     router,
     safetyPolicy,
@@ -105,6 +139,17 @@ export async function runHeadless(options: HeadlessRunOptions): Promise<Headless
 
   // Extract final text
   const text = outcome.type === 'success' ? outcome.text : ''
+
+  // Emit done event
+  if (onProgress) {
+    onProgress({
+      type: 'done',
+      outcome: outcome.type,
+      durationMs: Date.now() - startTime,
+      totalTokens: trace.usageSummary.totalTokens,
+      cost: trace.usageSummary.cost.total,
+    })
+  }
 
   return {
     outcome,

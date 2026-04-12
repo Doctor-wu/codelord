@@ -1,0 +1,6 @@
+bundle/
+codelord-bundle.tar.gz
+.env
+__pycache__/
+*.pyc
+jobs/
