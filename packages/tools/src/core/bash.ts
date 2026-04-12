@@ -147,6 +147,7 @@ const contract: ToolContract = {
     'Do not use bash sed/awk for precise edits — use file_edit.',
     'Do not use bash ls for simple directory browsing — use ls.',
     'Do not use bash grep/rg for code search — use search.',
+    'Do not use bash curl/wget for web access when web_search and web_fetch tools are available — prefer those dedicated tools for better results and lower token usage.',
   ],
   preconditions: [
     'The command must be a valid shell command.',

@@ -17,6 +17,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@codelord/core": "workspace:*"
+    "@codelord/core": "workspace:*",
+    "turndown": "^7.2.4"
+  },
+  "devDependencies": {
+    "@types/turndown": "^5.0.6"
   }
 }

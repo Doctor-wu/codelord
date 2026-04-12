@@ -46,6 +46,8 @@ function buildToolGuidanceSection(contracts: readonly ToolContract[]): string {
     '',
     'IMPORTANT: Always prefer dedicated built-in tools over bash. bash is a fallback primitive for operations not covered by other tools.',
     '',
+    'IMPORTANT: When web_search and web_fetch tools are available, ALWAYS use them for web access instead of bash curl/wget. web_search provides structured search results with less token overhead. web_fetch returns clean markdown from web pages. Only fall back to bash curl/wget if these dedicated web tools are not available.',
+    '',
   ]
 
   for (const contract of contracts) {

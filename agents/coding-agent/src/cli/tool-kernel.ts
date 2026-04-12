@@ -1,7 +1,7 @@
 import type { Tool } from '@mariozechner/pi-ai'
 import type { ToolPlugin, ToolPluginContext, ToolHandler, ToolContract, RiskLevel } from '@codelord/core'
 import { askUserQuestionContract, ToolRouter, ToolSafetyPolicy } from '@codelord/core'
-import { corePlugins } from '@codelord/tools'
+import { corePlugins, optionalPlugins } from '@codelord/tools'
 import type { CodelordConfig } from '@codelord/config'
 
 // ---------------------------------------------------------------------------
@@ -45,7 +45,24 @@ export function createToolKernel(options: ToolKernelOptions): ToolKernel {
 
   // Collect enabled plugins
   const plugins: ToolPlugin[] = [...corePlugins]
-  // TODO: future optional plugins will be filtered by config.tools here
+
+  // Add optional plugins based on config and env
+  for (const plugin of optionalPlugins) {
+    const toolConfig = config.tools?.[plugin.id]
+
+    // If explicitly disabled in config, skip
+    if (toolConfig?.enabled === false) continue
+
+    // Check required environment variables (skip silently if not available)
+    if (plugin.requiredEnv && plugin.requiredEnv.length > 0) {
+      const hasEnv = plugin.requiredEnv.every(
+        (key: string) => process.env[key] || toolConfig?.[key],
+      )
+      if (!hasEnv) continue
+    }
+
+    plugins.push(plugin)
+  }
 
   // Build context and instantiate handlers
   const tools: Tool[] = []
@@ -83,6 +100,10 @@ function resolvePluginConfig(toolId: string, config: CodelordConfig): Record<str
   if (toolId === 'bash') {
     return { timeout: config.bash.timeout, maxOutput: config.bash.maxOutput }
   }
-  // For optional tools, will come from config.tools?.[toolId] in the future
+  // Pass through tool-specific config for optional tools
+  const toolCfg = config.tools?.[toolId]
+  if (toolCfg) {
+    return { ...toolCfg }
+  }
   return {}
 }
