@@ -26,6 +26,8 @@ interface ReplOptions {
   config: CodelordConfig
   /** If set, resume this specific session instead of creating a new one */
   resumeSessionId?: string
+  /** Include raw provider stream events in trace. Default: false */
+  rawTrace?: boolean
 }
 
 export async function startRepl(options: ReplOptions): Promise<void> {
@@ -88,6 +90,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   const newRecorder = () => new TraceRecorder({
     sessionId, cwd, workspaceRoot: cwd, workspaceSlug: wsSlug, workspaceId: wsId,
     provider: config.provider, model: config.model, systemPrompt,
+    rawMode: options.rawTrace,
   })
 
   // Session-level recorder: one trace per session, not per burst

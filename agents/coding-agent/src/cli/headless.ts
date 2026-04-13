@@ -38,6 +38,8 @@ export interface HeadlessRunOptions {
   onProgress?: (event: HeadlessProgressEvent) => void
   /** Enable streaming progress events (text_delta, thinking). Default: false (terminal events only) */
   streaming?: boolean
+  /** Include raw provider stream events in trace. Default: false */
+  rawTrace?: boolean
 }
 
 export interface HeadlessRunResult {
@@ -80,6 +82,7 @@ export async function runHeadless(options: HeadlessRunOptions): Promise<Headless
     provider: config.provider,
     model: config.model,
     systemPrompt,
+    rawMode: options.rawTrace,
   })
 
   // Progress events via lifecycle callbacks

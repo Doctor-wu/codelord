@@ -16,6 +16,7 @@ interface CliFlags {
   provider?: string
   maxSteps?: number
   resume?: string
+  rawTrace?: boolean
 }
 
 function readVersion(): string {
@@ -40,6 +41,7 @@ function readFlags(options: Record<string, unknown>): CliFlags {
     provider: typeof options.provider === 'string' ? options.provider : undefined,
     maxSteps: typeof options.maxSteps === 'number' ? options.maxSteps : undefined,
     resume: typeof options.resume === 'string' ? options.resume : options.resume === true ? 'latest' : undefined,
+    rawTrace: options.rawTrace === true ? true : undefined,
   }
 }
 
@@ -175,6 +177,7 @@ function createCli() {
     .option('--resume [id]', 'Resume a session (use "latest" or a session id)')
     .option('-p, --print <prompt>', 'Run headless with the given prompt, then exit. Use - to read from stdin.')
     .option('--output-format <format>', 'Output format for -p mode: text (default), json, stream-json')
+    .option('--raw-trace', 'Include raw provider stream events in trace (verbose)')
 
   cli
     .command('init', 'Initialize configuration')
@@ -251,6 +254,7 @@ async function handlePipeMode(prompt: string, outputFormat: OutputFormat, cliFla
   const result = await runHeadless({
     model, apiKey, config, prompt, onProgress,
     streaming: outputFormat === 'stream-json',
+    rawTrace: cliFlags.rawTrace,
   })
 
   switch (outputFormat) {
@@ -307,7 +311,7 @@ async function handleRunCommand(args: string[]): Promise<void> {
   const model = resolveModel(config)
   const apiKey = await resolveApiKey(config)
 
-  const result = await runHeadless({ model, apiKey, config, prompt })
+  const result = await runHeadless({ model, apiKey, config, prompt, rawTrace: flags.has('--raw-trace') || undefined })
 
   if (flags.has('--trace')) {
     console.log(JSON.stringify(result.trace, null, 2))
@@ -540,7 +544,7 @@ export async function runCli(argv = process.argv): Promise<void> {
     }
   }
 
-  await startRepl({ model, apiKey, config, resumeSessionId })
+  await startRepl({ model, apiKey, config, resumeSessionId, rawTrace: flags.rawTrace })
 }
 
 void runCli().catch((error: unknown) => {
