@@ -145,7 +145,7 @@ M1   执行引擎            ──→ ✅ 已完成（runtime + tools + router 
 M1X  Agent UX / Event    ──→ ✅ 已完成（event spine + lifecycle streaming + operator console + reasoning v2）
 M2   可观测性            ──→ ✅ 已完成（Trace v2 三层模型 + toolVisibility + queue lifecycle + Cost + Prompt Caching）
 CORE-R1 事件系统重构    ──→ ✅ 已完成（两层事件模型 + Pipeable 消费模式）
-M3   度量能力            ──→ 🟡 进行中（S1 ✅ 基线数据 → S2 规范化+CI+看板 ← 当前冲刺）
+M3   度量能力            ──→ 🟡 进行中（S1 ✅ 基线数据 → S2 ✅ 规范化+CI+看板 → S3 内部 golden set）
 M4   理解力              ──→ Context Engineering + Codebase Indexing + Hybrid Retrieval / RAG + Project Memory
 M5   行为智能            ──→ Skill 系统（基础设施 → 内容打磨 → 条件激活）
 M6   长期记忆            ──→ Behavioral Memory（用户偏好 + 错误 pattern + 任务 pattern，基于 retrieval）
@@ -612,7 +612,7 @@ Checkpoint / Session / Resume / 工具平台层完全不受影响。
 **核心结论**：36% 失败归因 context 不足 → M4 最高优先级；27% 归因推理/执行问题 → M5；36% 环境问题 → infra
 **附带产出**：`@codelord/tools` 可插拔工具包 + web_search/web_fetch + `codelord -p` CLI headless + trace per-session
 
-### M3-S2：Eval 规范化 + CI + 成绩看板
+### M3-S2：Eval 规范化 + CI + 成绩看板 ✅
 
 > 让 eval 从"本地手动跑脚本"升级为"CI 一键触发 + 分数自动更新"，建立对 agent 能力的持续感知。
 
@@ -628,24 +628,24 @@ Checkpoint / Session / Resume / 工具平台层完全不受影响。
 **具体任务**：
 
 *Eval 代码规范化：*
-- [ ] 统一四个 adapter 的运行入口：每个 eval 有 `scripts/run.sh`，接受统一的环境变量（MODEL / LIMIT / API keys）
-- [ ] 统一结果输出：每个 eval 运行后输出 `results.json`，格式为 `{ benchmark, model, timestamp, subset, metrics: { pass_rate, ... }, cases: [...] }`
-- [ ] 统一退出码：0=全部通过，1=有失败 case，2=运行错误
-- [ ] 错误处理：超时、API 错误、环境问题 → 结构化错误输出，不静默失败
-- [ ] 各 adapter 的 Docker 化确认：SWE-bench / Polyglot 已有 Docker，BrowseComp 需确认，Terminal-Bench 通过 Harbor
+- [x] 统一四个 adapter 的运行入口：每个 eval 有 `scripts/run.sh`，接受统一的环境变量（MODEL / LIMIT / API keys）
+- [x] 统一结果输出：每个 eval 运行后输出 `results.json`，格式为 `{ benchmark, model, timestamp, subset, metrics: { pass_rate, ... }, cases: [...] }`
+- [x] 统一退出码：0=全部通过，1=有失败 case，2=运行错误
+- [x] 错误处理：超时、API 错误、环境问题 → 结构化错误输出，不静默失败
+- [x] 各 adapter 的 Docker 化确认：SWE-bench / Polyglot 已有 Docker，BrowseComp 需确认，Terminal-Bench 通过 Harbor
 
 *GitHub CI Workflows：*
-- [ ] `eval-polyglot.yml`：workflow_dispatch，inputs 选择语言（python/rust/go/js/all）和模式（subset/full）
-- [ ] `eval-swe-bench.yml`：workflow_dispatch，inputs 选择题目数量和模式
-- [ ] `eval-browsecomp.yml`：workflow_dispatch，inputs 选择题目数量和模式
-- [ ] `eval-terminal-bench.yml`：workflow_dispatch，inputs 选择题目数量和模式（需要 Docker-in-Docker 或 Harbor 云环境）
-- [ ] Secrets 配置：`CODELORD_API_KEY` / `CODELORD_BASE_URL` / `TAVILY_API_KEY` 等
-- [ ] 每个 workflow 运行结束后上传 `results.json` 为 artifact
+- [x] `eval-polyglot.yml`：workflow_dispatch，inputs 选择语言（python/rust/go/js/all）和模式（subset/full）
+- [x] `eval-swe-bench.yml`：workflow_dispatch，inputs 选择题目数量和模式
+- [x] `eval-browsecomp.yml`：workflow_dispatch，inputs 选择题目数量和模式
+- [x] `eval-terminal-bench.yml`：workflow_dispatch，inputs 选择题目数量和模式（需要 Docker-in-Docker 或 Harbor 云环境）
+- [x] Secrets 配置：`CODELORD_API_KEY` / `CODELORD_BASE_URL` / `TAVILY_API_KEY` 等
+- [x] 每个 workflow 运行结束后上传 `results.json` 为 artifact
 
 *成绩看板 + Auto-PR：*
-- [ ] `docs/scores.md`：统一展示各 benchmark 当前最新分数，包含模型、日期、子集大小、关键指标
-- [ ] full mode workflow 跑完后自动提 PR 更新 `docs/scores.md`（用 GitHub Actions 的 create-pull-request action）
-- [ ] PR 标题格式：`[eval] Update <benchmark> scores: <metric> = <value>`
+- [x] `docs/scores.md`：统一展示各 benchmark 当前最新分数，包含模型、日期、子集大小、关键指标
+- [x] full / subset mode workflow 跑完后自动提 PR 更新 `docs/scores.md`（用 GitHub Actions 的 create-pull-request action）
+- [x] PR 标题格式：`[eval] Update <benchmark> scores`
 
 *延期到后续的（原 M3-S2 内容）：*
 - `codelord eval run/compare` CLI → 推迟到 M3-S3 需要内部 golden set 时再建

@@ -45,6 +45,7 @@ jobs:
       GRADER_API_KEY: ${{ secrets.GRADER_API_KEY }}
       GRADER_BASE_URL: ${{ secrets.GRADER_BASE_URL }}
       RESULT_PATH: ${{ github.workspace }}/evals/browsecomp/data/results/results.json
+      CONTAINER_RESULT_PATH: /workspace/evals/browsecomp/data/results/results.json
 
     steps:
       - name: Checkout repository
@@ -71,7 +72,7 @@ jobs:
           if [ "${{ inputs.skip_grade }}" = "true" ]; then
             ARGS+=(--skip-grade)
           fi
-          ARGS+=(--output "$RESULT_PATH")
+          ARGS+=(--output "$CONTAINER_RESULT_PATH")
 
           ./evals/browsecomp/scripts/docker-build.sh
           ./evals/browsecomp/scripts/docker-run.sh "${ARGS[@]}"

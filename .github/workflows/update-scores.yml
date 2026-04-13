@@ -1,0 +1,93 @@
+name: Update Scores
+
+on:
+  workflow_run:
+    workflows:
+      - Eval Polyglot
+      - Eval SWE-bench
+      - Eval BrowseComp
+      - Eval Terminal-Bench
+    types:
+      - completed
+
+jobs:
+  update:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' ||
+      github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup codelord
+        uses: ./.github/actions/setup-codelord
+
+      - name: Detect benchmark
+        id: detect
+        shell: bash
+        run: |
+          case "${{ github.event.workflow_run.name }}" in
+            "Eval Polyglot") benchmark="polyglot" ;;
+            "Eval SWE-bench") benchmark="swe-bench" ;;
+            "Eval BrowseComp") benchmark="browsecomp" ;;
+            "Eval Terminal-Bench") benchmark="terminal-bench" ;;
+            *)
+              echo "Unknown workflow: ${{ github.event.workflow_run.name }}"
+              exit 1
+              ;;
+          esac
+
+          echo "benchmark=$benchmark" >> "$GITHUB_OUTPUT"
+          echo "branch=eval/update-scores-$benchmark" >> "$GITHUB_OUTPUT"
+
+      - name: Download results artifact
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: /tmp/eval-artifacts
+
+      - name: Locate results file
+        id: locate
+        shell: bash
+        run: |
+          results_file="$(find /tmp/eval-artifacts -name 'results.json' | head -1 || true)"
+          echo "results_file=$results_file" >> "$GITHUB_OUTPUT"
+
+          if [ -z "$results_file" ]; then
+            echo "No results.json found in artifacts; skipping score update."
+            echo "should_update=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_update=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update scores
+        if: steps.locate.outputs.should_update == 'true'
+        shell: bash
+        run: |
+          run_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
+          pnpm update-scores \
+            --benchmark "${{ steps.detect.outputs.benchmark }}" \
+            --results "${{ steps.locate.outputs.results_file }}" \
+            --run-url "$run_url"
+
+      - name: Create PR
+        if: steps.locate.outputs.should_update == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "[eval] Update ${{ steps.detect.outputs.benchmark }} scores"
+          title: "[eval] Update ${{ steps.detect.outputs.benchmark }} scores"
+          body: |
+            Automated score update from [CI run](https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}).
+
+            Benchmark: `${{ steps.detect.outputs.benchmark }}`
+            Triggered by: `${{ github.event.workflow_run.name }}` #${{ github.event.workflow_run.run_number }}
+          branch: ${{ steps.detect.outputs.branch }}
+          delete-branch: true

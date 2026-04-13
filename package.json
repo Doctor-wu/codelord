@@ -6,7 +6,8 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "update-scores": "tsx scripts/update-scores.ts"
   },
   "devDependencies": {
     "@types/node": "^22.13.0",

@@ -35,6 +35,7 @@ jobs:
       CODELORD_API_KEY: ${{ secrets.CODELORD_API_KEY }}
       CODELORD_BASE_URL: ${{ secrets.CODELORD_BASE_URL }}
       RESULT_PATH: ${{ github.workspace }}/evals/polyglot/data/results/results.json
+      CONTAINER_RESULT_PATH: /workspace/evals/polyglot/data/results/results.json
 
     steps:
       - name: Checkout repository
@@ -58,7 +59,7 @@ jobs:
           if [ -n "${{ inputs.languages }}" ]; then
             ARGS+=(--languages "${{ inputs.languages }}")
           fi
-          ARGS+=(--output "$RESULT_PATH")
+          ARGS+=(--output "$CONTAINER_RESULT_PATH")
 
           ./evals/polyglot/scripts/docker-build.sh
           ./evals/polyglot/scripts/docker-run.sh "${ARGS[@]}"
