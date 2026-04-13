@@ -1,4 +1,4 @@
-import type { AgentEvent, LifecycleEvent } from '@codelord/core'
+import type { LifecycleEvent, AgentLifecycleCallbacks } from '@codelord/core'
 import type { TimelineSnapshot } from './ink/timeline-projection.js'
 
 // ---------------------------------------------------------------------------
@@ -6,7 +6,6 @@ import type { TimelineSnapshot } from './ink/timeline-projection.js'
 // ---------------------------------------------------------------------------
 
 export interface Renderer {
-  onEvent(event: AgentEvent): void
   onLifecycleEvent?(event: LifecycleEvent): void
   cleanup(): void
 }
@@ -40,4 +39,6 @@ export interface InteractiveRenderer extends Renderer {
   captureTimelineSnapshot(): TimelineSnapshot
   /** Restore timeline state from a persisted snapshot */
   hydrateTimeline(snapshot: TimelineSnapshot): void
+  /** Build lifecycle callbacks for pipeable subscription */
+  buildLifecycleCallbacks(): AgentLifecycleCallbacks
 }

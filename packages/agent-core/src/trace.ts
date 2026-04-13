@@ -17,7 +17,7 @@ interface LedgerEventBase {
   timestamp: number
   step: number
   turnId: string | null
-  source: 'provider_stream' | 'agent_event' | 'lifecycle_event'
+  source: 'provider_stream' | 'lifecycle_event'
 }
 
 // ---------------------------------------------------------------------------
@@ -33,22 +33,6 @@ export interface ProviderStreamTraceEvent extends LedgerEventBase {
   contentPreview: string | null
   argsPreview: string | null
   stopReason: string | null
-}
-
-// ---------------------------------------------------------------------------
-// Agent event ledger events
-// ---------------------------------------------------------------------------
-
-export interface AgentTraceEvent extends LedgerEventBase {
-  source: 'agent_event'
-  contentIndex: number | null
-  toolCallId: string | null
-  toolName: string | null
-  deltaPreview: string | null
-  riskLevel: string | null
-  allowed: boolean | null
-  isError: boolean | null
-  resultPreview: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -91,7 +75,7 @@ export interface LifecycleTraceEvent extends LedgerEventBase {
 // ---------------------------------------------------------------------------
 
 /** Union of all trace event types */
-export type TraceEventEntry = ProviderStreamTraceEvent | AgentTraceEvent | LifecycleTraceEvent
+export type TraceEventEntry = ProviderStreamTraceEvent | LifecycleTraceEvent
 
 // ---------------------------------------------------------------------------
 // TraceStepV2
@@ -147,19 +131,12 @@ export interface TraceRunV2 {
     llmCalls: number
   }
   redactionSummary: RedactionHit[]
-  eventCounts: { providerStream: number; agentEvents: number; lifecycleEvents: number }
+  eventCounts: { providerStream: number; lifecycleEvents: number }
   steps: TraceStepV2[]
   /** Events that occurred outside any step (run-level) */
   runEvents: TraceEventEntry[]
   /** Tool call success/failure stats for this run */
   toolStats?: { tools: Record<string, { attempts: number; successes: number; failures: number; errorCodes: Record<string, number> }>; routes: Record<string, { hits: number; successes: number; failures: number }> }
-  /** Diagnostic: tool visibility latency metrics (computed at finalize time) */
-  toolVisibility?: {
-    avgProviderToLifecycleMs: number
-    maxProviderToLifecycleMs: number
-    measuredCount: number
-    provisionalHitCount: number
-  }
   /** For session-level traces: per-burst segment boundaries */
   segments?: TraceSegment[]
 }
@@ -263,12 +240,11 @@ export function normalizeTrace(trace: TraceRunV2): TraceRunV2 {
     let events: TraceEventEntry[]
     if (oldLedgers && !step.events) {
       const ps = (oldLedgers.providerStream ?? []).map((e: any) => ({ ...e, seq: e.seq ?? ++globalSeq }))
-      const ae = (oldLedgers.agentEvents ?? []).map((e: any) => ({ ...e, seq: e.seq ?? ++globalSeq }))
       const le = (oldLedgers.lifecycleEvents ?? []).map(backfillLifecycle)
-      for (const e of [...ps, ...ae, ...le]) {
+      for (const e of [...ps, ...le]) {
         if (e.seq > globalSeq) globalSeq = e.seq
       }
-      events = [...ps, ...ae, ...le].sort((a, b) => a.seq - b.seq)
+      events = [...ps, ...le].sort((a, b) => a.seq - b.seq)
     } else {
       events = (step.events ?? []).map(e => {
         const patched = { ...e, seq: e.seq ?? ++globalSeq }

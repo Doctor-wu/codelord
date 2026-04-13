@@ -15,7 +15,7 @@ vi.mock('@mariozechner/pi-ai', async (importOriginal) => {
 import { AgentRuntime } from '../src/runtime.js'
 import { ToolRouter } from '../src/tool-router.js'
 import { ASK_USER_QUESTION_TOOL_NAME } from '../src/tools/ask-user.js'
-import type { AgentEvent, ToolHandler } from '../src/react-loop.js'
+import type { ToolHandler } from '../src/react-loop.js'
 
 function makeAssistantMessage(overrides = {}) {
   return {
@@ -46,7 +46,6 @@ describe('Runtime + ToolRouter integration', () => {
   })
 
   it('routes bash cat to file_read and history reflects file_read', async () => {
-    const events: AgentEvent[] = []
     const router = new ToolRouter()
 
     const fileReadHandler: ToolHandler = vi.fn(async () => ({
@@ -89,7 +88,6 @@ describe('Runtime + ToolRouter integration', () => {
       toolHandlers,
       apiKey: 'test',
       router,
-      onEvent: (e) => events.push(e),
     })
 
     rt.messages.push({ role: 'user', content: 'read the file', timestamp: Date.now() })
@@ -101,31 +99,6 @@ describe('Runtime + ToolRouter integration', () => {
       expect.anything(),
     )
     expect(toolHandlers.get('bash')).not.toHaveBeenCalled()
-
-    // tool_routed event was emitted
-    const routedEvent = events.find(e => e.type === 'tool_routed')
-    expect(routedEvent).toBeDefined()
-    expect(routedEvent).toMatchObject({
-      type: 'tool_routed',
-      ruleId: 'bash_cat_to_file_read',
-      originalToolName: 'bash',
-      resolvedToolName: 'file_read',
-    })
-
-    // tool_exec_start reflects the resolved tool
-    const execStart = events.find(e => e.type === 'tool_exec_start')
-    expect(execStart).toMatchObject({
-      toolName: 'file_read',
-      args: { file_path: 'src/index.ts' },
-    })
-
-    // tool_result reflects the resolved tool
-    const toolResult = events.find(e => e.type === 'tool_result')
-    expect(toolResult).toMatchObject({
-      toolName: 'file_read',
-      result: 'file contents here',
-      isError: false,
-    })
 
     // History: toolResult message reflects file_read, not bash
     const toolResultMsg = rt.messages.find(m => m.role === 'toolResult')
@@ -144,7 +117,6 @@ describe('Runtime + ToolRouter integration', () => {
   })
 
   it('does NOT route complex bash commands', async () => {
-    const events: AgentEvent[] = []
     const router = new ToolRouter()
 
     const bashHandler: ToolHandler = vi.fn(async () => ({
@@ -186,7 +158,6 @@ describe('Runtime + ToolRouter integration', () => {
       toolHandlers,
       apiKey: 'test',
       router,
-      onEvent: (e) => events.push(e),
     })
 
     rt.messages.push({ role: 'user', content: 'run tests', timestamp: Date.now() })
@@ -194,9 +165,6 @@ describe('Runtime + ToolRouter integration', () => {
 
     // bash handler was called directly
     expect(bashHandler).toHaveBeenCalled()
-
-    // No tool_routed event
-    expect(events.find(e => e.type === 'tool_routed')).toBeUndefined()
 
     // Route records empty
     expect(rt.routeRecords).toHaveLength(0)
@@ -250,7 +218,6 @@ describe('Runtime + ToolRouter integration', () => {
   })
 
   it('direct built-in tool calls pass through router without rewrite', async () => {
-    const events: AgentEvent[] = []
     const router = new ToolRouter()
 
     const fileReadHandler: ToolHandler = vi.fn(async () => ({
@@ -292,14 +259,12 @@ describe('Runtime + ToolRouter integration', () => {
       toolHandlers,
       apiKey: 'test',
       router,
-      onEvent: (e) => events.push(e),
     })
 
     rt.messages.push({ role: 'user', content: 'read', timestamp: Date.now() })
     await rt.run()
 
-    // No routing event
-    expect(events.find(e => e.type === 'tool_routed')).toBeUndefined()
+    // No routing occurred
     expect(rt.routeRecords).toHaveLength(0)
 
     // Handler called with original args

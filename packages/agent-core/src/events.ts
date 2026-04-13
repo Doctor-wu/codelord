@@ -2,8 +2,8 @@
 // Event Spine — dual-layer event model for agent runtime
 // ---------------------------------------------------------------------------
 //
-// Layer 1: Raw Stream (high-frequency deltas — kept in AgentEvent for compat)
-// Layer 2: Lifecycle (stable, id-bearing semantic events)
+// Layer 1: Lifecycle (stable, id-bearing semantic events)
+// Layer 2: Provider Stream (raw trace, gated by rawMode)
 //
 // The runtime emits both layers. Renderers can consume either or both.
 // Timeline projection consumes lifecycle events to build a stable view model.
@@ -198,10 +198,6 @@ export type LifecycleEvent =
   // --- Assistant ---
   | { type: 'assistant_turn_start'; id: string; reasoning: AssistantReasoningState; timestamp: number }
   | { type: 'assistant_turn_end'; id: string; reasoning: AssistantReasoningState; timestamp: number }
-  // --- Tool call lifecycle (streaming phase — provisional, before tool_call_created) ---
-  | { type: 'tool_call_streaming_start'; contentIndex: number; toolName: string; args: Record<string, unknown>; timestamp: number }
-  | { type: 'tool_call_streaming_delta'; contentIndex: number; toolName: string; args: Record<string, unknown>; timestamp: number }
-  | { type: 'tool_call_streaming_end'; contentIndex: number; toolCallId: string; toolName: string; args: Record<string, unknown>; timestamp: number }
   // --- Tool call lifecycle (stable — after streaming completes) ---
   | { type: 'tool_call_created'; toolCall: ToolCallLifecycle }
   | { type: 'tool_call_updated'; toolCall: ToolCallLifecycle }

@@ -189,15 +189,6 @@ export function reduceLifecycleEvent(state: TimelineState, event: LifecycleEvent
       return { ...state, items, _currentAssistantTurnId: null, _currentBatchId: null, _provisionalToolCalls: new Map() }
     }
 
-    case 'tool_call_streaming_start':
-      return applyToolCallStart(state, event.contentIndex, event.toolName, event.args)
-
-    case 'tool_call_streaming_delta':
-      return applyToolCallDelta(state, event.contentIndex, event.toolName, event.args)
-
-    case 'tool_call_streaming_end':
-      return applyToolCallEnd(state, event.contentIndex, event.toolCallId, event.toolName, event.args)
-
     case 'tool_call_created':
     case 'tool_call_updated':
     case 'tool_call_completed': {

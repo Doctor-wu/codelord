@@ -1,6 +1,6 @@
 import type { Api, Model } from '@mariozechner/pi-ai'
-import { AgentRuntime } from '@codelord/core'
-import type { AgentEvent, LifecycleEvent, ReasoningLevel } from '@codelord/core'
+import { AgentRuntime, mergeLifecycleCallbacks } from '@codelord/core'
+import type { LifecycleEvent, ReasoningLevel } from '@codelord/core'
 import type { CodelordConfig } from '@codelord/config'
 import { estimateTokens, DEFAULT_CONTEXT_WINDOW } from '@codelord/core'
 import type { ContextWindowConfig } from '@codelord/core'
@@ -115,6 +115,11 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     }
   }
 
+  const lifecycleCallbacks = mergeLifecycleCallbacks(
+    renderer.buildLifecycleCallbacks(),
+    activeRecorder?.buildLifecycleCallbacks() ?? {},
+  )
+
   const runtime = new AgentRuntime({
     model,
     systemPrompt,
@@ -123,10 +128,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     apiKey,
     maxSteps: config.maxSteps,
     reasoningLevel: config.reasoningLevel,
-    onEvent: (event: AgentEvent) => {
-      renderer.onEvent(event)
-      activeRecorder?.onAgentEvent(event)
-    },
+    lifecycle: lifecycleCallbacks,
     onLifecycleEvent: fanOutLifecycle,
     onProviderStreamEvent: (event) => activeRecorder?.onProviderStreamEvent(event),
     router,

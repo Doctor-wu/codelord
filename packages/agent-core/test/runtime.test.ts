@@ -40,14 +40,13 @@ function makeEventStream(events: unknown[], resultMessage = makeAssistantMessage
   }
 }
 
-function createRuntime(onEvent?: (e: unknown) => void) {
+function createRuntime() {
   return new AgentRuntime({
     model: { id: 'test-model' } as never,
     systemPrompt: 'You are a test agent.',
     tools: [],
     toolHandlers: new Map(),
     apiKey: 'test-key',
-    onEvent,
   })
 }
 
@@ -213,10 +212,10 @@ describe('AgentRuntime', () => {
       tools: [],
       toolHandlers: new Map(),
       apiKey: 'test-key',
-      onEvent: (event) => {
-        if (event.type === 'text_delta') {
+      lifecycle: {
+        onText: () => {
           capturedPartial = rt.partial
-        }
+        },
       },
     })
 
@@ -757,15 +756,7 @@ describe('AgentRuntime AskUserQuestion', () => {
       ], assistantWithAsk),
     )
 
-    const events: unknown[] = []
-    const rt = new AgentRuntime({
-      model: { id: 'test-model' } as never,
-      systemPrompt: 'test',
-      tools: [],
-      toolHandlers: new Map(),
-      apiKey: 'test-key',
-      onEvent: (e) => events.push(e),
-    })
+    const rt = createRuntime()
     rt.messages.push({ role: 'user', content: 'setup db', timestamp: Date.now() })
 
     const outcome = await rt.run()
@@ -776,8 +767,6 @@ describe('AgentRuntime AskUserQuestion', () => {
     expect(rt.pendingQuestion!.question).toBe('Which database should I use?')
     expect(rt.pendingQuestion!.whyAsk).toBe('The config does not specify a database engine.')
     expect(rt.pendingQuestion!.options).toEqual(['postgres', 'mysql'])
-    // waiting_user event was emitted
-    expect(events.some((e: any) => e.type === 'waiting_user')).toBe(true)
   })
 
   it('stores structured pending question with all fields', async () => {
@@ -973,23 +962,16 @@ describe('AgentRuntime ToolExecutionResult semantics', () => {
       errorCode: 'NO_MATCH',
     })
 
-    const events: unknown[] = []
     const rt = new AgentRuntime({
       model: { id: 'test-model' } as never,
       systemPrompt: 'test',
       tools: [],
       toolHandlers: new Map([['file_edit', handler]]),
       apiKey: 'test-key',
-      onEvent: (e) => events.push(e),
     })
     rt.messages.push({ role: 'user', content: 'edit', timestamp: Date.now() })
 
     await rt.run()
-
-    // tool_result event should have isError=true
-    const toolResultEvent = events.find((e: any) => e.type === 'tool_result') as any
-    expect(toolResultEvent.isError).toBe(true)
-    expect(toolResultEvent.result).toContain('ERROR [NO_MATCH]')
 
     // ToolResultMessage in history should have isError=true
     const toolResultMsg = rt.messages.find((m: any) => m.role === 'toolResult') as any
@@ -1028,21 +1010,16 @@ describe('AgentRuntime ToolExecutionResult semantics', () => {
       isError: false,
     })
 
-    const events: unknown[] = []
     const rt = new AgentRuntime({
       model: { id: 'test-model' } as never,
       systemPrompt: 'test',
       tools: [],
       toolHandlers: new Map([['search', handler]]),
       apiKey: 'test-key',
-      onEvent: (e) => events.push(e),
     })
     rt.messages.push({ role: 'user', content: 'search', timestamp: Date.now() })
 
     await rt.run()
-
-    const toolResultEvent = events.find((e: any) => e.type === 'tool_result') as any
-    expect(toolResultEvent.isError).toBe(false)
 
     const toolResultMsg = rt.messages.find((m: any) => m.role === 'toolResult') as any
     expect(toolResultMsg.isError).toBe(false)
@@ -1076,22 +1053,16 @@ describe('AgentRuntime ToolExecutionResult semantics', () => {
 
     const handler = vi.fn().mockRejectedValue(new Error('internal crash'))
 
-    const events: unknown[] = []
     const rt = new AgentRuntime({
       model: { id: 'test-model' } as never,
       systemPrompt: 'test',
       tools: [],
       toolHandlers: new Map([['broken', handler]]),
       apiKey: 'test-key',
-      onEvent: (e) => events.push(e),
     })
     rt.messages.push({ role: 'user', content: 'go', timestamp: Date.now() })
 
     await rt.run()
-
-    const toolResultEvent = events.find((e: any) => e.type === 'tool_result') as any
-    expect(toolResultEvent.isError).toBe(true)
-    expect(toolResultEvent.result).toContain('internal crash')
 
     const toolResultMsg = rt.messages.find((m: any) => m.role === 'toolResult') as any
     expect(toolResultMsg.isError).toBe(true)
@@ -1483,5 +1454,291 @@ describe('AgentRuntime question_answered lifecycle event', () => {
 
     expect(rt.pendingQuestion).not.toBeNull()
     expect(rt.pendingQuestion!.askedAt).toBeGreaterThan(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Lifecycle callbacks tests
+// ---------------------------------------------------------------------------
+
+describe('AgentRuntime lifecycle callbacks', () => {
+  afterEach(() => {
+    streamSimpleMock.mockReset()
+  })
+
+  it('onStart is called at the beginning of each turn', async () => {
+    const starts: unknown[] = []
+    const rt = new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map(),
+      apiKey: 'test-key',
+      lifecycle: {
+        onStart: (e) => starts.push(e),
+      },
+    })
+
+    const msg = makeAssistantMessage({ content: [{ type: 'text', text: 'hi' }] })
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg }], msg))
+
+    rt.enqueueUserMessage('hello')
+    await rt.run()
+
+    expect(starts).toHaveLength(1)
+    expect((starts[0] as any).turnId).toMatch(/^assistant-/)
+    expect((starts[0] as any).timestamp).toBeGreaterThan(0)
+  })
+
+  it('onText fires and pipeable receives deltas + final value', async () => {
+    const textEvents: unknown[] = []
+    const deltas: string[] = []
+    let finalText: string | null = null
+
+    const rt = new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map(),
+      apiKey: 'test-key',
+      lifecycle: {
+        onText: (e) => {
+          textEvents.push(e)
+          e.pipeable.subscribe((d) => deltas.push(d))
+          e.pipeable.done().then((v) => { finalText = v })
+        },
+      },
+    })
+
+    const assistantMessage = makeAssistantMessage({
+      content: [{ type: 'text', text: 'Hello world' }],
+    })
+    streamSimpleMock.mockReturnValueOnce(
+      makeEventStream([
+        { type: 'text_start', contentIndex: 0 },
+        { type: 'text_delta', contentIndex: 0, delta: 'Hello ' },
+        { type: 'text_delta', contentIndex: 0, delta: 'world' },
+        { type: 'text_end', contentIndex: 0, content: 'Hello world' },
+        { type: 'done', message: assistantMessage },
+      ], assistantMessage),
+    )
+
+    rt.enqueueUserMessage('hi')
+    await rt.run()
+
+    expect(textEvents).toHaveLength(1)
+    expect(deltas).toEqual(['Hello ', 'world'])
+    // Allow microtask to resolve
+    await new Promise(r => setTimeout(r, 0))
+    expect(finalText).toBe('Hello world')
+  })
+
+  it('onThinking fires and pipeable receives deltas + final value', async () => {
+    const thinkingEvents: unknown[] = []
+    const deltas: string[] = []
+    let finalThought: string | null = null
+
+    const rt = new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map(),
+      apiKey: 'test-key',
+      lifecycle: {
+        onThinking: (e) => {
+          thinkingEvents.push(e)
+          e.pipeable.subscribe((d) => deltas.push(d))
+          e.pipeable.done().then((v) => { finalThought = v })
+        },
+      },
+    })
+
+    const assistantMessage = makeAssistantMessage({
+      content: [{ type: 'text', text: 'ok' }],
+    })
+    streamSimpleMock.mockReturnValueOnce(
+      makeEventStream([
+        { type: 'thinking_start', contentIndex: 0 },
+        { type: 'thinking_delta', contentIndex: 0, delta: 'Let me ' },
+        { type: 'thinking_delta', contentIndex: 0, delta: 'think...' },
+        { type: 'thinking_end', contentIndex: 0, content: 'Let me think...' },
+        { type: 'done', message: assistantMessage },
+      ], assistantMessage),
+    )
+
+    rt.enqueueUserMessage('hi')
+    await rt.run()
+
+    expect(thinkingEvents).toHaveLength(1)
+    expect(deltas).toEqual(['Let me ', 'think...'])
+    await new Promise(r => setTimeout(r, 0))
+    expect(finalThought).toBe('Let me think...')
+  })
+
+  it('onToolCall fires at toolcall_start and pipeable receives streaming_args, id_resolved, phase_change, and final lifecycle', async () => {
+    const toolCallEvents: unknown[] = []
+    const toolDeltas: unknown[] = []
+    let finalLifecycle: unknown = null
+
+    const toolCall = {
+      type: 'toolCall',
+      id: 'tc-1',
+      name: 'bash',
+      arguments: { command: 'echo hi' },
+    }
+
+    const assistantWithTool = makeAssistantMessage({
+      content: [toolCall],
+      stopReason: 'toolUse',
+    })
+    const finalAssistant = makeAssistantMessage({
+      content: [{ type: 'text', text: 'Done!' }],
+    })
+
+    streamSimpleMock
+      .mockReturnValueOnce(
+        makeEventStream([
+          { type: 'toolcall_start', contentIndex: 0, partial: { content: [{ type: 'toolCall', name: 'bash', arguments: { command: 'echo' } }] } },
+          { type: 'toolcall_delta', contentIndex: 0, partial: { content: [{ type: 'toolCall', name: 'bash', arguments: { command: 'echo hi' } }] } },
+          { type: 'toolcall_end', contentIndex: 0, toolCall },
+          { type: 'done', message: assistantWithTool },
+        ], assistantWithTool),
+      )
+      .mockReturnValueOnce(
+        makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant),
+      )
+
+    const handler = vi.fn().mockResolvedValue({ output: 'hi\n', isError: false })
+
+    const rt = new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map([['bash', handler]]),
+      apiKey: 'test-key',
+      lifecycle: {
+        onToolCall: (e) => {
+          toolCallEvents.push(e)
+          e.pipeable.subscribe((d) => toolDeltas.push(d))
+          e.pipeable.done().then((v) => { finalLifecycle = v })
+        },
+      },
+    })
+
+    rt.enqueueUserMessage('run echo')
+    await rt.run()
+
+    expect(toolCallEvents).toHaveLength(1)
+    expect((toolCallEvents[0] as any).toolName).toBe('bash')
+
+    // Should have streaming_args, id_resolved, safety, phase_change(checked), phase_change(executing), complete
+    const deltaTypes = toolDeltas.map((d: any) => d.type)
+    expect(deltaTypes).toContain('streaming_args')
+    expect(deltaTypes).toContain('id_resolved')
+    expect(deltaTypes).toContain('phase_change')
+
+    await new Promise(r => setTimeout(r, 0))
+    expect(finalLifecycle).not.toBeNull()
+    expect((finalLifecycle as any).phase).toBe('completed')
+    expect((finalLifecycle as any).result).toBe('hi\n')
+  })
+
+  it('onDone is called on successful completion', async () => {
+    const doneEvents: unknown[] = []
+    const rt = new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map(),
+      apiKey: 'test-key',
+      lifecycle: {
+        onDone: (e) => doneEvents.push(e),
+      },
+    })
+
+    const msg = makeAssistantMessage({ content: [{ type: 'text', text: 'bye' }] })
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg }], msg))
+
+    rt.enqueueUserMessage('hi')
+    await rt.run()
+
+    expect(doneEvents).toHaveLength(1)
+    expect((doneEvents[0] as any).text).toBe('bye')
+  })
+
+  it('onError is called on error outcome', async () => {
+    const errorEvents: unknown[] = []
+    const rt = new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map([['x', async () => ({ output: 'ok', isError: false })]]),
+      apiKey: 'test-key',
+      maxSteps: 1,
+      lifecycle: {
+        onError: (e) => errorEvents.push(e),
+      },
+    })
+
+    const toolMsg = makeAssistantMessage({
+      content: [{ type: 'toolCall', id: 'tc', name: 'x', arguments: {} }],
+      stopReason: 'toolUse',
+    })
+    const tc = { type: 'toolCall', id: 'tc', name: 'x', arguments: {} }
+
+    streamSimpleMock
+      .mockReturnValueOnce(makeEventStream([{ type: 'toolcall_end', toolCall: tc }, { type: 'done', message: toolMsg }], toolMsg))
+      .mockReturnValueOnce(makeEventStream([{ type: 'toolcall_end', toolCall: tc }, { type: 'done', message: toolMsg }], toolMsg))
+
+    rt.enqueueUserMessage('go')
+    await rt.run()
+
+    expect(errorEvents).toHaveLength(1)
+    expect((errorEvents[0] as any).error).toContain('Max steps')
+  })
+
+  it('onAbort is called on interrupt and active pipeables are errored', async () => {
+    const abortEvents: unknown[] = []
+    let textPipeableError: Error | null = null
+
+    const abortedMsg = makeAssistantMessage({
+      stopReason: 'aborted',
+      errorMessage: 'Request aborted',
+    })
+
+    const rt = new AgentRuntime({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map(),
+      apiKey: 'test-key',
+      lifecycle: {
+        onAbort: (e) => abortEvents.push(e),
+        onText: (e) => {
+          e.pipeable.done().catch((err) => { textPipeableError = err })
+        },
+      },
+    })
+
+    streamSimpleMock.mockReturnValueOnce({
+      async *[Symbol.asyncIterator]() {
+        yield { type: 'text_start', contentIndex: 0 }
+        yield { type: 'text_delta', contentIndex: 0, delta: 'partial' }
+        rt.requestInterrupt()
+        yield { type: 'error', error: abortedMsg }
+      },
+      async result() { return abortedMsg },
+    })
+
+    rt.enqueueUserMessage('hi')
+    await rt.run()
+
+    expect(abortEvents).toHaveLength(1)
+    expect((abortEvents[0] as any).reason).toBe('interrupted')
+
+    // The text pipeable should have been errored
+    await new Promise(r => setTimeout(r, 0))
+    expect(textPipeableError).not.toBeNull()
+    expect(textPipeableError!.message).toContain('interrupted')
   })
 })

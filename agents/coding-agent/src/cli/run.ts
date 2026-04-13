@@ -38,7 +38,7 @@ export function createRenderer(config: CodelordConfig): InteractiveRenderer {
     model: config.model,
     version: readVersion(),
     cwd: process.cwd(),
-    reasoningLevel: config.reasoningLevel ?? 'high',
+    reasoningLevel: config.reasoningLevel ?? 'low',
     idle: true,
     interactive: true,
   })

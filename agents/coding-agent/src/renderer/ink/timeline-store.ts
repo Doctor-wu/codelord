@@ -2,7 +2,7 @@
 // TimelineStore — event → state bridge (pure logic, no React)
 // ---------------------------------------------------------------------------
 
-import type { AgentEvent, LifecycleEvent, ReasoningLevel } from '@codelord/core'
+import type { LifecycleEvent, ReasoningLevel, AgentLifecycleCallbacks } from '@codelord/core'
 import { resolveReasoningVisibility } from '@codelord/core'
 import type { TimelineState } from './timeline-projection.js'
 import {
@@ -76,26 +76,24 @@ export class TimelineStore {
     }
   }
 
-  onRawEvent(event: AgentEvent): void {
-    switch (event.type) {
-      case 'thinking_delta':
-        this.state = applyThinkingDelta(this.state, event.delta)
-        this.notify()
-        break
-      case 'text_delta':
-        this.state = applyTextDelta(this.state, event.delta)
-        this.notify()
-        break
-      // toolcall_start/delta/end now handled via lifecycle events (tool_call_streaming_*)
+  buildLifecycleCallbacks(): AgentLifecycleCallbacks {
+    return {
+      onText: (event) => {
+        event.pipeable.subscribe((delta) => {
+          this.state = applyTextDelta(this.state, delta)
+          this.notify()
+        })
+      },
+      onThinking: (event) => {
+        event.pipeable.subscribe((delta) => {
+          this.state = applyThinkingDelta(this.state, delta)
+          this.notify()
+        })
+      },
     }
   }
 
   onLifecycleEvent(event: LifecycleEvent): void {
-    // tool_call_streaming_delta is high-frequency — throttle like raw deltas
-    if (event.type === 'tool_call_streaming_delta') {
-      this.notifyThrottled(reduceLifecycleEvent(this._pendingDeltaState ?? this.state, event))
-      return
-    }
     this.state = this._pendingDeltaState ?? this.state
     this._pendingDeltaState = null
     if (this._deltaFlushTimer) {

@@ -10,7 +10,7 @@ import { mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync } from 
 import { join, basename } from 'node:path'
 import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
-import type { TraceRunV2, TraceEventEntry, ProviderStreamTraceEvent, AgentTraceEvent, LifecycleTraceEvent } from '@codelord/core'
+import type { TraceRunV2, TraceEventEntry, ProviderStreamTraceEvent, LifecycleTraceEvent } from '@codelord/core'
 import { normalizeTrace } from '@codelord/core'
 
 const TRACES_DIR = join(homedir(), '.codelord', 'traces')
@@ -237,13 +237,9 @@ export function formatTraceShow(rawTrace: TraceRunV2, mode: TraceShowMode = 'sum
   L.push(`Outcome: ${trace.outcome.type}${trace.outcome.error ? ` — ${trace.outcome.error}` : ''}${trace.outcome.reason ? ` — ${trace.outcome.reason}` : ''}`)
   L.push(`Usage: ${trace.usageSummary.totalTokens} tok  ${trace.usageSummary.llmCalls} LLM calls  $${trace.usageSummary.cost.total.toFixed(4)}`)
   L.push(`  input: ${trace.usageSummary.input}  output: ${trace.usageSummary.output}  cacheRead: ${trace.usageSummary.cacheRead}  cacheWrite: ${trace.usageSummary.cacheWrite}`)
-  L.push(`Events: ${trace.eventCounts.providerStream} provider  ${trace.eventCounts.agentEvents} agent  ${trace.eventCounts.lifecycleEvents} lifecycle`)
+  L.push(`Events: ${trace.eventCounts.providerStream} provider  ${trace.eventCounts.lifecycleEvents} lifecycle`)
   if (trace.redactionSummary.length > 0) {
     L.push(`Redactions: ${trace.redactionSummary.map(r => `${r.type}×${r.count}`).join(', ')}`)
-  }
-  if (trace.toolVisibility) {
-    const tv = trace.toolVisibility
-    L.push(`Tool visibility: avg ${tv.avgProviderToLifecycleMs}ms provider→lifecycle, max ${tv.maxProviderToLifecycleMs}ms, ${tv.provisionalHitCount}/${tv.measuredCount} had provisional`)
   }
   L.push('')
 
@@ -293,10 +289,10 @@ function formatSummaryBody(trace: TraceRunV2, L: string[]): void {
     }
     if (thinkingChars > 0) segments.push(`thinking ${fmtChars(thinkingChars)}`)
 
-    // Tool calls (from lifecycle tool_call_created)
+    // Tool calls (from lifecycle tool_call_completed)
     const toolCounts = new Map<string, number>()
     for (const e of sorted) {
-      if (e.source === 'lifecycle_event' && e.type === 'tool_call_created') {
+      if (e.source === 'lifecycle_event' && e.type === 'tool_call_completed') {
         const le = e as LifecycleTraceEvent
         const name = le.toolName ?? 'unknown'
         toolCounts.set(name, (toolCounts.get(name) ?? 0) + 1)
@@ -333,12 +329,6 @@ function formatSummaryBody(trace: TraceRunV2, L: string[]): void {
 
     // Anomalies
     for (const e of sorted) {
-      if (e.source === 'agent_event' && (e as AgentTraceEvent).isError) {
-        L.push(`   ⚠ error: ${(e as AgentTraceEvent).resultPreview?.slice(0, 80) ?? e.type}`)
-      }
-      if (e.source === 'agent_event' && (e as AgentTraceEvent).allowed === false) {
-        L.push(`   ⚠ BLOCKED: ${(e as AgentTraceEvent).toolName ?? e.type}  risk=${(e as AgentTraceEvent).riskLevel}`)
-      }
       if (e.source === 'lifecycle_event' && e.type === 'interrupt_requested') {
         L.push(`   ⚠ interrupted (${(e as LifecycleTraceEvent).interruptSource})`)
       }
@@ -373,10 +363,9 @@ function formatDetailBody(trace: TraceRunV2, L: string[]): void {
     const dur = step.endedAt ? `${step.endedAt - step.startedAt}ms` : 'in-flight'
     const sorted = [...step.events].sort((a, b) => a.seq - b.seq)
     const pCount = sorted.filter(e => e.source === 'provider_stream').length
-    const aCount = sorted.filter(e => e.source === 'agent_event').length
     const lCount = sorted.filter(e => e.source === 'lifecycle_event').length
     L.push(`══ Step ${step.step} (${step.turnId?.slice(0, 12) ?? '?'})  ${new Date(step.startedAt).toLocaleTimeString()}  ${dur} ══`)
-    L.push(`   provider: ${pCount}  agent: ${aCount}  lifecycle: ${lCount}`)
+    L.push(`   provider: ${pCount}  lifecycle: ${lCount}`)
     L.push('')
     formatMergedTimeline(sorted, L, trace.startedAt)
     L.push('')
@@ -391,79 +380,17 @@ function formatDetailBody(trace: TraceRunV2, L: string[]): void {
   }
 }
 
-/** Detail mode: merge P events with their A mirrors into [P+A] lines */
+/** Detail mode: merge P events with L events into timeline */
 function formatMergedTimeline(events: TraceEventEntry[], L: string[], base: number): void {
-  // Pre-compute: build a set of agent event indices that mirror a provider event.
-  // For each P event, find the first unmatched A event with the same type (in seq order).
-  const agentConsumed = new Set<number>()
-  const pToA = new Map<number, number>() // P index → A index
-
-  // Group agent events by type for efficient matching
-  const agentByType = new Map<string, number[]>()
-  for (let i = 0; i < events.length; i++) {
-    if (events[i].source === 'agent_event') {
-      const list = agentByType.get(events[i].type) ?? []
-      list.push(i)
-      agentByType.set(events[i].type, list)
-    }
-  }
-
-  // Match each P event to its first available A mirror
-  for (let i = 0; i < events.length; i++) {
-    if (events[i].source !== 'provider_stream') continue
-    const candidates = agentByType.get(events[i].type)
-    if (!candidates) continue
-    for (const ai of candidates) {
-      if (!agentConsumed.has(ai)) {
-        pToA.set(i, ai)
-        agentConsumed.add(ai)
-        break
-      }
-    }
-  }
-
-  // Now render, skipping consumed agent events
   let i = 0
   while (i < events.length) {
-    if (agentConsumed.has(i)) { i++; continue } // skip — already merged with a P event
-
     const e = events[i]
 
-    // P delta run with merged A mirrors
-    if (isDeltaType(e) && e.source === 'provider_stream') {
-      let count = 0
-      let totalLen = 0
-      let hasPaired = false
-      let j = i
-      while (j < events.length && events[j].source === 'provider_stream' && events[j].type === e.type) {
-        count++
-        totalLen += getDeltaLen(events[j])
-        if (pToA.has(j)) hasPaired = true
-        j++
-      }
-      if (count > 1) {
-        const tag = hasPaired ? '[P+A]' : '[P]  '
-        const ci = getContentIndex(e)
-        const tc = getToolCallId(e)
-        const tn = getToolName(e)
-        L.push(`   │ ${tag} ${seqLabel(e.seq)}  ${tOff(e.timestamp, base)}  ${e.type} ×${count} (~${totalLen} chars)${ci}${tc}${tn}`)
-        i = j
-        continue
-      }
-    }
-
-    // Single P event with A mirror
-    if (e.source === 'provider_stream' && pToA.has(i)) {
-      formatSingleEvent(e, '[P+A]', L, base)
-      i++
-      continue
-    }
-
-    // Fold consecutive same-source deltas (unmatched agent deltas, etc.)
+    // Fold consecutive same-source deltas
     if (isDeltaType(e)) {
       let count = 1
       let totalLen = getDeltaLen(e)
-      while (i + count < events.length && events[i + count].type === e.type && events[i + count].source === e.source && !agentConsumed.has(i + count)) {
+      while (i + count < events.length && events[i + count].type === e.type && events[i + count].source === e.source) {
         totalLen += getDeltaLen(events[i + count])
         count++
       }
@@ -493,10 +420,9 @@ function formatRawBody(trace: TraceRunV2, L: string[]): void {
     const dur = step.endedAt ? `${step.endedAt - step.startedAt}ms` : 'in-flight'
     const sorted = [...step.events].sort((a, b) => a.seq - b.seq)
     const pCount = sorted.filter(e => e.source === 'provider_stream').length
-    const aCount = sorted.filter(e => e.source === 'agent_event').length
     const lCount = sorted.filter(e => e.source === 'lifecycle_event').length
     L.push(`══ Step ${step.step} (${step.turnId?.slice(0, 12) ?? '?'})  ${new Date(step.startedAt).toLocaleTimeString()}  ${dur} ══`)
-    L.push(`   provider: ${pCount}  agent: ${aCount}  lifecycle: ${lCount}`)
+    L.push(`   provider: ${pCount}  lifecycle: ${lCount}`)
     L.push('')
     formatRawTimeline(sorted, L, trace.startedAt)
     L.push('')
@@ -547,7 +473,6 @@ function formatRawTimeline(events: TraceEventEntry[], L: string[], base: number)
 function sourceTag(source: string): string {
   switch (source) {
     case 'provider_stream': return '[P]'
-    case 'agent_event': return '[A]'
     case 'lifecycle_event': return '[L]'
     default: return '[?]'
   }
@@ -557,9 +482,6 @@ function formatSingleEvent(e: TraceEventEntry, tag: string, L: string[], base: n
   switch (e.source) {
     case 'provider_stream':
       formatProviderEvent(e as ProviderStreamTraceEvent, tag, L, base)
-      break
-    case 'agent_event':
-      formatAgentEvent(e as AgentTraceEvent, tag, L, base)
       break
     case 'lifecycle_event':
       formatLifecycleEvent(e as LifecycleTraceEvent, tag, L, base)
@@ -599,18 +521,6 @@ function formatProviderEvent(e: ProviderStreamTraceEvent, tag: string, L: string
   if (e.stopReason) parts.push(`stop=${e.stopReason}`)
   if (e.contentPreview) parts.push(`"${e.contentPreview.slice(0, 60)}${e.contentPreview.length > 60 ? '…' : ''}"`)
   if (e.argsPreview) parts.push(`args=${e.argsPreview.slice(0, 60)}${e.argsPreview.length > 60 ? '…' : ''}`)
-  L.push(parts.join('  '))
-}
-
-function formatAgentEvent(e: AgentTraceEvent, tag: string, L: string[], base: number): void {
-  const parts = [`   │ ${tag} ${seqLabel(e.seq)}  ${tOff(e.timestamp, base)}  ${e.type}`]
-  if (e.contentIndex !== null) parts.push(`ci=${e.contentIndex}`)
-  if (e.toolCallId) parts.push(`tc=${e.toolCallId.slice(0, 8)}`)
-  if (e.toolName) parts.push(e.toolName)
-  if (e.riskLevel) parts.push(`risk=${e.riskLevel}`)
-  if (e.allowed !== null) parts.push(e.allowed ? 'allowed' : 'BLOCKED')
-  if (e.isError !== null) parts.push(e.isError ? 'ERROR' : 'ok')
-  if (e.resultPreview) parts.push(`"${e.resultPreview.slice(0, 80)}${e.resultPreview.length > 80 ? '…' : ''}"`)
   L.push(parts.join('  '))
 }
 

@@ -64,8 +64,6 @@ describe('runAgent thinking support', () => {
       { type: 'done', message: assistantMessage },
     ], assistantMessage))
 
-    const events = []
-
     const result = await runAgent({
       model: { id: 'test-model' } as never,
       systemPrompt: 'You are a test agent.',
@@ -73,23 +71,10 @@ describe('runAgent thinking support', () => {
       toolHandlers: new Map(),
       userMessage: 'Debug this issue',
       apiKey: 'test-key',
-      onEvent: (event) => events.push(event),
     })
 
     expect(result.type).toBe('success')
     expect(result.text).toBe('I checked the config and found the issue. Here is the fix.')
-    expect(events.map((event) => event.type)).toEqual([
-      'step_start',
-      'thinking_start',
-      'thinking_delta',
-      'thinking_delta',
-      'thinking_end',
-      'text_start',
-      'text_delta',
-      'text_delta',
-      'text_end',
-      'done',
-    ])
   })
 })
 
@@ -134,5 +119,45 @@ describe('runAgent single-shot AskUserQuestion compat', () => {
     expect(result.error).toContain('Agent requires user input')
     expect(result.error).toContain('Which env?')
     expect(result.error).toContain('Not specified')
+  })
+})
+
+describe('runAgent lifecycle callbacks passthrough', () => {
+  afterEach(() => {
+    streamSimpleMock.mockReset()
+  })
+
+  it('forwards lifecycle callbacks to the underlying runtime', async () => {
+    const doneEvents: unknown[] = []
+    const textEvents: unknown[] = []
+
+    const assistantMessage = makeAssistantMessage({
+      content: [{ type: 'text', text: 'Hello!' }],
+    })
+
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([
+      { type: 'text_start', contentIndex: 0 },
+      { type: 'text_delta', contentIndex: 0, delta: 'Hello!' },
+      { type: 'text_end', contentIndex: 0, content: 'Hello!' },
+      { type: 'done', message: assistantMessage },
+    ], assistantMessage))
+
+    const result = await runAgent({
+      model: { id: 'test-model' } as never,
+      systemPrompt: 'test',
+      tools: [],
+      toolHandlers: new Map(),
+      userMessage: 'hi',
+      apiKey: 'test-key',
+      lifecycle: {
+        onDone: (e) => doneEvents.push(e),
+        onText: (e) => textEvents.push(e),
+      },
+    })
+
+    expect(result.type).toBe('success')
+    expect(doneEvents).toHaveLength(1)
+    expect((doneEvents[0] as any).text).toBe('Hello!')
+    expect(textEvents).toHaveLength(1)
   })
 })

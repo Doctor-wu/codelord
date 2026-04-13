@@ -218,8 +218,8 @@ function buildProgressCallback(format: OutputFormat): ((event: HeadlessProgressE
     case 'text':
       return (event) => {
         switch (event.type) {
-          case 'step_start':
-            process.stderr.write(`[Step ${event.step}]\n`)
+          case 'turn_start':
+            process.stderr.write('[Turn start]\n')
             break
           case 'tool_call':
             if (event.phase === 'started') {
@@ -248,7 +248,10 @@ async function handlePipeMode(prompt: string, outputFormat: OutputFormat, cliFla
   const apiKey = await resolveApiKey(config)
 
   const onProgress = buildProgressCallback(outputFormat)
-  const result = await runHeadless({ model, apiKey, config, prompt, onProgress })
+  const result = await runHeadless({
+    model, apiKey, config, prompt, onProgress,
+    streaming: outputFormat === 'stream-json',
+  })
 
   switch (outputFormat) {
     case 'text':

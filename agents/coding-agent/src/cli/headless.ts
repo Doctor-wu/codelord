@@ -4,7 +4,7 @@
 
 import type { Api, Model } from '@mariozechner/pi-ai'
 import { AgentRuntime } from '@codelord/core'
-import type { AgentEvent, LifecycleEvent, RunOutcome, ToolCallStats, RouteHitStats } from '@codelord/core'
+import type { LifecycleEvent, RunOutcome, ToolCallStats, RouteHitStats, AgentLifecycleCallbacks } from '@codelord/core'
 import type { TraceRunV2 } from '@codelord/core'
 import { estimateTokens, DEFAULT_CONTEXT_WINDOW } from '@codelord/core'
 import type { ContextWindowConfig } from '@codelord/core'
@@ -20,8 +20,8 @@ import { withProviderAuthEnv } from '../auth/provider-env.js'
 // ---------------------------------------------------------------------------
 
 export type HeadlessProgressEvent =
-  | { type: 'step_start'; step: number }
-  | { type: 'tool_call'; step: number; toolName: string; phase: 'started' | 'completed'; isError?: boolean }
+  | { type: 'turn_start' }
+  | { type: 'tool_call'; toolName: string; phase: 'started' | 'completed'; isError?: boolean }
   | { type: 'text_delta'; text: string }
   | { type: 'thinking'; preview: string }
   | { type: 'done'; outcome: string; durationMs: number; totalTokens: number; cost: number }
@@ -36,6 +36,8 @@ export interface HeadlessRunOptions {
   cwd?: string
   /** Optional callback for streaming progress events */
   onProgress?: (event: HeadlessProgressEvent) => void
+  /** Enable streaming progress events (text_delta, thinking). Default: false (terminal events only) */
+  streaming?: boolean
 }
 
 export interface HeadlessRunResult {
@@ -53,7 +55,7 @@ export interface HeadlessRunResult {
 // ---------------------------------------------------------------------------
 
 export async function runHeadless(options: HeadlessRunOptions): Promise<HeadlessRunResult> {
-  const { model, apiKey, config, prompt, onProgress } = options
+  const { model, apiKey, config, prompt, onProgress, streaming = false } = options
   const cwd = options.cwd ?? process.cwd()
   const startTime = Date.now()
 
@@ -80,6 +82,33 @@ export async function runHeadless(options: HeadlessRunOptions): Promise<Headless
     systemPrompt,
   })
 
+  // Progress events via lifecycle callbacks
+  const lifecycleCallbacks: AgentLifecycleCallbacks = {
+    onStart: () => {
+      onProgress?.({ type: 'turn_start' })
+    },
+    onText: (event) => {
+      if (streaming) {
+        event.pipeable.subscribe((delta) => {
+          onProgress?.({ type: 'text_delta', text: delta })
+        })
+      }
+    },
+    onThinking: (event) => {
+      if (streaming) {
+        event.pipeable.subscribe((delta) => {
+          onProgress?.({ type: 'thinking', preview: delta })
+        })
+      }
+    },
+    onToolCall: (event) => {
+      onProgress?.({ type: 'tool_call', toolName: event.toolName, phase: 'started' })
+      event.pipeable.done().then((lifecycle) => {
+        onProgress?.({ type: 'tool_call', toolName: event.toolName, phase: 'completed', isError: lifecycle.isError })
+      }).catch(() => {}) // ignore abort errors
+    },
+  }
+
   const runtime = new AgentRuntime({
     model,
     systemPrompt,
@@ -89,32 +118,9 @@ export async function runHeadless(options: HeadlessRunOptions): Promise<Headless
     maxSteps: config.maxSteps,
     reasoningLevel: config.reasoningLevel,
     contextWindow: contextWindowConfig,
-    onEvent: (event: AgentEvent) => {
-      recorder.onAgentEvent(event)
-      if (onProgress) {
-        switch (event.type) {
-          case 'step_start':
-            onProgress({ type: 'step_start', step: event.step })
-            break
-          case 'text_delta':
-            onProgress({ type: 'text_delta', text: event.delta })
-            break
-          case 'thinking_delta':
-            onProgress({ type: 'thinking', preview: event.delta })
-            break
-          case 'tool_result':
-            onProgress({ type: 'tool_call', step: 0, toolName: event.toolName, phase: 'completed', isError: event.isError })
-            break
-        }
-      }
-    },
+    lifecycle: lifecycleCallbacks,
     onLifecycleEvent: (event: LifecycleEvent) => {
       recorder.onLifecycleEvent(event)
-      if (onProgress) {
-        if (event.type === 'tool_call_created') {
-          onProgress({ type: 'tool_call', step: 0, toolName: event.toolCall.toolName, phase: 'started' })
-        }
-      }
     },
     onProviderStreamEvent: (event) => recorder.onProviderStreamEvent(event),
     router,

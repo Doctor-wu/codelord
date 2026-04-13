@@ -16,7 +16,7 @@ import { AgentRuntime } from '../src/runtime.js'
 import { ToolRouter } from '../src/tool-router.js'
 import { ToolSafetyPolicy } from '../src/tool-safety.js'
 import { ASK_USER_QUESTION_TOOL_NAME } from '../src/tools/ask-user.js'
-import type { AgentEvent, ToolHandler } from '../src/react-loop.js'
+import type { ToolHandler } from '../src/react-loop.js'
 
 function makeAssistantMessage(overrides = {}) {
   return {
@@ -47,7 +47,6 @@ describe('Runtime + ToolSafetyPolicy integration', () => {
   })
 
   it('dangerous bash is blocked — handler NOT called, RISK_BLOCKED returned', async () => {
-    const events: AgentEvent[] = []
     const router = new ToolRouter()
     const safetyPolicy = new ToolSafetyPolicy({ cwd: '/tmp' })
 
@@ -89,7 +88,6 @@ describe('Runtime + ToolSafetyPolicy integration', () => {
       apiKey: 'test',
       router,
       safetyPolicy,
-      onEvent: (e) => events.push(e),
     })
 
     rt.messages.push({ role: 'user', content: 'delete everything', timestamp: Date.now() })
@@ -97,21 +95,6 @@ describe('Runtime + ToolSafetyPolicy integration', () => {
 
     // Handler was NOT called
     expect(bashHandler).not.toHaveBeenCalled()
-
-    // tool_safety_checked event emitted
-    const safetyEvent = events.find(e => e.type === 'tool_safety_checked')
-    expect(safetyEvent).toMatchObject({
-      type: 'tool_safety_checked',
-      riskLevel: 'dangerous',
-      allowed: false,
-    })
-
-    // tool_result has RISK_BLOCKED
-    const resultEvent = events.find(e => e.type === 'tool_result')
-    expect(resultEvent).toMatchObject({
-      isError: true,
-    })
-    expect((resultEvent as any).result).toContain('RISK_BLOCKED')
 
     // History: toolResult has isError=true
     const toolResultMsg = rt.messages.find(m => m.role === 'toolResult')
@@ -125,7 +108,6 @@ describe('Runtime + ToolSafetyPolicy integration', () => {
   })
 
   it('write-level tool is allowed and recorded', async () => {
-    const events: AgentEvent[] = []
     const router = new ToolRouter()
     const safetyPolicy = new ToolSafetyPolicy({ cwd: '/tmp' })
 
@@ -167,7 +149,6 @@ describe('Runtime + ToolSafetyPolicy integration', () => {
       apiKey: 'test',
       router,
       safetyPolicy,
-      onEvent: (e) => events.push(e),
     })
 
     rt.messages.push({ role: 'user', content: 'write file', timestamp: Date.now() })
@@ -176,13 +157,6 @@ describe('Runtime + ToolSafetyPolicy integration', () => {
     // Handler WAS called
     expect(fileWriteHandler).toHaveBeenCalled()
 
-    // Safety event shows write + allowed
-    const safetyEvent = events.find(e => e.type === 'tool_safety_checked')
-    expect(safetyEvent).toMatchObject({
-      riskLevel: 'write',
-      allowed: true,
-    })
-
     // Safety records
     expect(rt.safetyRecords).toHaveLength(1)
     expect(rt.safetyRecords[0].riskLevel).toBe('write')
@@ -190,7 +164,6 @@ describe('Runtime + ToolSafetyPolicy integration', () => {
   })
 
   it('bash cat routed to file_read is assessed as safe', async () => {
-    const events: AgentEvent[] = []
     const router = new ToolRouter()
     const safetyPolicy = new ToolSafetyPolicy({ cwd: '/tmp' })
 
@@ -232,23 +205,12 @@ describe('Runtime + ToolSafetyPolicy integration', () => {
       apiKey: 'test',
       router,
       safetyPolicy,
-      onEvent: (e) => events.push(e),
     })
 
     rt.messages.push({ role: 'user', content: 'read file', timestamp: Date.now() })
     await rt.run()
 
-    // Routed to file_read, then safety assessed as safe
-    const routedEvent = events.find(e => e.type === 'tool_routed')
-    expect(routedEvent).toBeDefined()
-
-    const safetyEvent = events.find(e => e.type === 'tool_safety_checked')
-    expect(safetyEvent).toMatchObject({
-      toolName: 'file_read',
-      riskLevel: 'safe',
-      allowed: true,
-    })
-
+    // Routed to file_read handler was called
     expect(fileReadHandler).toHaveBeenCalled()
   })
 
@@ -295,7 +257,6 @@ describe('Runtime + ToolSafetyPolicy integration', () => {
   })
 
   it('git reset --hard is blocked', async () => {
-    const events: AgentEvent[] = []
     const safetyPolicy = new ToolSafetyPolicy({ cwd: '/tmp' })
 
     const bashHandler: ToolHandler = vi.fn(async () => ({
@@ -335,18 +296,11 @@ describe('Runtime + ToolSafetyPolicy integration', () => {
       toolHandlers: new Map([['bash', bashHandler]]),
       apiKey: 'test',
       safetyPolicy,
-      onEvent: (e) => events.push(e),
     })
 
     rt.messages.push({ role: 'user', content: 'reset', timestamp: Date.now() })
     await rt.run()
 
     expect(bashHandler).not.toHaveBeenCalled()
-
-    const safetyEvent = events.find(e => e.type === 'tool_safety_checked')
-    expect(safetyEvent).toMatchObject({
-      riskLevel: 'dangerous',
-      allowed: false,
-    })
   })
 })

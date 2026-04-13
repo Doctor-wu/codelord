@@ -1,6 +1,8 @@
+export { PipeableImpl } from './pipeable.js'
+export type { Pipeable, Unsubscribe } from './pipeable.js'
+
 export { runAgent } from './react-loop.js'
 export type {
-  AgentEvent,
   AgentResult,
   AgentSuccess,
   AgentError,
@@ -70,7 +72,7 @@ export type {
   TraceRun, TraceStep, TraceEvent,
   TraceLLMCall, TraceToolExecution, TraceQueueMessage, TraceAskUser, TraceUserInterrupt,
   TraceRunV2, TraceStepV2, TraceEventEntry, TraceSegment,
-  ProviderStreamTraceEvent, AgentTraceEvent, LifecycleTraceEvent,
+  ProviderStreamTraceEvent, LifecycleTraceEvent,
 } from './trace.js'
 export { normalizeTrace } from './trace.js'
 
@@ -79,6 +81,19 @@ export type { ContextWindowConfig, TruncationResult } from './context-window.js'
 
 export { ToolStatsTracker } from './tool-stats.js'
 export type { ToolCallStats, RouteHitStats } from './tool-stats.js'
+
+export type {
+  AgentLifecycleCallbacks,
+  StartEvent,
+  TextEvent,
+  ThinkingEvent,
+  ToolCallDelta,
+  ToolCallEvent,
+  ErrorEvent,
+  AbortEvent,
+  DoneEvent,
+} from './lifecycle.js'
+export { mergeLifecycleCallbacks } from './lifecycle.js'
 
 // Re-export pi-ai primitives for tool plugin authors
 export { Type } from '@mariozechner/pi-ai'

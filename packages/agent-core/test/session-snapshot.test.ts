@@ -40,14 +40,13 @@ function makeEventStream(events: unknown[], resultMessage = makeAssistantMessage
   }
 }
 
-function createRuntime(onEvent?: (e: unknown) => void) {
+function createRuntime() {
   return new AgentRuntime({
     model: { id: 'test-model' } as never,
     systemPrompt: 'You are a test agent.',
     tools: [],
     toolHandlers: new Map(),
     apiKey: 'test-key',
-    onEvent,
   })
 }
 

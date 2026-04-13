@@ -4,9 +4,10 @@
 
 import { createHash, randomUUID } from 'node:crypto'
 import type {
-  LifecycleEvent, AgentEvent, RunOutcome, UsageAggregate,
-  ProviderStreamTraceEvent, AgentTraceEvent, LifecycleTraceEvent,
+  LifecycleEvent, RunOutcome, UsageAggregate,
+  ProviderStreamTraceEvent, LifecycleTraceEvent,
   TraceRunV2, TraceStepV2, TraceEventEntry, TraceSegment,
+  AgentLifecycleCallbacks,
 } from '@codelord/core'
 import { safePreview } from '@codelord/core'
 import type { RedactionHit } from '@codelord/core'
@@ -20,6 +21,7 @@ export interface TraceRecorderOptions {
   provider: string
   model: string
   systemPrompt: string
+  rawMode?: boolean
 }
 
 export class TraceRecorder {
@@ -37,17 +39,17 @@ export class TraceRecorder {
   private _nextEventId = 0
   private _globalSeq = 0
   private totalProviderStream = 0
-  private totalAgentEvents = 0
   private totalLifecycleEvents = 0
-  private _toolcallStartTimestamps: number[] = []
-  private _toolCallCreatedTimestamps: number[] = []
   private segments: TraceSegment[] = []
   private currentSegmentStart: number | null = null
   private currentSegmentStepStart: number = 0
 
+  private readonly rawMode: boolean
+
   constructor(opts: TraceRecorderOptions) {
     this.runId = randomUUID()
     this.opts = opts
+    this.rawMode = opts.rawMode ?? false
     this.systemPromptHash = createHash('sha256').update(opts.systemPrompt).digest('hex').slice(0, 16)
     this.startedAt = Date.now()
   }
@@ -132,6 +134,7 @@ export class TraceRecorder {
   // --- Provider stream layer ---
 
   onProviderStreamEvent(event: ProviderStreamTraceEvent): void {
+    if (!this.rawMode) return
     this.totalProviderStream++
     event = { ...event, seq: ++this._globalSeq }
     // Redact previews
@@ -147,74 +150,6 @@ export class TraceRecorder {
     }
     this.ensureStep(event.step, event.turnId)
     this.currentStep!.events.push(event)
-  }
-
-  // --- Agent event layer ---
-
-  onAgentEvent(event: AgentEvent): void {
-    this.totalAgentEvents++
-    const now = Date.now()
-    const base: AgentTraceEvent = {
-      eventId: ++this._nextEventId,
-      seq: ++this._globalSeq,
-      type: event.type,
-      timestamp: now,
-      step: 0,
-      turnId: null,
-      source: 'agent_event',
-      contentIndex: null,
-      toolCallId: null,
-      toolName: null,
-      deltaPreview: null,
-      riskLevel: null,
-      allowed: null,
-      isError: null,
-      resultPreview: null,
-    }
-
-    switch (event.type) {
-      case 'step_start':
-        base.step = event.step; break
-      case 'thinking_start': case 'text_start':
-        base.contentIndex = event.contentIndex; break
-      case 'thinking_delta': case 'text_delta':
-        base.contentIndex = event.contentIndex
-        base.deltaPreview = safePreview(event.delta, 300).text; break
-      case 'thinking_end': case 'text_end':
-        base.contentIndex = event.contentIndex; break
-      case 'toolcall_start': case 'toolcall_delta':
-        base.contentIndex = event.contentIndex
-        base.toolName = event.toolName; break
-      case 'toolcall_end':
-        base.contentIndex = event.contentIndex
-        base.toolCallId = event.toolCall.id
-        base.toolName = event.toolCall.name; break
-      case 'tool_routed':
-        base.toolName = event.resolvedToolName; break
-      case 'tool_safety_checked':
-        base.toolName = event.toolName
-        base.riskLevel = event.riskLevel
-        base.allowed = event.allowed; break
-      case 'tool_exec_start':
-        base.toolName = event.toolName; break
-      case 'tool_output_delta':
-        base.toolName = event.toolName
-        base.deltaPreview = safePreview(event.chunk, 300).text; break
-      case 'tool_result':
-        base.toolName = event.toolName
-        base.isError = event.isError
-        base.resultPreview = safePreview(event.result, 300).text; break
-      case 'error':
-        base.resultPreview = event.error; break
-    }
-
-    if (this.currentStep) {
-      base.step = this.currentStep.step
-      base.turnId = this.currentStep.turnId
-      this.currentStep.events.push(base)
-    } else {
-      this.runEvents.push(base)
-    }
   }
 
   // --- Lifecycle event layer ---
@@ -242,6 +177,11 @@ export class TraceRecorder {
     // Pre-emit: interrupt_observed must come before blocked_enter in seq order
     if (event.type === 'blocked_enter' && (event as any).reason === 'interrupted') {
       this.emitInterruptObserved()
+    }
+
+    // Trajectory mode: skip intermediate events
+    if (event.type === 'tool_call_created' || event.type === 'tool_call_updated') {
+      return
     }
 
     // Build lifecycle trace event
@@ -275,13 +215,10 @@ export class TraceRecorder {
       case 'user_turn':
         le.question = event.content.slice(0, 200)
         break
-      case 'tool_call_created': case 'tool_call_updated': case 'tool_call_completed':
+      case 'tool_call_completed':
         le.toolCallId = event.toolCall.id
         le.toolName = event.toolCall.toolName
         le.phase = event.toolCall.phase
-        if (event.type === 'tool_call_created') {
-          this._toolCallCreatedTimestamps.push(event.toolCall.createdAt)
-        }
         break
       case 'usage_updated':
         this.recordUsage(event.usage)
@@ -307,17 +244,6 @@ export class TraceRecorder {
           const { hits } = safePreview(msg.content)
           this.mergeHits(hits)
         }
-        break
-      case 'tool_call_streaming_start':
-        le.toolName = event.toolName
-        this._toolcallStartTimestamps.push(event.timestamp)
-        break
-      case 'tool_call_streaming_delta':
-        le.toolName = event.toolName
-        break
-      case 'tool_call_streaming_end':
-        le.toolCallId = event.toolCallId
-        le.toolName = event.toolName
         break
       case 'queue_enqueued':
         le.question = event.content.slice(0, 200)
@@ -373,25 +299,6 @@ export class TraceRecorder {
       this.currentStep = null
     }
 
-    let toolVisibility: TraceRunV2['toolVisibility']
-    const pairCount = Math.min(this._toolcallStartTimestamps.length, this._toolCallCreatedTimestamps.length)
-    if (pairCount > 0) {
-      const gaps: number[] = []
-      let provisionalHits = 0
-      for (let i = 0; i < pairCount; i++) {
-        const gap = this._toolCallCreatedTimestamps[i]! - this._toolcallStartTimestamps[i]!
-        gaps.push(Math.max(0, gap))
-        if (gap > 0) provisionalHits++
-      }
-      const sum = gaps.reduce((a, b) => a + b, 0)
-      toolVisibility = {
-        avgProviderToLifecycleMs: Math.round(sum / gaps.length),
-        maxProviderToLifecycleMs: Math.max(...gaps),
-        measuredCount: pairCount,
-        provisionalHitCount: provisionalHits,
-      }
-    }
-
     return {
       version: 2,
       runId: this.runId,
@@ -415,18 +322,23 @@ export class TraceRecorder {
       redactionSummary: this.allRedactionHits,
       eventCounts: {
         providerStream: this.totalProviderStream,
-        agentEvents: this.totalAgentEvents,
         lifecycleEvents: this.totalLifecycleEvents,
       },
       steps: this.steps,
       runEvents: this.runEvents,
       ...(opts?.toolStats ? { toolStats: opts.toolStats } : {}),
-      ...(toolVisibility ? { toolVisibility } : {}),
       ...(this.segments.length > 0 ? { segments: this.segments } : {}),
     }
   }
 
   // --- Internal ---
+
+  buildLifecycleCallbacks(): AgentLifecycleCallbacks {
+    return {
+      // Trajectory recording is handled via onLifecycleEvent for now.
+      // This provides the hook for Task 8's mergeLifecycleCallbacks wiring.
+    }
+  }
 
   private ensureStep(step: number, turnId: string | null): void {
     if (!this.currentStep || this.currentStep.step !== step) {

@@ -5,7 +5,7 @@
 import React from 'react'
 import { render } from 'ink'
 import type { Instance } from 'ink'
-import type { AgentEvent, LifecycleEvent, ReasoningLevel } from '@codelord/core'
+import type { LifecycleEvent, ReasoningLevel, AgentLifecycleCallbacks } from '@codelord/core'
 import type { InteractiveRenderer, RuntimeQueueInfo } from './types.js'
 import { App } from './ink/App.js'
 import { TimelineStore } from './ink/timeline-store.js'
@@ -61,8 +61,11 @@ export class InkRenderer implements InteractiveRenderer {
     }
   }
 
-  onEvent(event: AgentEvent): void { this.store.onRawEvent(event) }
   onLifecycleEvent(event: LifecycleEvent): void { this.store.onLifecycleEvent(event) }
+
+  buildLifecycleCallbacks(): AgentLifecycleCallbacks {
+    return this.store.buildLifecycleCallbacks()
+  }
 
   setReasoningLevel(level: string): void {
     this._reasoningLevel = level

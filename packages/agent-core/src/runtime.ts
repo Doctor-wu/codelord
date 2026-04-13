@@ -11,7 +11,9 @@ import type {
   ToolCall,
   ToolResultMessage,
 } from '@mariozechner/pi-ai'
-import type { AgentEvent, ToolHandler } from './react-loop.js'
+import type { ToolHandler } from './react-loop.js'
+import type { AgentLifecycleCallbacks, ToolCallDelta } from './lifecycle.js'
+import { PipeableImpl } from './pipeable.js'
 import { ASK_USER_QUESTION_TOOL_NAME, askUserQuestionTool } from './tools/ask-user.js'
 import type { PendingQuestion, ResolvedQuestion } from './tools/ask-user.js'
 import type { ToolRouteDecision } from './tool-router.js'
@@ -97,7 +99,6 @@ export interface RuntimeOptions<TApi extends Api = Api> {
   maxSteps?: number
   reasoningLevel?: ReasoningLevel
   streamOptions?: Omit<SimpleStreamOptions, 'apiKey'>
-  onEvent?: (event: AgentEvent) => void
   onLifecycleEvent?: (event: LifecycleEvent) => void
   router?: ToolRouter
   safetyPolicy?: ToolSafetyPolicy
@@ -105,6 +106,7 @@ export interface RuntimeOptions<TApi extends Api = Api> {
   cacheRetention?: CacheRetention
   onProviderStreamEvent?: (event: ProviderStreamTraceEvent) => void
   contextWindow?: ContextWindowConfig
+  lifecycle?: AgentLifecycleCallbacks
 }
 
 // ---------------------------------------------------------------------------
@@ -139,7 +141,6 @@ export class AgentRuntime<TApi extends Api = Api> {
   private readonly apiKey: string
   private readonly maxSteps: number
   private readonly streamOptions?: Omit<SimpleStreamOptions, 'apiKey'>
-  private readonly emit: (event: AgentEvent) => void
   private readonly emitLifecycle: (event: LifecycleEvent) => void
   private readonly router: ToolRouter
   private readonly safetyPolicy: ToolSafetyPolicy
@@ -153,6 +154,10 @@ export class AgentRuntime<TApi extends Api = Api> {
   private readonly _routeRecords: ToolRouteDecision[] = []
   private readonly _safetyRecords: ToolSafetyDecision[] = []
 
+  // --- Lifecycle callbacks + pipeable tracking ---
+  private readonly _lifecycle: AgentLifecycleCallbacks
+  private readonly _activePipeables = new Set<PipeableImpl<any, any>>()
+
   constructor(options: RuntimeOptions<TApi>) {
     const tools = [...options.tools]
     assertUniqueToolNames([...tools, askUserQuestionTool], 'runtime tool set')
@@ -164,7 +169,6 @@ export class AgentRuntime<TApi extends Api = Api> {
     this.apiKey = options.apiKey
     this.maxSteps = options.maxSteps ?? 100
     this.streamOptions = options.streamOptions
-    this.emit = options.onEvent ?? (() => {})
     this.emitLifecycle = options.onLifecycleEvent ?? (() => {})
     this.router = options.router ?? new ToolRouter()
     this.safetyPolicy = options.safetyPolicy ?? new ToolSafetyPolicy()
@@ -177,6 +181,7 @@ export class AgentRuntime<TApi extends Api = Api> {
       reservedOutputTokens: options.contextWindow?.reservedOutputTokens ?? Math.min(this._capabilities.maxOutputTokens, DEFAULT_CONTEXT_WINDOW.reservedOutputTokens),
     }
     this.reasoningMgr = new ReasoningManager(options.reasoningLevel ?? this._capabilities.defaultReasoningLevel)
+    this._lifecycle = options.lifecycle ?? {}
   }
 
   // --- Public accessors (unchanged API surface) ---
@@ -330,6 +335,36 @@ export class AgentRuntime<TApi extends Api = Api> {
 
   private resetBurst(): void { this._burstStepCount = 0 }
 
+  // --- Pipeable tracking helpers ---
+
+  /** Create a pipeable and track it for cleanup on abort/error */
+  private _createTrackedPipeable<TDelta, TFinal>(): PipeableImpl<TDelta, TFinal> {
+    const p = new PipeableImpl<TDelta, TFinal>()
+    this._activePipeables.add(p)
+    return p
+  }
+
+  /** Complete a pipeable and stop tracking it */
+  private _completePipeable<TDelta, TFinal>(p: PipeableImpl<TDelta, TFinal>, value: TFinal): void {
+    p.complete(value)
+    this._activePipeables.delete(p)
+  }
+
+  /** Error a pipeable and stop tracking it */
+  private _errorPipeable<TDelta, TFinal>(p: PipeableImpl<TDelta, TFinal>, err: Error): void {
+    p.error(err)
+    this._activePipeables.delete(p)
+  }
+
+  /** Terminate all active pipeables (on abort/error) */
+  private _terminateAllPipeables(reason: string): void {
+    const err = new Error(reason)
+    for (const p of this._activePipeables) {
+      p.error(err)
+    }
+    this._activePipeables.clear()
+  }
+
   // --- Core execution burst ---
 
   async run(): Promise<RunOutcome> {
@@ -385,16 +420,14 @@ export class AgentRuntime<TApi extends Api = Api> {
     while (this._state === 'STREAMING') {
       this._burstStepCount++
       this._sessionStepCount++
-      this.emit({ type: 'step_start', step: this._burstStepCount })
       this._assistantTurnId = `assistant-${++this._assistantTurnCounter}`
       const reasoning = this.reasoningMgr.beginTurn()
       this.emitLifecycle({ type: 'assistant_turn_start', id: this._assistantTurnId, reasoning: this.reasoningMgr.snapshot(), timestamp: Date.now() })
+      this._lifecycle.onStart?.({ turnId: this._assistantTurnId!, timestamp: Date.now() })
 
       if (this._burstStepCount > this.maxSteps) {
         this.transition('READY')
         const error = `Max steps (${this.maxSteps}) exceeded`
-        this.emit({ type: 'error', error })
-        this.emit({ type: 'done', result: { type: 'error' as const, error, messages: this.messages, steps: this._burstStepCount } })
         return this.finishBurst({ type: 'error', error })
       }
 
@@ -445,6 +478,12 @@ export class AgentRuntime<TApi extends Api = Api> {
       let streamAborted = false
       let providerEventSeq = 0
 
+      // Pipeable tracking for this step's streaming phase
+      const thinkingPipeables = new Map<number, PipeableImpl<string, string>>()
+      const textPipeables = new Map<number, PipeableImpl<string, string>>()
+      const toolCallPipeables = new Map<number, PipeableImpl<ToolCallDelta, ToolCallLifecycle>>()
+      const toolCallIdToPipeable = new Map<string, PipeableImpl<ToolCallDelta, ToolCallLifecycle>>()
+
       try {
         for await (const event of eventStream) {
           // Provider stream trace hook
@@ -454,49 +493,100 @@ export class AgentRuntime<TApi extends Api = Api> {
           }
 
           switch (event.type) {
-            case 'thinking_start':
-              this.emit({ type: 'thinking_start', contentIndex: event.contentIndex })
+            case 'thinking_start': {
+              const thinkingPipeable = this._createTrackedPipeable<string, string>()
+              thinkingPipeables.set(event.contentIndex, thinkingPipeable)
+              this._lifecycle.onThinking?.({
+                turnId: this._assistantTurnId!,
+                contentIndex: event.contentIndex,
+                pipeable: thinkingPipeable.readable,
+                timestamp: Date.now(),
+              })
               break
-            case 'thinking_delta':
-              this.emit({ type: 'thinking_delta', contentIndex: event.contentIndex, delta: event.delta })
+            }
+            case 'thinking_delta': {
               this.reasoningMgr.appendThought(event.delta)
+              thinkingPipeables.get(event.contentIndex)?.push(event.delta)
               break
-            case 'thinking_end':
-              this.emit({ type: 'thinking_end', contentIndex: event.contentIndex, text: event.content })
+            }
+            case 'thinking_end': {
               this.reasoningMgr.setStatus('deciding')
+              const tp = thinkingPipeables.get(event.contentIndex)
+              if (tp) {
+                this._completePipeable(tp, event.content)
+                thinkingPipeables.delete(event.contentIndex)
+              }
               break
-            case 'text_start':
-              this.emit({ type: 'text_start', contentIndex: event.contentIndex })
+            }
+            case 'text_start': {
+              const textPipeable = this._createTrackedPipeable<string, string>()
+              textPipeables.set(event.contentIndex, textPipeable)
+              this._lifecycle.onText?.({
+                turnId: this._assistantTurnId!,
+                contentIndex: event.contentIndex,
+                pipeable: textPipeable.readable,
+                timestamp: Date.now(),
+              })
               break
-            case 'text_delta':
+            }
+            case 'text_delta': {
               this._partial.textChunks.push(event.delta)
-              this.emit({ type: 'text_delta', contentIndex: event.contentIndex, delta: event.delta })
+              textPipeables.get(event.contentIndex)?.push(event.delta)
               break
-            case 'text_end':
-              this.emit({ type: 'text_end', contentIndex: event.contentIndex, text: event.content })
+            }
+            case 'text_end': {
+              const txp = textPipeables.get(event.contentIndex)
+              if (txp) {
+                this._completePipeable(txp, event.content)
+                textPipeables.delete(event.contentIndex)
+              }
               break
+            }
             case 'toolcall_start': {
               const pc = event.partial.content[event.contentIndex]
               if (pc?.type === 'toolCall') {
-                this.emit({ type: 'toolcall_start', contentIndex: event.contentIndex, toolName: pc.name, args: pc.arguments ?? {} })
-                this.emitLifecycle({ type: 'tool_call_streaming_start', contentIndex: event.contentIndex, toolName: pc.name, args: pc.arguments ?? {}, timestamp: Date.now() })
+                const toolPipeable = this._createTrackedPipeable<ToolCallDelta, ToolCallLifecycle>()
+                toolCallPipeables.set(event.contentIndex, toolPipeable)
+
+                const provisionalId = `prov-toolcall-${event.contentIndex}`
+                this._lifecycle.onToolCall?.({
+                  turnId: this._assistantTurnId!,
+                  toolCallId: provisionalId,
+                  toolName: pc.name,
+                  args: pc.arguments ?? {},
+                  pipeable: toolPipeable.readable,
+                  timestamp: Date.now(),
+                })
               }
               break
             }
             case 'toolcall_delta': {
               const pc = event.partial.content[event.contentIndex]
               if (pc?.type === 'toolCall') {
-                this.emit({ type: 'toolcall_delta', contentIndex: event.contentIndex, toolName: pc.name, args: pc.arguments ?? {} })
-                this.emitLifecycle({ type: 'tool_call_streaming_delta', contentIndex: event.contentIndex, toolName: pc.name, args: pc.arguments ?? {}, timestamp: Date.now() })
+                toolCallPipeables.get(event.contentIndex)?.push({
+                  type: 'streaming_args', toolName: pc.name, args: pc.arguments ?? {},
+                })
               }
               break
             }
-            case 'toolcall_end':
-              this.emit({ type: 'toolcall_end', contentIndex: event.contentIndex, toolCall: event.toolCall })
-              this.emitLifecycle({ type: 'tool_call_streaming_end', contentIndex: event.contentIndex, toolCallId: event.toolCall.id, toolName: event.toolCall.name, args: event.toolCall.arguments, timestamp: Date.now() })
+            case 'toolcall_end': {
               toolCalls.push(event.toolCall)
               this._partial.toolCalls.push(event.toolCall)
+
+              const toolPipeable = toolCallPipeables.get(event.contentIndex)
+              if (toolPipeable) {
+                toolPipeable.push({
+                  type: 'id_resolved',
+                  toolCallId: event.toolCall.id,
+                  toolName: event.toolCall.name,
+                  args: event.toolCall.arguments,
+                })
+                // Transfer to id-based map for tool execution phase
+                toolCallPipeables.delete(event.contentIndex)
+                toolCallIdToPipeable.set(event.toolCall.id, toolPipeable)
+              }
               break
+            }
             case 'done':
               assistantMsg = event.message
               break
@@ -508,8 +598,6 @@ export class AgentRuntime<TApi extends Api = Api> {
               }
               this.transition('READY')
               const errMsg = event.error.errorMessage ?? 'Unknown stream error'
-              this.emit({ type: 'error', error: errMsg })
-              this.emit({ type: 'done', result: { type: 'error' as const, error: errMsg, messages: this.messages, steps: this._burstStepCount } })
               return this.finishBurst({ type: 'error', error: errMsg })
             }
           }
@@ -565,7 +653,6 @@ export class AgentRuntime<TApi extends Api = Api> {
             if (this._pendingQuestion) {
               this.transition('READY')
               const error = 'AskUserQuestion called while another question is already pending'
-              this.emit({ type: 'error', error })
               return this.finishBurst({ type: 'error', error })
             }
             const args = tc.arguments as Record<string, unknown>
@@ -578,7 +665,6 @@ export class AgentRuntime<TApi extends Api = Api> {
               options: args.options as string[] | undefined,
               askedAt: Date.now(),
             }
-            this.emit({ type: 'waiting_user', question: this._pendingQuestion })
             this.reasoningMgr.setStatus('blocked')
             this.emitLifecycle({
               type: 'blocked_enter',
@@ -612,6 +698,9 @@ export class AgentRuntime<TApi extends Api = Api> {
           })
           this.emitLifecycle({ type: 'tool_call_created', toolCall: { ...lifecycle } })
 
+          // Retrieve the pipeable created during streaming phase
+          const toolPipeable = toolCallIdToPipeable.get(tc.id)
+
           // Priority: model-declared reason > reasoning manager extraction > null
           lifecycle.displayReason = declaredReason
             ? sanitizeDisplayReason(declaredReason)
@@ -620,13 +709,14 @@ export class AgentRuntime<TApi extends Api = Api> {
           const decision = this.router.route(tc.name, cleanArgs)
           if (decision.wasRouted) {
             this._routeRecords.push(decision)
-            this.emit({ type: 'tool_routed', ruleId: decision.ruleId!, originalToolName: decision.originalToolName, originalArgs: decision.originalArgs, resolvedToolName: decision.resolvedToolName, resolvedArgs: decision.resolvedArgs, reason: decision.reason! })
             lifecycle.route = { wasRouted: true, ruleId: decision.ruleId, originalToolName: decision.originalToolName, originalArgs: decision.originalArgs, reason: decision.reason }
             lifecycle.toolName = decision.resolvedToolName
             lifecycle.args = decision.resolvedArgs
             lifecycle.command = extractCommandForDisplay(decision.resolvedToolName, decision.resolvedArgs)
             lifecycle.phase = 'routed'
             this.emitLifecycle({ type: 'tool_call_updated', toolCall: { ...lifecycle } })
+            toolPipeable?.push({ type: 'route', route: lifecycle.route! })
+            toolPipeable?.push({ type: 'phase_change', phase: 'routed' })
           }
 
           const execToolName = decision.resolvedToolName
@@ -635,10 +725,11 @@ export class AgentRuntime<TApi extends Api = Api> {
           // Safety gate
           const safetyDecision = this.safetyPolicy.assess(execToolName, execArgs)
           this._safetyRecords.push(safetyDecision)
-          this.emit({ type: 'tool_safety_checked', toolName: execToolName, riskLevel: safetyDecision.riskLevel, allowed: safetyDecision.allowed, ruleId: safetyDecision.ruleId, reason: safetyDecision.reason })
           lifecycle.safety = { riskLevel: safetyDecision.riskLevel, allowed: safetyDecision.allowed, ruleId: safetyDecision.ruleId, reason: safetyDecision.reason }
           lifecycle.phase = 'checked'
           this.emitLifecycle({ type: 'tool_call_updated', toolCall: { ...lifecycle } })
+          toolPipeable?.push({ type: 'safety', safety: lifecycle.safety! })
+          toolPipeable?.push({ type: 'phase_change', phase: 'checked' })
 
           let resultText: string
           let isError: boolean
@@ -651,11 +742,16 @@ export class AgentRuntime<TApi extends Api = Api> {
             lifecycle.isError = true
             lifecycle.completedAt = Date.now()
             this.emitLifecycle({ type: 'tool_call_completed', toolCall: { ...lifecycle } })
+            if (toolPipeable) {
+              toolPipeable.push({ type: 'phase_change', phase: 'blocked' })
+              this._completePipeable(toolPipeable, { ...lifecycle })
+              toolCallIdToPipeable.delete(tc.id)
+            }
           } else {
             lifecycle.phase = 'executing'
             lifecycle.executionStartedAt = Date.now()
             this.emitLifecycle({ type: 'tool_call_updated', toolCall: { ...lifecycle } })
-            this.emit({ type: 'tool_exec_start', toolName: execToolName, args: execArgs })
+            toolPipeable?.push({ type: 'phase_change', phase: 'executing' })
 
             const handler = this.toolHandlers.get(execToolName)
             if (!handler) {
@@ -665,10 +761,10 @@ export class AgentRuntime<TApi extends Api = Api> {
               try {
                 const result = await handler(execArgs, {
                   emitOutput: (stream, chunk) => {
-                    this.emit({ type: 'tool_output_delta', toolName: execToolName, stream, chunk })
                     if (stream === 'stdout') lifecycle.stdout += chunk
                     else lifecycle.stderr += chunk
                     this.emitLifecycle({ type: 'tool_call_updated', toolCall: { ...lifecycle } })
+                    toolPipeable?.push({ type: stream === 'stdout' ? 'stdout' : 'stderr', chunk })
                   },
                 })
                 resultText = result.output
@@ -683,6 +779,10 @@ export class AgentRuntime<TApi extends Api = Api> {
             lifecycle.isError = isError
             lifecycle.completedAt = Date.now()
             this.emitLifecycle({ type: 'tool_call_completed', toolCall: { ...lifecycle } })
+            if (toolPipeable) {
+              this._completePipeable(toolPipeable, { ...lifecycle })
+              toolCallIdToPipeable.delete(tc.id)
+            }
           }
 
           // Record tool stats
@@ -691,7 +791,6 @@ export class AgentRuntime<TApi extends Api = Api> {
             this.toolStatsTracker.recordRouteHit(decision.ruleId, isError)
           }
 
-          this.emit({ type: 'tool_result', toolName: execToolName, result: resultText, isError })
           const toolResultMsg: ToolResultMessage = {
             role: 'toolResult', toolCallId: tc.id, toolName: execToolName,
             content: [{ type: 'text', text: resultText }], isError, timestamp: Date.now(),
@@ -722,14 +821,11 @@ export class AgentRuntime<TApi extends Api = Api> {
       } else {
         this.transition('READY')
         const error = `Unexpected stop reason: ${assistantMsg.stopReason}`
-        this.emit({ type: 'error', error })
-        this.emit({ type: 'done', result: { type: 'error' as const, error, messages: this.messages, steps: this._burstStepCount } })
         return this.finishBurst({ type: 'error', error })
       }
     }
 
     const text = this.extractFinalText()
-    this.emit({ type: 'done', result: { type: 'success' as const, text, messages: this.messages, steps: this._burstStepCount } })
     return this.finishBurst({ type: 'success', text })
   }
 
@@ -737,13 +833,18 @@ export class AgentRuntime<TApi extends Api = Api> {
     this._lastOutcome = outcome
     if (skipLifecycle) return outcome
     if (outcome.type === 'interrupted') {
+      this._terminateAllPipeables('Execution interrupted')
       this.emitLifecycle({ type: 'blocked_enter', reason: 'interrupted', reasoning: this.reasoningMgr.current ? this.reasoningMgr.snapshot() : undefined, timestamp: Date.now() })
+      this._lifecycle.onAbort?.({ reason: 'interrupted', timestamp: Date.now() })
     } else if (outcome.type === 'blocked') {
       this.emitLifecycle({ type: 'blocked_enter', reason: outcome.reason, reasoning: this.reasoningMgr.current ? this.reasoningMgr.snapshot() : undefined, timestamp: Date.now() })
     } else if (outcome.type === 'success') {
       this.emitLifecycle({ type: 'session_done', success: true, text: outcome.text, timestamp: Date.now() })
+      this._lifecycle.onDone?.({ text: outcome.text, timestamp: Date.now() })
     } else if (outcome.type === 'error') {
+      this._terminateAllPipeables(outcome.error)
       this.emitLifecycle({ type: 'session_done', success: false, error: outcome.error, timestamp: Date.now() })
+      this._lifecycle.onError?.({ error: outcome.error, timestamp: Date.now() })
     }
     return outcome
   }
