@@ -3,10 +3,16 @@ import fs from 'node:fs/promises'
 
 import { loadConfig } from '@codelord/config'
 import { runHeadless, resolveModel, resolveApiKey } from '@codelord/coding-agent'
+import { exitWithResult, writeResult } from '@codelord/evals-shared'
 
-import type { BrowseCompResult, BrowseCompSummary } from '../types.js'
+import type { BrowseCompResult } from '../types.js'
 import { loadDataset } from '../dataset.js'
 import { gradeAnswer } from '../grader.js'
+import {
+  buildBrowseCompEvalResult,
+  buildBrowseCompRuntimeErrorResult,
+  registerBrowseCompRenderer,
+} from '../eval-result.js'
 
 // --- CLI argument parsing ---------------------------------------------------
 
@@ -77,146 +83,148 @@ function extractAnswer(response: string): { answer: string; confidence: number }
 // --- Main -------------------------------------------------------------------
 
 async function main() {
+  registerBrowseCompRenderer()
+
+  const startTime = Date.now()
   const opts = parseArgs(process.argv)
   const dataDir = opts.dataDir
   const resultsDir = path.join(dataDir, 'results')
   await fs.mkdir(resultsDir, { recursive: true })
+  const outputPath = opts.output ?? path.join(resultsDir, `browsecomp-${new Date().toISOString().replace(/[:.]/g, '-')}.json`)
 
-  // Load config & model — use low reasoning for BrowseComp to avoid proxy timeouts
-  const config = loadConfig()
-  config.reasoningLevel = 'low'
-  const model = resolveModel(config)
-  const apiKey = await resolveApiKey(config)
+  let modelId: string | undefined
+  let providerId: string | undefined
+  let reasoningLevel: string | undefined
 
-  // Grader model: use separate config if provided, otherwise same as agent
-  const graderConfig = { ...config }
-  if (process.env.GRADER_PROVIDER) graderConfig.provider = process.env.GRADER_PROVIDER
-  if (process.env.GRADER_MODEL) graderConfig.model = process.env.GRADER_MODEL
-  if (process.env.GRADER_API_KEY) graderConfig.apiKey = process.env.GRADER_API_KEY
-  if (process.env.GRADER_BASE_URL) graderConfig.baseUrl = process.env.GRADER_BASE_URL
-  const graderModel = resolveModel(graderConfig)
-  const graderApiKey = await resolveApiKey(graderConfig)
+  try {
+    const config = loadConfig()
+    config.reasoningLevel = 'low'
+    modelId = config.model
+    providerId = config.provider
+    reasoningLevel = config.reasoningLevel
+    const model = resolveModel(config)
+    const apiKey = await resolveApiKey(config)
 
-  // Warn if TAVILY_API_KEY is missing
-  if (!process.env.TAVILY_API_KEY) {
-    console.warn('WARNING: TAVILY_API_KEY not set — web_search will be unavailable, agent can only use web_fetch.\n')
-  }
+    const graderConfig = { ...config }
+    if (process.env.GRADER_PROVIDER) graderConfig.provider = process.env.GRADER_PROVIDER
+    if (process.env.GRADER_MODEL) graderConfig.model = process.env.GRADER_MODEL
+    if (process.env.GRADER_API_KEY) graderConfig.apiKey = process.env.GRADER_API_KEY
+    if (process.env.GRADER_BASE_URL) graderConfig.baseUrl = process.env.GRADER_BASE_URL
+    const graderModel = resolveModel(graderConfig)
+    const graderApiKey = await resolveApiKey(graderConfig)
 
-  // Load dataset
-  let entries = await loadDataset(dataDir)
-
-  // Apply offset and limit
-  if (opts.offset) entries = entries.slice(opts.offset)
-  if (opts.limit != null) entries = entries.slice(0, opts.limit)
-
-  const total = entries.length
-  if (total === 0) {
-    console.log('No questions to solve (check --offset/--limit).')
-    return
-  }
-  console.log(`Running BrowseComp: ${total} questions\n`)
-
-  const results: BrowseCompResult[] = []
-
-  for (let i = 0; i < entries.length; i++) {
-    const entry = entries[i]!
-    const globalIdx = (opts.offset ?? 0) + i
-    const prefix = `[${i + 1}/${total}]`
-    const start = Date.now()
-
-    const result: BrowseCompResult = {
-      id: globalIdx,
-      question: entry.question.slice(0, 200), // preview only, avoid leaking full question
-      referenceAnswer: '', // don't store to avoid leaking
-      agentResponse: '',
-      extractedAnswer: '',
-      confidence: 0,
-      grade: 'ERROR',
-      graderReasoning: '',
-      durationMs: 0,
-      traceId: '',
+    if (!process.env.TAVILY_API_KEY) {
+      console.warn('WARNING: TAVILY_API_KEY not set — web_search will be unavailable, agent can only use web_fetch.\n')
     }
 
-    try {
-      const prompt = buildPrompt(entry.question)
-      const questionPreview = entry.question.slice(0, 80).replace(/\n/g, ' ')
-      console.log(`${prefix} Solving: "${questionPreview}..."`)
-      const r = await runHeadless({ model, apiKey, config, prompt })
+    let entries = await loadDataset(dataDir)
+    if (opts.offset) entries = entries.slice(opts.offset)
+    if (opts.limit != null) entries = entries.slice(0, opts.limit)
 
-      result.agentResponse = r.text
-      result.traceId = r.trace?.runId ?? ''
-      result.durationMs = Date.now() - start
+    const total = entries.length
+    if (total === 0) {
+      console.log('No questions to solve (check --offset/--limit).')
+      const evalResult = buildBrowseCompEvalResult([], {
+        model: config.model,
+        provider: config.provider,
+        reasoningLevel: config.reasoningLevel,
+        limit: opts.limit,
+        offset: opts.offset,
+        skipGrade: opts.skipGrade,
+      })
+      await writeResult(evalResult, outputPath)
+      exitWithResult(evalResult)
+    }
 
-      // Extract answer and confidence from agent response
-      const extracted = extractAnswer(r.text)
-      result.extractedAnswer = extracted.answer
-      result.confidence = extracted.confidence
+    console.log(`Running BrowseComp: ${total} questions\n`)
 
-      // Grade
-      if (!opts.skipGrade) {
-        console.log(`${prefix} Grading...`)
-        const gradeResult = await gradeAnswer({
-          question: entry.question,
-          correctAnswer: entry.answer,
-          agentResponse: r.text,
-          graderModel,
-          graderApiKey,
-        })
-        result.grade = gradeResult.grade
-        result.graderReasoning = gradeResult.reasoning
-        result.extractedAnswer = gradeResult.extractedAnswer // prefer grader's extraction
-      } else {
-        result.grade = 'INCORRECT' // placeholder when skipping grade
+    const results: BrowseCompResult[] = []
+
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i]!
+      const globalIdx = (opts.offset ?? 0) + i
+      const prefix = `[${i + 1}/${total}]`
+      const start = Date.now()
+
+      const result: BrowseCompResult = {
+        id: globalIdx,
+        question: entry.question.slice(0, 200),
+        referenceAnswer: '',
+        agentResponse: '',
+        extractedAnswer: '',
+        confidence: 0,
+        grade: 'ERROR',
+        graderReasoning: '',
+        durationMs: 0,
+        traceId: '',
       }
-    } catch (err) {
-      result.durationMs = Date.now() - start
-      result.error = err instanceof Error ? err.message : String(err)
+
+      try {
+        const prompt = buildPrompt(entry.question)
+        const questionPreview = entry.question.slice(0, 80).replace(/\n/g, ' ')
+        console.log(`${prefix} Solving: "${questionPreview}..."`)
+        const runResult = await runHeadless({ model, apiKey, config, prompt })
+
+        result.agentResponse = runResult.text
+        result.traceId = runResult.trace?.runId ?? ''
+        result.durationMs = Date.now() - start
+
+        const extracted = extractAnswer(runResult.text)
+        result.extractedAnswer = extracted.answer
+        result.confidence = extracted.confidence
+
+        if (!opts.skipGrade) {
+          console.log(`${prefix} Grading...`)
+          const gradeResult = await gradeAnswer({
+            question: entry.question,
+            correctAnswer: entry.answer,
+            agentResponse: runResult.text,
+            graderModel,
+            graderApiKey,
+          })
+          result.grade = gradeResult.grade
+          result.graderReasoning = gradeResult.reasoning
+          result.extractedAnswer = gradeResult.extractedAnswer
+        } else {
+          result.grade = 'INCORRECT'
+        }
+      } catch (err) {
+        result.durationMs = Date.now() - start
+        result.error = err instanceof Error ? err.message : String(err)
+      }
+
+      results.push(result)
+
+      const dur = (result.durationMs / 1000).toFixed(1)
+      const answerPreview = result.extractedAnswer.slice(0, 40) || '(empty)'
+      console.log(`${prefix} #${globalIdx}: ${result.grade} [${answerPreview}] (${dur}s)`)
     }
 
-    results.push(result)
+    const evalResult = buildBrowseCompEvalResult(results, {
+      model: config.model,
+      provider: config.provider,
+      reasoningLevel: config.reasoningLevel,
+      limit: opts.limit,
+      offset: opts.offset,
+      skipGrade: opts.skipGrade,
+    })
 
-    const dur = (result.durationMs / 1000).toFixed(1)
-    const answerPreview = result.extractedAnswer.slice(0, 40) || '(empty)'
-    console.log(`${prefix} #${globalIdx}: ${result.grade} [${answerPreview}] (${dur}s)`)
+    await writeResult(evalResult, outputPath)
+    exitWithResult(evalResult)
+  } catch (error) {
+    const runtimeErrorResult = buildBrowseCompRuntimeErrorResult(error, {
+      model: modelId,
+      provider: providerId,
+      reasoningLevel,
+      limit: opts.limit,
+      offset: opts.offset,
+      skipGrade: opts.skipGrade,
+      durationMs: Date.now() - startTime,
+    })
+
+    await writeResult(runtimeErrorResult, outputPath)
+    exitWithResult(runtimeErrorResult)
   }
-
-  // --- Write outputs ---
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-  const outputPath = opts.output ?? path.join(resultsDir, `browsecomp-${timestamp}.json`)
-
-  const correctCount = results.filter(r => r.grade === 'CORRECT').length
-  const incorrectCount = results.filter(r => r.grade === 'INCORRECT').length
-  const errorCount = results.filter(r => r.grade === 'ERROR').length
-  const totalDuration = results.reduce((sum, r) => sum + r.durationMs, 0)
-  const totalConfidence = results.reduce((sum, r) => sum + r.confidence, 0)
-
-  const summary: BrowseCompSummary = {
-    timestamp: new Date().toISOString(),
-    model: config.model,
-    totalQuestions: total,
-    correctCount,
-    incorrectCount,
-    errorCount,
-    accuracy: total > 0 ? correctCount / total : 0,
-    avgDurationMs: total > 0 ? totalDuration / total : 0,
-    avgConfidence: total > 0 ? totalConfidence / total : 0,
-    results,
-  }
-
-  await fs.writeFile(outputPath, JSON.stringify(summary, null, 2))
-
-  // Print summary
-  const pctCorrect = total > 0 ? ((correctCount / total) * 100).toFixed(1) : '0.0'
-  const avgDur = total > 0 ? (totalDuration / total / 1000).toFixed(1) : '0.0'
-  const avgConf = total > 0 ? (totalConfidence / total).toFixed(1) : '0.0'
-
-  console.log(`\n=== BrowseComp Results ===`)
-  console.log(`Total: ${total} | Correct: ${correctCount} (${pctCorrect}%) | Incorrect: ${incorrectCount} | Errors: ${errorCount}`)
-  console.log(`Avg duration: ${avgDur}s | Avg confidence: ${avgConf}%`)
-  console.log(`Results written to ${outputPath}`)
 }
 
-main().catch((err) => {
-  console.error('Fatal error:', err)
-  process.exit(1)
-})
+void main()

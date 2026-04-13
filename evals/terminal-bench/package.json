@@ -1,0 +1,16 @@
+{
+  "name": "@codelord/evals-terminal-bench",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "convert": "tsx src/convert-results.ts"
+  },
+  "dependencies": {
+    "@codelord/evals-shared": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0"
+  }
+}

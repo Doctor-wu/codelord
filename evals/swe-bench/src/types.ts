@@ -36,15 +36,3 @@ export interface SolveResult {
   /** If runHeadless itself threw */
   error?: string
 }
-
-/** Summary of a solving run */
-export interface SolveSummary {
-  timestamp: string
-  totalInstances: number
-  /** How many produced a non-empty patch */
-  patchedCount: number
-  /** How many errored during solving */
-  errorCount: number
-  avgDurationMs: number
-  results: SolveResult[]
-}

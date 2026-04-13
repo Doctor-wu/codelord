@@ -17,16 +17,3 @@ export interface BrowseCompResult {
   traceId: string
   error?: string
 }
-
-export interface BrowseCompSummary {
-  timestamp: string
-  model: string
-  totalQuestions: number
-  correctCount: number
-  incorrectCount: number
-  errorCount: number
-  accuracy: number
-  avgDurationMs: number
-  avgConfidence: number
-  results: BrowseCompResult[]
-}

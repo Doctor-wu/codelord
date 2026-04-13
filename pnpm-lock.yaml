@@ -66,6 +66,9 @@ importers:
       '@codelord/core':
         specifier: workspace:*
         version: link:../../packages/agent-core
+      '@codelord/evals-shared':
+        specifier: workspace:*
+        version: link:../shared
       '@mariozechner/pi-ai':
         specifier: ^0.64.0
         version: 0.64.0(ws@8.20.0)(zod@4.3.6)
@@ -81,9 +84,14 @@ importers:
       '@codelord/core':
         specifier: workspace:*
         version: link:../../packages/agent-core
+      '@codelord/evals-shared':
+        specifier: workspace:*
+        version: link:../shared
       '@mariozechner/pi-ai':
         specifier: ^0.64.0
         version: 0.64.0(ws@8.20.0)(zod@4.3.6)
+
+  evals/shared: {}
 
   evals/swe-bench:
     dependencies:
@@ -96,9 +104,22 @@ importers:
       '@codelord/core':
         specifier: workspace:*
         version: link:../../packages/agent-core
+      '@codelord/evals-shared':
+        specifier: workspace:*
+        version: link:../shared
       '@mariozechner/pi-ai':
         specifier: ^0.64.0
         version: 0.64.0(ws@8.20.0)(zod@4.3.6)
+
+  evals/terminal-bench:
+    dependencies:
+      '@codelord/evals-shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      tsx:
+        specifier: ^4.0.0
+        version: 4.21.0
 
   packages/agent-core:
     dependencies:

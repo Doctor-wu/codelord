@@ -31,23 +31,3 @@ export interface ExerciseResult {
   /** If runHeadless itself threw */
   error?: string
 }
-
-export interface BenchmarkSummary {
-  timestamp: string
-  totalExercises: number
-  passAttempt1: number
-  passAttempt2: number
-  passRate1: number
-  passRate2: number
-  byLanguage: Record<
-    string,
-    {
-      total: number
-      passAttempt1: number
-      passAttempt2: number
-      passRate1: number
-      passRate2: number
-    }
-  >
-  results: ExerciseResult[]
-}

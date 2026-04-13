@@ -65,4 +65,15 @@ fi
 CMD+=("$@")
 
 echo "==> Running: ${CMD[*]}"
-exec "${CMD[@]}"
+"${CMD[@]}"
+HARBOR_EXIT=$?
+
+LATEST_JOB=$(ls -dt "$EVAL_DIR"/jobs/*/ 2>/dev/null | head -1 || true)
+if [ -n "${LATEST_JOB:-}" ]; then
+  OUTPUT_PATH="${OUTPUT_DIR:-$EVAL_DIR/data/results}/results.json"
+  echo "==> Converting Harbor results from $LATEST_JOB"
+  cd "$EVAL_DIR"
+  pnpm convert --job-dir "$LATEST_JOB" --output "$OUTPUT_PATH"
+fi
+
+exit "$HARBOR_EXIT"
