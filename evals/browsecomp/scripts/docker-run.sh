@@ -25,7 +25,12 @@ EXTRA_ENV=""
 [ -n "${GRADER_API_KEY:-}" ] && EXTRA_ENV="$EXTRA_ENV -e GRADER_API_KEY=$GRADER_API_KEY"
 [ -n "${GRADER_BASE_URL:-}" ] && EXTRA_ENV="$EXTRA_ENV -e GRADER_BASE_URL=$GRADER_BASE_URL"
 
-docker run --rm -it \
+DOCKER_FLAGS=(--rm)
+if [ -t 0 ] && [ -t 1 ]; then
+  DOCKER_FLAGS+=(-it)
+fi
+
+docker run "${DOCKER_FLAGS[@]}" \
   $ENV_FILE_ARG \
   $EXTRA_ENV \
   -v "$REPO_ROOT":/workspace \

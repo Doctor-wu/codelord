@@ -32,7 +32,12 @@ EXTRA_ENV=""
 # Forward all arguments to the polyglot runner inside the container
 # Named volumes shadow host node_modules (macOS-built, incompatible with Linux)
 # and cache pnpm store so subsequent runs skip install
-docker run --rm -it \
+DOCKER_FLAGS=(--rm)
+if [ -t 0 ] && [ -t 1 ]; then
+  DOCKER_FLAGS+=(-it)
+fi
+
+docker run "${DOCKER_FLAGS[@]}" \
   $ENV_FILE_ARG \
   $EXTRA_ENV \
   -v "$REPO_ROOT":/workspace \

@@ -145,7 +145,7 @@ M1   执行引擎            ──→ ✅ 已完成（runtime + tools + router 
 M1X  Agent UX / Event    ──→ ✅ 已完成（event spine + lifecycle streaming + operator console + reasoning v2）
 M2   可观测性            ──→ ✅ 已完成（Trace v2 三层模型 + toolVisibility + queue lifecycle + Cost + Prompt Caching）
 CORE-R1 事件系统重构    ──→ ✅ 已完成（两层事件模型 + Pipeable 消费模式）
-M3   度量能力            ──→ Eval 框架（从轻到重，贯穿全程进化）
+M3   度量能力            ──→ 🟡 进行中（S1 ✅ 基线数据 → S2 规范化+CI+看板 ← 当前冲刺）
 M4   理解力              ──→ Context Engineering + Codebase Indexing + Hybrid Retrieval / RAG + Project Memory
 M5   行为智能            ──→ Skill 系统（基础设施 → 内容打磨 → 条件激活）
 M6   长期记忆            ──→ Behavioral Memory（用户偏好 + 错误 pattern + 任务 pattern，基于 retrieval）
@@ -571,7 +571,11 @@ Checkpoint / Session / Resume / 工具平台层完全不受影响。
 - [x] 默认 trace 只记录 trajectory，`--raw` 通过 rawMode 门控
 - [x] `pnpm build && pnpm typecheck && pnpm test` 绿灯
 
-> 详细 task 分解见 [Sprint.md](./Sprint.md)。
+> 详细归档见 [sprint-core-r1-event-refactor.md](./archive/sprints/sprint-core-r1-event-refactor.md)。
+
+### 遗留项
+
+- `onLifecycleEvent` 仍保留：非 Pipeable 事件（如 user action、control-plane 事件）的消费通道。当前无阻塞，后续如需清理可在 core 维护冲刺中处理。
 
 ---
 
