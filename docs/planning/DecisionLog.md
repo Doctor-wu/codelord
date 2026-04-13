@@ -6,6 +6,33 @@
 
 ---
 
+## 2026-04-13 — CORE-R1：事件系统重构冲刺开启
+
+### 背景
+
+M1X 和 M2 完成后，事件系统已经演变为三层混杂结构：AgentEvent（18 个变体）+ LifecycleEvent（20+ 个变体）+ ProviderStreamTraceEvent。核心问题：
+
+1. AgentEvent 和 LifecycleEvent 有 6 处完全语义重复（如 `toolcall_start` vs `tool_call_streaming_start`）
+2. 消费者被迫跨流拼接：timeline-store 从 AgentEvent 拿 `thinking_delta/text_delta`，从 LifecycleEvent 拿其余状态；headless 的 tool call “开始”和“完成”来自不同事件流
+3. Trace 默认记录了每个 delta 作为 AgentTraceEvent，远超出 trajectory 的询求需求
+4. AgentEvent 18 个变体中 UI 只消费 2 个，其余仅服务 TraceRecorder 的 agent_event ledger
+
+### 决策
+
+1. **引入两层事件模型**：Layer 0 (LLM Raw Events) + Layer 1 (Agent Lifecycle Callbacks)，移除 AgentEvent 层。
+2. **引入 Pipeable 原语**：每个 lifecycle callback 带一个轻量 Pipeable，流式消费者 subscribe 拿 delta，完成态消费者 await done()。
+3. **Trace 重新定义**：默认 trace 只记 trajectory（终态事件），`--raw` 叠加 Layer 0 raw events。AgentTraceEvent ledger 的中间态 delta 不再默认记录。
+4. **用户操作不进入 core lifecycle**：用户输入、打断等由消费者自行注入，不拓宽 core 设计。
+5. **定义为 CORE-R1 冲刺**（而非新 milestone）：这是 M1X/M2 的架构债务清理，不是新能力。但必须在后续 M3-S2/M4 之前完成，否则事件系统的混乱会持续拖累所有涉及事件消费的改动。
+
+### 影响
+
+- 插入 CORE-R1 冲刺在 M2 和 M3-S2 之间
+- 爆炸半径集中在 `runtime.ts → events.ts → trace-recorder.ts → timeline-store.ts` 主链上
+- Checkpoint / Session / Resume / 工具平台层完全不受影响
+
+---
+
 ## 2026-04-12 — M3-S1 关闭：eval 数据驱动 roadmap 优先级确认
 
 ### 背景
