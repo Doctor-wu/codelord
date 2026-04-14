@@ -64,6 +64,9 @@ fi
 # Pass through any extra args
 CMD+=("$@")
 
+# Harbor creates jobs/ relative to CWD, so cd to EVAL_DIR first
+cd "$EVAL_DIR"
+
 echo "==> Running: ${CMD[*]}"
 "${CMD[@]}"
 HARBOR_EXIT=$?
