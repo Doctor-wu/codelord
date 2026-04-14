@@ -9,7 +9,7 @@
 | Polyglot | claude-sonnet-4-6 | pass_rate_1 | 100.0% | 20 | subset | 2026-04-12 | M3-S1 manual |
 | Polyglot (Rust) | claude-sonnet-4-6 | pass_rate_1 | 93.3% | 30 | subset | 2026-04-12 | M3-S1 manual |
 | SWE-bench | claude-sonnet-4-6 | patch_rate | 20.0% | 5 | subset | 2026-04-12 | M3-S1 manual |
-| BrowseComp | claude-sonnet-4-6 | accuracy | 40.0% | 5 | subset | 2026-04-12 | M3-S1 manual |
+| BrowseComp | claude-sonnet-4-6 | accuracy | 16.7% | 6 | subset | 2026-04-14 | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/24377246964) |
 | Terminal-Bench | claude-sonnet-4-6 | resolution_rate | 33.3% | 3 | subset | 2026-04-12 | M3-S1 manual |
 
 ## Polyglot
@@ -48,12 +48,13 @@
 
 | Label | Model | Primary Metric | Value | Cases | Mode | Date | Source |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| BrowseComp | claude-sonnet-4-6 | accuracy | 40.0% | 5 | subset | 2026-04-12 | M3-S1 manual |
+| BrowseComp | claude-sonnet-4-6 | accuracy | 16.7% | 6 | subset | 2026-04-14 | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/24377246964) |
 
 ### History
 
 | Date | Model | accuracy | avg_confidence | Cases | Mode | Source |
 | --- | --- | --- | --- | --- | --- | --- |
+| 2026-04-14 | claude-sonnet-4-6 | 16.7% | 30.0% | 6 | subset | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/24377246964) |
 | 2026-04-12 | claude-sonnet-4-6 | 40.0% | - | 5 | subset | M3-S1 manual |
 
 ## Terminal-Bench
@@ -72,12 +73,12 @@
 
 ---
 
-*Last updated: 2026-04-12*
+*Last updated: 2026-04-14*
 
 <!-- SCORES_STATE_V1
 {
   "version": 1,
-  "lastUpdated": "2026-04-12",
+  "lastUpdated": "2026-04-14",
   "history": {
     "polyglot": [
       {
@@ -124,6 +125,26 @@
       }
     ],
     "browsecomp": [
+      {
+        "label": "BrowseComp",
+        "timestamp": "2026-04-14T02:48:03.106Z",
+        "date": "2026-04-14",
+        "model": "claude-sonnet-4-6",
+        "mode": "subset",
+        "cases": 6,
+        "primaryMetricKey": "accuracy",
+        "metrics": {
+          "accuracy": 0.16666666666666666,
+          "total": 6,
+          "correct_count": 1,
+          "incorrect_count": 5,
+          "error_count": 0,
+          "avg_confidence": 30,
+          "avg_duration_ms": 344003.3333333333
+        },
+        "sourceLabel": "CI run",
+        "runUrl": "https://github.com/Doctor-wu/codelord/actions/runs/24377246964"
+      },
       {
         "label": "BrowseComp",
         "timestamp": "2026-04-12T00:00:00Z",
