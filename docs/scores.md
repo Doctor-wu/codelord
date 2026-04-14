@@ -8,7 +8,7 @@
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Polyglot | claude-sonnet-4-6 | pass_rate_1 | 100.0% | 20 | subset | 2026-04-12 | M3-S1 manual |
 | Polyglot (Rust) | claude-sonnet-4-6 | pass_rate_1 | 93.3% | 30 | subset | 2026-04-12 | M3-S1 manual |
-| SWE-bench | claude-sonnet-4-6 | patch_rate | 20.0% | 5 | subset | 2026-04-12 | M3-S1 manual |
+| SWE-bench | claude-sonnet-4-6 | patch_rate | 84.0% | 25 | subset | 2026-04-14 | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/24377293858) |
 | BrowseComp | claude-sonnet-4-6 | accuracy | 40.0% | 5 | subset | 2026-04-12 | M3-S1 manual |
 | Terminal-Bench | claude-sonnet-4-6 | resolution_rate | 33.3% | 3 | subset | 2026-04-12 | M3-S1 manual |
 
@@ -34,12 +34,13 @@
 
 | Label | Model | Primary Metric | Value | Cases | Mode | Date | Source |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| SWE-bench | claude-sonnet-4-6 | patch_rate | 20.0% | 5 | subset | 2026-04-12 | M3-S1 manual |
+| SWE-bench | claude-sonnet-4-6 | patch_rate | 84.0% | 25 | subset | 2026-04-14 | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/24377293858) |
 
 ### History
 
 | Date | Model | patch_rate | Cases | Mode | Source |
 | --- | --- | --- | --- | --- | --- |
+| 2026-04-14 | claude-sonnet-4-6 | 84.0% | 25 | subset | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/24377293858) |
 | 2026-04-12 | claude-sonnet-4-6 | 20.0% | 5 | subset | M3-S1 manual |
 
 ## BrowseComp
@@ -72,12 +73,12 @@
 
 ---
 
-*Last updated: 2026-04-12*
+*Last updated: 2026-04-14*
 
 <!-- SCORES_STATE_V1
 {
   "version": 1,
-  "lastUpdated": "2026-04-12",
+  "lastUpdated": "2026-04-14",
   "history": {
     "polyglot": [
       {
@@ -109,6 +110,24 @@
       }
     ],
     "swe-bench": [
+      {
+        "label": "SWE-bench",
+        "timestamp": "2026-04-14T03:11:00.690Z",
+        "date": "2026-04-14",
+        "model": "claude-sonnet-4-6",
+        "mode": "subset",
+        "cases": 25,
+        "primaryMetricKey": "patch_rate",
+        "metrics": {
+          "patch_rate": 0.84,
+          "total": 25,
+          "patched_count": 21,
+          "error_count": 0,
+          "avg_duration_ms": 134193.76
+        },
+        "sourceLabel": "CI run",
+        "runUrl": "https://github.com/Doctor-wu/codelord/actions/runs/24377293858"
+      },
       {
         "label": "SWE-bench",
         "timestamp": "2026-04-12T00:00:00Z",
