@@ -10,7 +10,7 @@
 | Polyglot (Rust) | claude-sonnet-4-6 | pass_rate_1 | 93.3% | 30 | subset | 2026-04-12 | M3-S1 manual |
 | SWE-bench | claude-sonnet-4-6 | patch_rate | 84.0% | 25 | subset | 2026-04-14 | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/24377293858) |
 | BrowseComp | claude-sonnet-4-6 | accuracy | 40.0% | 5 | subset | 2026-04-12 | M3-S1 manual |
-| Terminal-Bench | claude-sonnet-4-6 | resolution_rate | 33.3% | 3 | subset | 2026-04-12 | M3-S1 manual |
+| Terminal-Bench | claude-sonnet-4-6 | resolution_rate | 0.0% | 8 | subset | 2026-04-14 | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/24385862648) |
 
 ## Polyglot
 
@@ -64,12 +64,13 @@
 
 | Label | Model | Primary Metric | Value | Cases | Mode | Date | Source |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Terminal-Bench | claude-sonnet-4-6 | resolution_rate | 33.3% | 3 | subset | 2026-04-12 | M3-S1 manual |
+| Terminal-Bench | claude-sonnet-4-6 | resolution_rate | 0.0% | 8 | subset | 2026-04-14 | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/24385862648) |
 
 ### History
 
 | Date | Model | resolution_rate | Cases | Mode | Source |
 | --- | --- | --- | --- | --- | --- |
+| 2026-04-14 | claude-sonnet-4-6 | 0.0% | 8 | subset | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/24385862648) |
 | 2026-04-12 | claude-sonnet-4-6 | 33.3% | 3 | subset | M3-S1 manual |
 
 ---
@@ -177,6 +178,25 @@
       }
     ],
     "terminal-bench": [
+      {
+        "label": "Terminal-Bench",
+        "timestamp": "2026-04-14T07:12:21.561Z",
+        "date": "2026-04-14",
+        "model": "claude-sonnet-4-6",
+        "mode": "subset",
+        "cases": 8,
+        "primaryMetricKey": "resolution_rate",
+        "metrics": {
+          "resolution_rate": 0,
+          "total": 8,
+          "passed_count": 0,
+          "error_count": 8,
+          "setup_timeout_count": 0,
+          "cancelled_count": 0
+        },
+        "sourceLabel": "CI run",
+        "runUrl": "https://github.com/Doctor-wu/codelord/actions/runs/24385862648"
+      },
       {
         "label": "Terminal-Bench",
         "timestamp": "2026-04-12T00:00:00Z",
