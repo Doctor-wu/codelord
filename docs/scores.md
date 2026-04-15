@@ -6,7 +6,7 @@
 
 | Benchmark | Model | Primary Metric | Value | Cases | Mode | Date | Source |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Polyglot | claude-sonnet-4-6 | pass_rate_1 | 88.3% | 60 | subset | 2026-04-14 | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/24377267309) |
+| Polyglot | claude-sonnet-4-6 | pass_rate_1 | 2.2% | 225 | full | 2026-04-15 | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/24442793080) |
 | Polyglot (Rust) | claude-sonnet-4-6 | pass_rate_1 | 93.3% | 30 | subset | 2026-04-12 | M3-S1 manual |
 | SWE-bench | claude-sonnet-4-6 | patch_rate | 84.0% | 25 | subset | 2026-04-14 | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/24377293858) |
 | BrowseComp | claude-sonnet-4-6 | accuracy | 40.0% | 5 | subset | 2026-04-12 | M3-S1 manual |
@@ -18,13 +18,14 @@
 
 | Label | Model | Primary Metric | Value | Cases | Mode | Date | Source |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Polyglot | claude-sonnet-4-6 | pass_rate_1 | 88.3% | 60 | subset | 2026-04-14 | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/24377267309) |
+| Polyglot | claude-sonnet-4-6 | pass_rate_1 | 2.2% | 225 | full | 2026-04-15 | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/24442793080) |
 | Polyglot (Rust) | claude-sonnet-4-6 | pass_rate_1 | 93.3% | 30 | subset | 2026-04-12 | M3-S1 manual |
 
 ### History
 
 | Date | Label | Model | pass_rate_1 | pass_rate_2 | Cases | Mode | Source |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-04-15 | Polyglot | claude-sonnet-4-6 | 2.2% | 2.2% | 225 | full | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/24442793080) |
 | 2026-04-14 | Polyglot | claude-sonnet-4-6 | 88.3% | 96.7% | 60 | subset | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/24377267309) |
 | 2026-04-12 | Polyglot | claude-sonnet-4-6 | 100.0% | - | 20 | subset | M3-S1 manual |
 | 2026-04-12 | Polyglot (Rust) | claude-sonnet-4-6 | 93.3% | 96.7% | 30 | subset | M3-S1 manual |
@@ -75,14 +76,32 @@
 
 ---
 
-*Last updated: 2026-04-14*
+*Last updated: 2026-04-15*
 
 <!-- SCORES_STATE_V1
 {
   "version": 1,
-  "lastUpdated": "2026-04-14",
+  "lastUpdated": "2026-04-15",
   "history": {
     "polyglot": [
+      {
+        "label": "Polyglot",
+        "timestamp": "2026-04-15T08:45:59.775Z",
+        "date": "2026-04-15",
+        "model": "claude-sonnet-4-6",
+        "mode": "full",
+        "cases": 225,
+        "primaryMetricKey": "pass_rate_1",
+        "metrics": {
+          "pass_rate_1": 0.022222222222222223,
+          "pass_rate_2": 0.022222222222222223,
+          "total": 225,
+          "pass_attempt_1": 5,
+          "pass_attempt_2": 5
+        },
+        "sourceLabel": "CI run",
+        "runUrl": "https://github.com/Doctor-wu/codelord/actions/runs/24442793080"
+      },
       {
         "label": "Polyglot",
         "timestamp": "2026-04-14T03:09:52.054Z",
