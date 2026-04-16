@@ -5,14 +5,19 @@
   "scripts": {
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "vp test run",
+    "test:watch": "vp test",
+    "lint": "vp lint",
+    "lint:fix": "vp lint --fix",
+    "fmt": "vp fmt --write .",
+    "fmt:check": "vp fmt --check .",
+    "check": "vp check",
     "update-scores": "tsx scripts/update-scores.ts"
   },
   "devDependencies": {
     "@types/node": "^22.13.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
-    "vitest": "^3.1.0"
+    "vite-plus": "^0.1.18"
   }
 }
