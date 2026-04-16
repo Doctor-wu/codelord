@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { cancel, confirm, intro, isCancel, note, outro, password, select, text } from '@clack/prompts'
+import { cancel, confirm, intro, isCancel, note, outro, password, select } from '@clack/prompts'
 import { getModels, getProviders } from '@mariozechner/pi-ai'
 import { getOAuthProvider } from '@mariozechner/pi-ai/oauth'
 

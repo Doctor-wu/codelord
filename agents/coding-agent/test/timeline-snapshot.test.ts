@@ -5,7 +5,6 @@ import {
   captureTimelineSnapshot,
   hydrateTimelineState,
 } from '../src/renderer/ink/timeline-projection.js'
-import type { LifecycleEvent, AssistantReasoningState } from '@codelord/core'
 import { createReasoningState } from '@codelord/core'
 
 describe('Timeline snapshot: capture and hydrate', () => {

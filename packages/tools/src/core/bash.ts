@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { Type } from '@codelord/core'
 import type { Tool } from '@codelord/core'
-import type { ToolPlugin, ToolPluginContext } from '@codelord/core'
+import type { ToolPlugin } from '@codelord/core'
 import type { ToolExecutionContext, ToolExecutionResult, ToolHandler } from '@codelord/core'
 import type { ToolContract } from '@codelord/core'
 

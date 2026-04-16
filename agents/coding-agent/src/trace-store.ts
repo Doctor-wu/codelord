@@ -11,12 +11,7 @@ import { mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync } from 
 import { join } from 'node:path'
 import type { TraceRunV2, TraceEventEntry, ProviderStreamTraceEvent, LifecycleTraceEvent } from '@codelord/core'
 import { normalizeTrace } from '@codelord/core'
-import {
-  resolveCodelordHome,
-  tracesDir as tracesDirOf,
-  workspaceSlug as workspaceSlugOf,
-  workspaceId as workspaceIdOf,
-} from '@codelord/config'
+import { resolveCodelordHome, tracesDir as tracesDirOf } from '@codelord/config'
 
 // Re-export workspace utilities from @codelord/config for existing callers
 export { workspaceSlug, workspaceId } from '@codelord/config'

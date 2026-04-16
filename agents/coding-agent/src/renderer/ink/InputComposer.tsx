@@ -293,7 +293,7 @@ function CommandSuggestions({
   )
 }
 
-function HintBar({ mode, isRunning }: { mode: SessionMode; isRunning: boolean }) {
+function HintBar({ mode }: { mode: SessionMode; isRunning: boolean }) {
   if (mode === 'running') return null
   return (
     <Box>

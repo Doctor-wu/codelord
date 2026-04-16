@@ -21,8 +21,8 @@ import { ToolRouter } from './tool-router.js'
 import type { ToolSafetyDecision } from './tool-safety.js'
 import { ToolSafetyPolicy } from './tool-safety.js'
 import type { LifecycleEvent, ToolCallLifecycle } from './events.js'
-import { createToolCallLifecycle, createReasoningState, projectDisplayReason } from './events.js'
-import type { AssistantReasoningState, UsageAggregate } from './events.js'
+import { createToolCallLifecycle } from './events.js'
+import type { UsageAggregate } from './events.js'
 import type { SessionSnapshot } from './session-snapshot.js'
 import { resolveResumeState } from './session-snapshot.js'
 import type { ProviderStreamTraceEvent } from './trace.js'
@@ -479,7 +479,7 @@ export class AgentRuntime<TApi extends Api = Api> {
       this._burstStepCount++
       this._sessionStepCount++
       this._assistantTurnId = `assistant-${++this._assistantTurnCounter}`
-      const reasoning = this.reasoningMgr.beginTurn()
+      this.reasoningMgr.beginTurn()
       this.emitLifecycle({
         type: 'assistant_turn_start',
         id: this._assistantTurnId,
@@ -702,7 +702,7 @@ export class AgentRuntime<TApi extends Api = Api> {
       // Accumulate usage telemetry
       if (assistantMsg.usage) {
         const latencyMs = Date.now() - streamStartTime
-        const updated = this.usageTracker.recordCall(
+        this.usageTracker.recordCall(
           assistantMsg.usage,
           assistantMsg.model ?? '',
           String(assistantMsg.provider ?? ''),

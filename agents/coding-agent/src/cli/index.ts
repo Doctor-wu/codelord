@@ -1,4 +1,4 @@
-import { loadConfig, resolveCodelordHome, workspaceDir as workspaceDirOf, workspaceId } from '@codelord/config'
+import { loadConfig, workspaceId } from '@codelord/config'
 import type { CodelordConfig } from '@codelord/config'
 import { readFileSync } from 'node:fs'
 import { cac } from 'cac'

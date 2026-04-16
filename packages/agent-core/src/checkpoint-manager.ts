@@ -14,7 +14,7 @@ import { resolve, isAbsolute } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { execSync } from 'node:child_process'
 import type { ToolHandler } from './react-loop.js'
-import type { CheckpointRecord, FileSnapshot, ShadowGitCheckpoint } from './checkpoint.js'
+import type { CheckpointRecord, ShadowGitCheckpoint } from './checkpoint.js'
 import { resolveCodelordHome, workspaceDir as workspaceDirOf, shadowGitDir as shadowGitDirOf } from '@codelord/config'
 
 // ---------------------------------------------------------------------------

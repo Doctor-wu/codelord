@@ -13,9 +13,7 @@ vi.mock('@mariozechner/pi-ai', async (importOriginal) => {
 })
 
 import { AgentRuntime } from '../src/runtime.js'
-import type { RuntimeState, RunOutcome } from '../src/runtime.js'
 import { ASK_USER_QUESTION_TOOL_NAME } from '../src/tools/ask-user.js'
-import type { PendingQuestion } from '../src/tools/ask-user.js'
 
 function makeAssistantMessage(overrides = {}) {
   return {
@@ -342,7 +340,7 @@ describe('AgentRuntime interrupt', () => {
     )
 
     let toolCallCount = 0
-    const handler = vi.fn().mockImplementation(async (args: Record<string, unknown>) => {
+    const handler = vi.fn().mockImplementation(async (_args: Record<string, unknown>) => {
       toolCallCount++
       if (toolCallCount === 1) {
         // First tool completes, but interrupt is requested during it

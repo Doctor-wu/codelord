@@ -20,7 +20,6 @@ import type {
 import { TimelineStore } from '../src/renderer/ink/timeline-store.js'
 import { InputBridge } from '../src/renderer/ink/input-bridge.js'
 import { createToolCallLifecycle, _resetProvisionalIdCounter, createReasoningState } from '@codelord/core'
-import type { LifecycleEvent } from '@codelord/core'
 
 // ---------------------------------------------------------------------------
 // Helpers

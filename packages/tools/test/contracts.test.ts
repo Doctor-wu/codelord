@@ -1,14 +1,6 @@
 import { describe, expect, it } from 'vite-plus/test'
 import type { ToolContract } from '@codelord/core'
-import {
-  bashPlugin,
-  fileReadPlugin,
-  fileWritePlugin,
-  fileEditPlugin,
-  searchPlugin,
-  lsPlugin,
-  corePlugins,
-} from '../src/index.js'
+import { bashPlugin, fileReadPlugin, fileEditPlugin, searchPlugin, corePlugins } from '../src/index.js'
 
 describe('ToolContract structure', () => {
   function assertContractShape(c: ToolContract) {

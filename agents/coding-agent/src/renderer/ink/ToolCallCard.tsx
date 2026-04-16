@@ -34,7 +34,6 @@ export function ToolCallView({
   const isActive =
     tc.phase === 'executing' || tc.phase === 'generating' || tc.phase === 'routed' || tc.phase === 'checked'
   const isDone = tc.phase === 'completed'
-  const isBlocked = tc.phase === 'blocked'
   const category = classifyToolCallCategory(tc)
   const color = STEP_COLORS[category]
   const toolName = formatToolDisplayName(tc.toolName)

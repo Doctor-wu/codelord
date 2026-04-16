@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach, beforeAll, afterAll } from 'vite-plus/test'
-import { existsSync, mkdirSync, rmSync } from 'node:fs'
+import { existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'

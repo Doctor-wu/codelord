@@ -11,7 +11,7 @@ export default defineConfig({
       suspicious: 'warn',
     },
     rules: {
-      'no-unused-vars': 'warn',
+      'no-unused-vars': 'error',
       'no-console': 'off',
       eqeqeq: 'warn',
     },

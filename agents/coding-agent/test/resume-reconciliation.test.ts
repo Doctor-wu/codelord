@@ -5,14 +5,9 @@ import {
   captureTimelineSnapshot,
   reconcileTimelineForResume,
 } from '../src/renderer/ink/timeline-projection.js'
-import type {
-  TimelineState,
-  QuestionItem,
-  StatusItem,
-  TimelineSnapshot,
-} from '../src/renderer/ink/timeline-projection.js'
+import type { QuestionItem, StatusItem, TimelineSnapshot } from '../src/renderer/ink/timeline-projection.js'
 import type { SessionSnapshot, PendingQuestion } from '@codelord/core'
-import { createReasoningState, createUsageAggregate } from '@codelord/core'
+import { createUsageAggregate } from '@codelord/core'
 
 // ---------------------------------------------------------------------------
 // Helpers

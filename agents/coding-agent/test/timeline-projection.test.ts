@@ -11,7 +11,6 @@ import {
   hydrateTimelineState,
 } from '../src/renderer/ink/timeline-projection.js'
 import type {
-  TimelineState,
   AssistantItem,
   ToolCallItem,
   ToolBatchItem,
@@ -20,7 +19,6 @@ import type {
   StatusItem,
 } from '../src/renderer/ink/timeline-projection.js'
 import { createToolCallLifecycle, _resetProvisionalIdCounter, createReasoningState, PipeableImpl } from '@codelord/core'
-import type { LifecycleEvent, ToolCallLifecycle, AssistantReasoningState } from '@codelord/core'
 
 describe('Timeline Projection', () => {
   beforeEach(() => {
@@ -1271,46 +1269,6 @@ describe('Settled Reasoning Policy', () => {
     cbs.onText?.({ turnId: 'turn-1', contentIndex: 0, pipeable: p.readable, timestamp: Date.now() })
     p.push(delta)
     p.complete(delta)
-  }
-
-  function buildAssistantTurnState(opts: {
-    hasProviderThought: boolean
-    thinking: string
-    reasoningSnapshot: string | null
-  }): TimelineStore {
-    const store = new TimelineStore(false, 'high')
-    const reasoning = createReasoningState()
-    reasoning.rawThoughtText = opts.thinking
-
-    // Simulate assistant_turn_start
-    store.onLifecycleEvent({
-      type: 'assistant_turn_start',
-      id: 'turn-1',
-      reasoning,
-      timestamp: Date.now(),
-    })
-
-    // If hasProviderThought, simulate thinking deltas
-    if (opts.hasProviderThought) {
-      pushThinkingDelta(store, opts.thinking)
-    }
-
-    // Simulate text
-    pushTextDelta(store, 'Hello')
-
-    // Manually set reasoningSnapshot if needed
-    const state = store.getState()
-    const items = [...state.items]
-    const idx = items.findIndex((i) => i.type === 'assistant')
-    if (idx !== -1) {
-      const a = items[idx] as AssistantItem
-      items[idx] = { ...a, reasoningSnapshot: opts.reasoningSnapshot }
-    }
-    // Inject state back via hydrate trick
-    store.hydrateFromSnapshot(captureTimelineSnapshot({ ...state, items }))
-    store.setRunning(true)
-
-    return store
   }
 
   it('high + hasProviderThought: keeps thinking', () => {

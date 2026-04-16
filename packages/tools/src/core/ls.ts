@@ -1,9 +1,9 @@
-import { readdir, stat } from 'node:fs/promises'
+import { readdir } from 'node:fs/promises'
 import { join, resolve, isAbsolute } from 'node:path'
 import { Type } from '@codelord/core'
 import type { Tool } from '@codelord/core'
-import type { ToolPlugin, ToolPluginContext } from '@codelord/core'
-import type { ToolHandler, ToolExecutionResult } from '@codelord/core'
+import type { ToolPlugin } from '@codelord/core'
+import type { ToolHandler } from '@codelord/core'
 import type { ToolContract } from '@codelord/core'
 
 // ---------------------------------------------------------------------------

@@ -35,7 +35,7 @@ import {
   findTraceByPrefix,
   formatTraceShow,
 } from '../src/trace-store.js'
-import type { LifecycleEvent, ProviderStreamTraceEvent } from '@codelord/core'
+import type { ProviderStreamTraceEvent } from '@codelord/core'
 import { createReasoningState, createToolCallLifecycle, createUsageAggregate } from '@codelord/core'
 import type { UsageAggregate } from '@codelord/core'
 
