@@ -1,0 +1,15 @@
+[
+  {
+    "label": "BrowseComp",
+    "timestamp": "2026-04-12T00:00:00Z",
+    "date": "2026-04-12",
+    "model": "claude-sonnet-4-6",
+    "mode": "subset",
+    "cases": 5,
+    "primaryMetricKey": "accuracy",
+    "metrics": {
+      "accuracy": 0.4
+    },
+    "sourceLabel": "M3-S1 manual"
+  }
+]

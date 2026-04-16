@@ -1,0 +1,34 @@
+[
+  {
+    "label": "Terminal-Bench",
+    "timestamp": "2026-04-14T07:12:21.561Z",
+    "date": "2026-04-14",
+    "model": "claude-sonnet-4-6",
+    "mode": "subset",
+    "cases": 8,
+    "primaryMetricKey": "resolution_rate",
+    "metrics": {
+      "resolution_rate": 0,
+      "total": 8,
+      "passed_count": 0,
+      "error_count": 8,
+      "setup_timeout_count": 0,
+      "cancelled_count": 0
+    },
+    "sourceLabel": "CI run",
+    "runUrl": "https://github.com/Doctor-wu/codelord/actions/runs/24385862648"
+  },
+  {
+    "label": "Terminal-Bench",
+    "timestamp": "2026-04-12T00:00:00Z",
+    "date": "2026-04-12",
+    "model": "claude-sonnet-4-6",
+    "mode": "subset",
+    "cases": 3,
+    "primaryMetricKey": "resolution_rate",
+    "metrics": {
+      "resolution_rate": 0.3333333333333333
+    },
+    "sourceLabel": "M3-S1 manual"
+  }
+]

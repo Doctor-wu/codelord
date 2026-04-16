@@ -1,0 +1,47 @@
+[
+  {
+    "label": "Polyglot",
+    "timestamp": "2026-04-14T03:09:52.054Z",
+    "date": "2026-04-14",
+    "model": "claude-sonnet-4-6",
+    "mode": "subset",
+    "cases": 60,
+    "primaryMetricKey": "pass_rate_1",
+    "metrics": {
+      "pass_rate_1": 0.8833333333333333,
+      "pass_rate_2": 0.9666666666666667,
+      "total": 60,
+      "pass_attempt_1": 53,
+      "pass_attempt_2": 58
+    },
+    "sourceLabel": "CI run",
+    "runUrl": "https://github.com/Doctor-wu/codelord/actions/runs/24377267309"
+  },
+  {
+    "label": "Polyglot",
+    "timestamp": "2026-04-12T00:00:00Z",
+    "date": "2026-04-12",
+    "model": "claude-sonnet-4-6",
+    "mode": "subset",
+    "cases": 20,
+    "primaryMetricKey": "pass_rate_1",
+    "metrics": {
+      "pass_rate_1": 1
+    },
+    "sourceLabel": "M3-S1 manual"
+  },
+  {
+    "label": "Polyglot (Rust)",
+    "timestamp": "2026-04-12T00:00:00Z",
+    "date": "2026-04-12",
+    "model": "claude-sonnet-4-6",
+    "mode": "subset",
+    "cases": 30,
+    "primaryMetricKey": "pass_rate_1",
+    "metrics": {
+      "pass_rate_1": 0.933,
+      "pass_rate_2": 0.967
+    },
+    "sourceLabel": "M3-S1 manual"
+  }
+]

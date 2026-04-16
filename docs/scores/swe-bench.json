@@ -1,0 +1,33 @@
+[
+  {
+    "label": "SWE-bench",
+    "timestamp": "2026-04-14T03:11:00.690Z",
+    "date": "2026-04-14",
+    "model": "claude-sonnet-4-6",
+    "mode": "subset",
+    "cases": 25,
+    "primaryMetricKey": "patch_rate",
+    "metrics": {
+      "patch_rate": 0.84,
+      "total": 25,
+      "patched_count": 21,
+      "error_count": 0,
+      "avg_duration_ms": 134193.76
+    },
+    "sourceLabel": "CI run",
+    "runUrl": "https://github.com/Doctor-wu/codelord/actions/runs/24377293858"
+  },
+  {
+    "label": "SWE-bench",
+    "timestamp": "2026-04-12T00:00:00Z",
+    "date": "2026-04-12",
+    "model": "claude-sonnet-4-6",
+    "mode": "subset",
+    "cases": 5,
+    "primaryMetricKey": "patch_rate",
+    "metrics": {
+      "patch_rate": 0.2
+    },
+    "sourceLabel": "M3-S1 manual"
+  }
+]

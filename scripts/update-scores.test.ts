@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 import type { EvalResult } from '../evals/shared/src/types.js'
 import {
   buildInitialScoresState,
-  parseScoresState,
   renderScoresMarkdown,
+  updateBenchmarkEntries,
   updateScoresState,
 } from './update-scores.js'
 
@@ -46,14 +46,12 @@ describe('update-scores', () => {
     expect(markdown).toContain('| Polyglot | claude-sonnet-4-6 | pass_rate_1 | 100.0% | 20 | subset | 2026-04-12 | M3-S1 manual |')
     expect(markdown).toContain('| Polyglot (Rust) | claude-sonnet-4-6 | pass_rate_1 | 93.3% | 30 | subset | 2026-04-12 | M3-S1 manual |')
     expect(markdown).toContain('| Terminal-Bench | claude-sonnet-4-6 | resolution_rate | 33.3% | 3 | subset | 2026-04-12 | M3-S1 manual |')
-    expect(markdown).toContain('<!-- SCORES_STATE_V1')
 
-    const parsed = parseScoresState(markdown)
-    expect(parsed.history['terminal-bench']).toHaveLength(1)
-    expect(parsed.history.polyglot).toHaveLength(2)
+    // No longer embeds state in markdown
+    expect(markdown).not.toContain('SCORES_STATE_V1')
   })
 
-  it('prepends new benchmark runs and keeps history entries', () => {
+  it('prepends new benchmark runs and keeps history entries (via updateScoresState)', () => {
     const firstUpdate = createTerminalBenchResult('2026-04-13T16:00:00Z', 0, 0)
     const secondUpdate = createTerminalBenchResult('2026-04-14T08:30:00Z', 2 / 3, 2)
 
@@ -71,8 +69,7 @@ describe('update-scores', () => {
     )
 
     const markdown = renderScoresMarkdown(stateAfterSecond)
-    const parsed = parseScoresState(markdown)
-    const terminalBenchHistory = parsed.history['terminal-bench']
+    const terminalBenchHistory = stateAfterSecond.history['terminal-bench']
 
     expect(terminalBenchHistory).toHaveLength(3)
     expect(terminalBenchHistory[0]?.date).toBe('2026-04-14')
@@ -83,5 +80,18 @@ describe('update-scores', () => {
     expect(markdown).toContain('| Terminal-Bench | claude-sonnet-4-6 | resolution_rate | 66.7% | 3 | subset | 2026-04-14 | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/23456) |')
     expect(markdown).toContain('| 2026-04-14 | claude-sonnet-4-6 | 66.7% | 3 | subset | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/23456) |')
     expect(markdown).toContain('| 2026-04-13 | claude-sonnet-4-6 | 0.0% | 3 | subset | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/12345) |')
+  })
+
+  it('updateBenchmarkEntries works on isolated entry arrays', () => {
+    const initial = buildInitialScoresState()
+    const entries = initial.history['terminal-bench']
+    const result = createTerminalBenchResult('2026-04-15T10:00:00Z', 1, 3)
+
+    const updated = updateBenchmarkEntries(entries, 'terminal-bench', result, 'https://example.com/run/1')
+
+    expect(updated).toHaveLength(2)
+    expect(updated[0]?.date).toBe('2026-04-15')
+    expect(updated[0]?.metrics.resolution_rate).toBe(1)
+    expect(updated[1]?.date).toBe('2026-04-12')
   })
 })
