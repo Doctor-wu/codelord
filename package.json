@@ -2,6 +2,7 @@
   "name": "@codelord/monorepo",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.13.1",
   "scripts": {
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
