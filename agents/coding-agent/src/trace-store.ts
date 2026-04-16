@@ -648,7 +648,7 @@ function formatLifecycleEvent(e: LifecycleTraceEvent, tag: string, L: string[], 
   if (e.question) parts.push(`"${e.question.slice(0, 60)}${e.question.length > 60 ? '\u2026' : ''}"`)
   if (e.usageSnapshot) parts.push(`${e.usageSnapshot.totalTokens}tok $${e.usageSnapshot.cost.total.toFixed(4)}`)
   if (e.interruptSource) parts.push(`source=${e.interruptSource}`)
-  if (e.requestedAt !== undefined && e.observedAt !== undefined) {
+  if (e.requestedAt !== undefined && e.requestedAt !== null && e.observedAt !== undefined && e.observedAt !== null) {
     parts.push(`requested=${tOff(e.requestedAt, base)}`)
     parts.push(`observed=${tOff(e.observedAt, base)}`)
   }
