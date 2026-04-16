@@ -215,6 +215,8 @@ export type LifecycleEvent =
   | { type: 'session_done'; success: boolean; text?: string; error?: string; timestamp: number }
   // --- Command feedback (slash commands, not LLM output) ---
   | { type: 'command_feedback'; success: boolean; message: string; timestamp: number }
+  // --- Provider errors (LLM call failures, HTTP errors, circuit breakers) ---
+  | { type: 'provider_error'; error: string; statusCode: number | null; attempt: number; timestamp: number }
   // --- Interrupt chain ---
   | { type: 'interrupt_requested'; source: 'sigint' | 'api'; timestamp: number }
   | { type: 'interrupt_observed'; requestedAt: number; observedAt: number; source: 'sigint' | 'api'; latencyMs: number; timestamp: number }

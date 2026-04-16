@@ -506,34 +506,40 @@ describe('formatTraceShow debugger view', () => {
 
   // --- Summary mode (default) ---
 
-  it('summary mode shows step header and activity digest', () => {
+  it('summary mode shows step header and trajectory narrative', () => {
     const trace = buildMixedTrace()
     const output = formatTraceShow(trace)
 
     expect(output).toContain('Step 1')
-    // Activity line: text chars
-    expect(output).toContain('text')
-    expect(output).toContain('chars')
+    // Trajectory: text output preview from accumulated deltas
+    expect(output).toContain('[text]')
+    expect(output).toContain('hello world')
+    // Trajectory: stop reason
+    expect(output).toContain('[stop]')
+    expect(output).toContain('stop')
     // Usage line
-    expect(output).toContain('tokens:')
+    expect(output).toContain('[usage]')
     // Should NOT contain raw event tags
     expect(output).not.toContain('[P]')
   })
 
-  it('summary mode shows tool call names', () => {
+  it('summary mode shows tool call with name and args/result', () => {
     const rec = new TraceRecorder(recorderOpts)
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
-    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: {}, command: 'echo' })
+    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'echo hello' }, command: 'echo hello' })
     tc.phase = 'completed'; tc.completedAt = 1100; tc.executionStartedAt = 1050
+    tc.result = 'hello'
     rec.onLifecycleEvent({ type: 'tool_call_completed', toolCall: tc })
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1200 })
     const trace = rec.finalize({ type: 'success', text: '' })
     const output = formatTraceShow(trace)
 
-    expect(output).toContain('bash')
+    expect(output).toContain('[tool] bash')
+    expect(output).toContain('echo hello')
+    expect(output).toContain('-> hello')
   })
 
-  it('summary mode shows interrupt anomaly', () => {
+  it('summary mode shows interrupt and blocked events', () => {
     const rec = new TraceRecorder(recorderOpts)
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
     rec.recordInterruptRequest('sigint')
@@ -542,10 +548,11 @@ describe('formatTraceShow debugger view', () => {
     const trace = rec.finalize({ type: 'blocked', reason: 'interrupted' })
     const output = formatTraceShow(trace)
 
-    expect(output).toContain('interrupted')
+    expect(output).toContain('[interrupt] sigint')
+    expect(output).toContain('[blocked] interrupted')
   })
 
-  it('summary mode shows run-level events', () => {
+  it('summary mode shows session_done with reason in unified timeline', () => {
     const rec = new TraceRecorder(recorderOpts)
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1100 })
@@ -553,8 +560,8 @@ describe('formatTraceShow debugger view', () => {
     const trace = rec.finalize({ type: 'success', text: 'ok' })
     const output = formatTraceShow(trace)
 
-    expect(output).toContain('Run-level')
-    expect(output).toContain('session_done')
+    expect(output).toContain('[done]')
+    expect(output).toContain('ok')
   })
 
   // --- Raw mode ---

@@ -46,6 +46,11 @@ export class TraceRecorder {
 
   private readonly rawMode: boolean
 
+  // --- Per-turn accumulators for trajectory (always active, not gated by rawMode) ---
+  private turnTextAccum = ''
+  private turnThinkingAccum = ''
+  private turnStopReason: string | null = null
+
   constructor(opts: TraceRecorderOptions) {
     this.runId = randomUUID()
     this.opts = opts
@@ -122,6 +127,14 @@ export class TraceRecorder {
       droppedTokens: null,
       checkpointId: null,
       fileCount: null,
+      textPreview: null,
+      thinkingPreview: null,
+      stopReason: null,
+      reasoningIntent: null,
+      reasoningWhy: null,
+      argsPreview: null,
+      resultPreview: null,
+      isError: null,
     }
 
     if (this.currentStep) {
@@ -134,7 +147,19 @@ export class TraceRecorder {
   // --- Provider stream layer ---
 
   onProviderStreamEvent(event: ProviderStreamTraceEvent): void {
-    if (!this.rawMode) return
+    // Always accumulate text/thinking for trajectory (regardless of rawMode)
+    if (event.type === 'text_delta' && event.deltaPreview) {
+      this.turnTextAccum += event.deltaPreview
+    } else if (event.type === 'thinking_delta' && event.deltaPreview) {
+      this.turnThinkingAccum += event.deltaPreview
+    } else if (event.type === 'done' && event.stopReason) {
+      this.turnStopReason = event.stopReason
+    }
+
+    if (!this.rawMode) {
+      this.totalProviderStream++
+      return
+    }
     this.totalProviderStream++
     event = { ...event, seq: ++this._globalSeq }
     // Redact previews
@@ -209,17 +234,72 @@ export class TraceRecorder {
       droppedTokens: null,
       checkpointId: null,
       fileCount: null,
+      textPreview: null,
+      thinkingPreview: null,
+      stopReason: null,
+      reasoningIntent: null,
+      reasoningWhy: null,
+      argsPreview: null,
+      resultPreview: null,
+      isError: null,
     }
 
     switch (event.type) {
       case 'user_turn':
         le.question = event.content.slice(0, 200)
         break
-      case 'tool_call_completed':
+      case 'assistant_turn_start': {
+        le.reasoningIntent = event.reasoning.intent
+        le.reasoningWhy = event.reasoning.why
+        // Reset per-turn accumulators
+        this.turnTextAccum = ''
+        this.turnThinkingAccum = ''
+        this.turnStopReason = null
+        break
+      }
+      case 'assistant_turn_end': {
+        le.reasoningIntent = event.reasoning.intent
+        le.reasoningWhy = event.reasoning.why
+        // Flush accumulated text/thinking into trajectory fields (redacted + truncated)
+        if (this.turnTextAccum) {
+          const { text, hits } = safePreview(this.turnTextAccum, 500)
+          le.textPreview = text
+          this.mergeHits(hits)
+        }
+        if (this.turnThinkingAccum) {
+          const { text, hits } = safePreview(this.turnThinkingAccum, 500)
+          le.thinkingPreview = text
+          this.mergeHits(hits)
+        }
+        le.stopReason = this.turnStopReason
+        // Reset accumulators
+        this.turnTextAccum = ''
+        this.turnThinkingAccum = ''
+        this.turnStopReason = null
+        break
+      }
+      case 'tool_call_completed': {
         le.toolCallId = event.toolCall.id
         le.toolName = event.toolCall.toolName
         le.phase = event.toolCall.phase
+        le.isError = event.toolCall.isError
+        // Capture args preview (redacted)
+        const argsStr = Object.keys(event.toolCall.args).length > 0
+          ? JSON.stringify(event.toolCall.args)
+          : null
+        if (argsStr) {
+          const { text: ap, hits: ah } = safePreview(argsStr, 300)
+          le.argsPreview = ap
+          this.mergeHits(ah)
+        }
+        // Capture result preview (redacted)
+        if (event.toolCall.result) {
+          const { text: rp, hits: rh } = safePreview(event.toolCall.result, 300)
+          le.resultPreview = rp
+          this.mergeHits(rh)
+        }
         break
+      }
       case 'usage_updated':
         this.recordUsage(event.usage)
         if (event.usage.lastCall) {
@@ -232,6 +312,9 @@ export class TraceRecorder {
             cost: { ...event.usage.lastCall.cost },
           }
         }
+        break
+      case 'session_done':
+        le.reason = event.success ? (event.text ?? 'success') : (event.error ?? 'error')
         break
       case 'blocked_enter':
         le.reason = event.reason
@@ -273,6 +356,9 @@ export class TraceRecorder {
       case 'checkpoint_undone':
         le.checkpointId = event.checkpointId
         le.fileCount = event.restoredFileCount
+        break
+      case 'provider_error':
+        le.reason = event.error
         break
     }
 
@@ -398,6 +484,14 @@ export class TraceRecorder {
       droppedTokens: null,
       checkpointId: null,
       fileCount: null,
+      textPreview: null,
+      thinkingPreview: null,
+      stopReason: null,
+      reasoningIntent: null,
+      reasoningWhy: null,
+      argsPreview: null,
+      resultPreview: null,
+      isError: null,
     }
 
     if (this.currentStep) {

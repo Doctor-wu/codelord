@@ -264,6 +264,7 @@ export function reduceLifecycleEvent(state: TimelineState, event: LifecycleEvent
     case 'context_truncated':
     case 'checkpoint_created':
     case 'checkpoint_undone':
+    case 'provider_error':
       return state
   }
 }

@@ -260,94 +260,167 @@ export function formatTraceShow(rawTrace: TraceRunV2, mode: TraceShowMode = 'sum
 }
 
 // ---------------------------------------------------------------------------
-// Summary mode — high-value digest, 2-3 lines per step
+// Summary mode — chronological trajectory narrative
 // ---------------------------------------------------------------------------
 
 function formatSummaryBody(trace: TraceRunV2, L: string[]): void {
+  // Build a unified timeline: merge run-level events and step events by seq,
+  // inserting step headers at the right chronological position.
+  const allLifecycle: { event: LifecycleTraceEvent; stepEvents?: TraceEventEntry[] }[] = []
+
+  // Collect run-level lifecycle events
+  for (const e of trace.runEvents ?? []) {
+    if (e.source === 'lifecycle_event') {
+      allLifecycle.push({ event: e as LifecycleTraceEvent })
+    }
+  }
+
+  // Collect step lifecycle events, injecting a synthetic "step_header" marker
   for (const step of trace.steps) {
-    // Segment separator: show boundary line at the first step of each segment
+    const sorted = [...step.events].sort((a, b) => a.seq - b.seq)
+
+    // Create a synthetic header event at the step's start seq (use first event's seq - 0.5, or step.startedAt for timestamp sort)
+    const firstSeq = sorted.length > 0 ? sorted[0].seq : 0
+    const dur = step.endedAt ? `${((step.endedAt - step.startedAt) / 1000).toFixed(1)}s` : 'in-flight'
+
+    // Segment separator
+    let segHeader: string | null = null
     if (trace.segments && trace.segments.length > 1) {
       const seg = trace.segments.find(s => step.step >= s.stepRange[0] && step.step <= s.stepRange[1])
       if (seg && step.step === seg.stepRange[0]) {
-        L.push(`── Segment ${seg.segmentIndex} (${seg.outcome.type})  ${new Date(seg.startedAt).toLocaleTimeString()} ──`)
+        segHeader = `── Segment ${seg.segmentIndex} (${seg.outcome.type})  ${new Date(seg.startedAt).toLocaleTimeString()} ──`
       }
     }
 
-    const dur = step.endedAt ? `${((step.endedAt - step.startedAt) / 1000).toFixed(1)}s` : 'in-flight'
-    L.push(`══ Step ${step.step} (${step.turnId?.slice(0, 12) ?? '?'})  ${new Date(step.startedAt).toLocaleTimeString()}  ${dur} ══`)
+    // Inject step header as a synthetic lifecycle event (using a special type marker)
+    allLifecycle.push({
+      event: {
+        eventId: -1, seq: firstSeq - 0.5, type: '__step_header__',
+        timestamp: step.startedAt, step: step.step, turnId: null,
+        source: 'lifecycle_event',
+        toolCallId: null, toolName: null, phase: null,
+        reason: segHeader, // piggyback segment header
+        question: `══ Step ${step.step}  ${new Date(step.startedAt).toLocaleTimeString()}  ${dur} ══`,
+        usageSnapshot: null, count: null, messageCount: null,
+        interruptSource: null, requestedAt: null, observedAt: null, latencyMs: null,
+        droppedCount: null, droppedTokens: null, checkpointId: null, fileCount: null,
+        textPreview: null, thinkingPreview: null, stopReason: null,
+        reasoningIntent: null, reasoningWhy: null, argsPreview: null, resultPreview: null, isError: null,
+      } as LifecycleTraceEvent,
+    })
 
-    // Build activity summary from events
-    const sorted = [...step.events].sort((a, b) => a.seq - b.seq)
-    const segments: string[] = []
-
-    // Thinking chars
-    let thinkingChars = 0
     for (const e of sorted) {
-      if (e.type === 'thinking_delta' && e.source === 'provider_stream' && 'deltaPreview' in e && e.deltaPreview) {
-        thinkingChars += e.deltaPreview.length
+      if (e.source === 'lifecycle_event') {
+        allLifecycle.push({ event: e as LifecycleTraceEvent, stepEvents: sorted })
       }
     }
-    if (thinkingChars > 0) segments.push(`thinking ${fmtChars(thinkingChars)}`)
-
-    // Tool calls (from lifecycle tool_call_completed)
-    const toolCounts = new Map<string, number>()
-    for (const e of sorted) {
-      if (e.source === 'lifecycle_event' && e.type === 'tool_call_completed') {
-        const le = e as LifecycleTraceEvent
-        const name = le.toolName ?? 'unknown'
-        toolCounts.set(name, (toolCounts.get(name) ?? 0) + 1)
-      }
-    }
-    if (toolCounts.size > 0) {
-      const parts = [...toolCounts.entries()].map(([name, count]) => count > 1 ? `${count}×${name}` : name)
-      segments.push(parts.join(', '))
-    }
-
-    // Text output chars
-    let textChars = 0
-    for (const e of sorted) {
-      if (e.type === 'text_delta' && e.source === 'provider_stream' && 'deltaPreview' in e && e.deltaPreview) {
-        textChars += e.deltaPreview.length
-      }
-    }
-    if (textChars > 0) segments.push(`text ${fmtChars(textChars)}`)
-
-    if (segments.length > 0) {
-      L.push(`   ${segments.join(' → ')}`)
-    }
-
-    // Usage line (from lifecycle usage_updated)
-    for (const e of sorted) {
-      if (e.source === 'lifecycle_event' && e.type === 'usage_updated') {
-        const le = e as LifecycleTraceEvent
-        if (le.usageSnapshot) {
-          const u = le.usageSnapshot
-          L.push(`   tokens: ${fmtNum(u.input)} in / ${fmtNum(u.output)} out  $${u.cost.total.toFixed(4)}`)
-        }
-      }
-    }
-
-    // Anomalies
-    for (const e of sorted) {
-      if (e.source === 'lifecycle_event' && e.type === 'interrupt_requested') {
-        L.push(`   ⚠ interrupted (${(e as LifecycleTraceEvent).interruptSource})`)
-      }
-    }
-
-    L.push('')
   }
 
-  // Run-level events summary
-  const runEvts = trace.runEvents ?? []
-  if (runEvts.length > 0) {
-    const types = runEvts.map(e => e.type)
-    L.push(`══ Run-level: ${types.join(', ')} ══`)
-    L.push('')
+  // Sort everything by seq (run-level events have seq too)
+  allLifecycle.sort((a, b) => a.event.seq - b.event.seq)
+
+  // Emit unified timeline
+  for (const { event, stepEvents } of allLifecycle) {
+    if (event.type === '__step_header__') {
+      if (event.reason) L.push(event.reason) // segment header
+      L.push(event.question!)
+      continue
+    }
+    formatTrajectoryEvent(event, L, stepEvents)
+  }
+
+  if (allLifecycle.length > 0) L.push('')
+}
+
+/** Format a single lifecycle trace event as a trajectory line. Used for both step-level and run-level events. */
+function formatTrajectoryEvent(le: LifecycleTraceEvent, L: string[], siblingEvents?: TraceEventEntry[]): void {
+  switch (le.type) {
+    case 'user_turn':
+      L.push(`  [user] ${le.question ? truncLine(le.question, 200) : '(empty)'}`)
+      break
+
+    case 'assistant_turn_start':
+      if (le.reasoningIntent) {
+        L.push(`  [intent] ${le.reasoningIntent}`)
+      }
+      break
+
+    case 'tool_call_completed': {
+      const name = le.toolName ?? 'unknown'
+      const err = le.isError ? ' ERROR' : ''
+      const argsLine = le.argsPreview ? truncLine(le.argsPreview, 120) : ''
+      L.push(`  [tool] ${name}${err}${argsLine ? '  ' + argsLine : ''}`)
+      if (le.resultPreview) {
+        L.push(`      -> ${truncLine(le.resultPreview, 120)}`)
+      }
+      break
+    }
+
+    case 'assistant_turn_end': {
+      if (le.thinkingPreview) {
+        L.push(`  [thinking] ${truncLine(le.thinkingPreview, 200)}`)
+      }
+      if (le.textPreview) {
+        L.push(`  [text] ${truncLine(le.textPreview, 200)}`)
+      }
+      if (le.stopReason) {
+        L.push(`  [stop] ${le.stopReason}`)
+      }
+      // Usage summary for this turn (look in sibling events if available)
+      if (siblingEvents) {
+        const usageEvt = siblingEvents.find(x => x.source === 'lifecycle_event' && x.type === 'usage_updated') as LifecycleTraceEvent | undefined
+        if (usageEvt?.usageSnapshot) {
+          const u = usageEvt.usageSnapshot
+          L.push(`  [usage] ${fmtNum(u.input)} in / ${fmtNum(u.output)} out  $${u.cost.total.toFixed(4)}`)
+        }
+      }
+      break
+    }
+
+    case 'interrupt_requested':
+      L.push(`  [interrupt] ${le.interruptSource ?? 'unknown'}`)
+      break
+
+    case 'context_truncated':
+      L.push(`  [truncated] dropped ${le.droppedCount} messages (${fmtNum(le.droppedTokens ?? 0)} tokens)`)
+      break
+
+    case 'checkpoint_created':
+      L.push(`  [checkpoint] ${le.checkpointId?.slice(0, 8) ?? '?'} (${le.fileCount ?? 0} files)`)
+      break
+
+    case 'provider_error':
+      L.push(`  [error] ${le.reason ?? 'unknown provider error'}`)
+      break
+
+    case 'session_done':
+      L.push(`  [done] ${le.reason ? truncLine(le.reason, 120) : 'ok'}`)
+      break
+
+    case 'question_answered':
+      L.push(`  [answered] ${le.question ? truncLine(le.question, 80) : '?'}`)
+      break
+
+    // Plumbing — skip in trajectory (user_turn already captures input; usage shown inline with turn_end)
+    case 'queue_enqueued':
+    case 'queue_drained':
+    case 'blocked_enter':
+    case 'blocked_exit':
+    case 'usage_updated':
+    case 'interrupt_observed':
+      break
+
+    default:
+      // Catch-all for unknown event types
+      L.push(`  [${le.type}]${le.reason ? ' ' + le.reason : ''}${le.question ? ' ' + truncLine(le.question, 80) : ''}`)
+      break
   }
 }
 
-function fmtChars(n: number): string {
-  return n >= 1000 ? `${(n / 1000).toFixed(1)}k chars` : `${n} chars`
+function truncLine(text: string, max: number): string {
+  // Collapse newlines to spaces for single-line display
+  const flat = text.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()
+  return flat.length > max ? flat.slice(0, max) + '…' : flat
 }
 
 function fmtNum(n: number): string {

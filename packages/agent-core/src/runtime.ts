@@ -591,13 +591,21 @@ export class AgentRuntime<TApi extends Api = Api> {
               assistantMsg = event.message
               break
             case 'error': {
+              const errMsg = event.error.errorMessage ?? 'Unknown stream error'
+              // Always emit provider_error so the trace captures it
+              this.emitLifecycle({
+                type: 'provider_error',
+                error: errMsg,
+                statusCode: (event.error as any).statusCode ?? null,
+                attempt: this._burstStepCount,
+                timestamp: Date.now(),
+              })
               if (this.interruptCtrl.isRequested || event.error.stopReason === 'aborted') {
                 assistantMsg = event.error
                 streamAborted = true
                 break
               }
               this.transition('READY')
-              const errMsg = event.error.errorMessage ?? 'Unknown stream error'
               return this.finishBurst({ type: 'error', error: errMsg })
             }
           }

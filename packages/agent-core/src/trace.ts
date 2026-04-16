@@ -68,6 +68,25 @@ export interface LifecycleTraceEvent extends LedgerEventBase {
   checkpointId: string | null
   /** For checkpoint_created: number of files protected */
   fileCount: number | null
+
+  // --- Trajectory fields (populated regardless of rawMode) ---
+
+  /** For assistant_turn_end: redacted preview of LLM text output */
+  textPreview: string | null
+  /** For assistant_turn_end: redacted preview of LLM thinking/reasoning text */
+  thinkingPreview: string | null
+  /** For assistant_turn_end: LLM stop reason (e.g. 'end_turn', 'tool_use') */
+  stopReason: string | null
+  /** For assistant_turn_start/end: reasoning intent from AssistantReasoningState */
+  reasoningIntent: string | null
+  /** For assistant_turn_start/end: reasoning why from AssistantReasoningState */
+  reasoningWhy: string | null
+  /** For tool_call_completed: redacted preview of tool arguments */
+  argsPreview: string | null
+  /** For tool_call_completed: redacted preview of tool result */
+  resultPreview: string | null
+  /** For tool_call_completed: whether the tool call resulted in an error */
+  isError: boolean | null
 }
 
 // ---------------------------------------------------------------------------
@@ -232,7 +251,7 @@ export function normalizeTrace(trace: TraceRunV2): TraceRunV2 {
   let globalSeq = 0
 
   function backfillLifecycle(e: any): LifecycleTraceEvent {
-    return { ...e, seq: e.seq ?? ++globalSeq, count: e.count ?? null, messageCount: e.messageCount ?? null, interruptSource: e.interruptSource ?? null, requestedAt: e.requestedAt ?? null, observedAt: e.observedAt ?? null, latencyMs: e.latencyMs ?? null, checkpointId: e.checkpointId ?? null, fileCount: e.fileCount ?? null }
+    return { ...e, seq: e.seq ?? ++globalSeq, count: e.count ?? null, messageCount: e.messageCount ?? null, interruptSource: e.interruptSource ?? null, requestedAt: e.requestedAt ?? null, observedAt: e.observedAt ?? null, latencyMs: e.latencyMs ?? null, checkpointId: e.checkpointId ?? null, fileCount: e.fileCount ?? null, textPreview: e.textPreview ?? null, thinkingPreview: e.thinkingPreview ?? null, stopReason: e.stopReason ?? null, reasoningIntent: e.reasoningIntent ?? null, reasoningWhy: e.reasoningWhy ?? null, argsPreview: e.argsPreview ?? null, resultPreview: e.resultPreview ?? null, isError: e.isError ?? null }
   }
 
   const steps = trace.steps.map(step => {
