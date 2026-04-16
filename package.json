@@ -12,13 +12,25 @@
     "fmt": "vp fmt --write .",
     "fmt:check": "vp fmt --check .",
     "check": "vp check",
-    "update-scores": "tsx scripts/update-scores.ts"
+    "update-scores": "tsx scripts/update-scores.ts",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@types/node": "^22.13.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vite-plus": "^0.1.18"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,mts,mjs}": [
+      "vp lint --fix",
+      "vp fmt --write"
+    ],
+    "*.{json,md,yaml,yml}": [
+      "vp fmt --write"
+    ]
   },
   "packageManager": "pnpm@10.13.1"
 }

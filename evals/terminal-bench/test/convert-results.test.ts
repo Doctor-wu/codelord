@@ -12,7 +12,13 @@ import {
 } from '../src/eval-result.js'
 import { loadTrialResults } from '../src/convert-results.js'
 
-describe('terminal-bench result conversion', () => {
+const fixtureConfigPath = new URL('../jobs/2026-04-13__15-54-40/config.json', import.meta.url)
+const hasFixture = await fs.access(fixtureConfigPath).then(
+  () => true,
+  () => false,
+)
+
+describe.skipIf(!hasFixture)('terminal-bench result conversion', () => {
   it('converts Harbor fixture output into EvalResult', async () => {
     registerTerminalBenchRenderer()
 
