@@ -33,9 +33,7 @@ async function main(): Promise<void> {
 
     const modelInfo = inferModelInfo(jobConfig)
     const result = buildTerminalBenchEvalResult(trials, modelInfo)
-    const outputPath = args.outputPath
-      ? path.resolve(args.outputPath)
-      : path.join(jobDir, 'eval-result.json')
+    const outputPath = args.outputPath ? path.resolve(args.outputPath) : path.join(jobDir, 'eval-result.json')
 
     await writeResult(result, outputPath)
     exitWithResult(result)
@@ -44,9 +42,7 @@ async function main(): Promise<void> {
       durationMs: Date.now() - startedAt,
     })
     const fallbackJobDir = args.jobDir ? path.resolve(args.jobDir) : process.cwd()
-    const outputPath = args.outputPath
-      ? path.resolve(args.outputPath)
-      : path.join(fallbackJobDir, 'eval-result.json')
+    const outputPath = args.outputPath ? path.resolve(args.outputPath) : path.join(fallbackJobDir, 'eval-result.json')
 
     await writeResult(runtimeResult, outputPath)
     exitWithResult(runtimeResult)
@@ -55,7 +51,10 @@ async function main(): Promise<void> {
 
 export async function loadTrialResults(jobDir: string): Promise<HarborTrialResult[]> {
   const entries = await fs.readdir(jobDir, { withFileTypes: true })
-  const trialDirs = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort()
+  const trialDirs = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .toSorted()
 
   const trialResults = await Promise.all(
     trialDirs.map(async (dirName) => {

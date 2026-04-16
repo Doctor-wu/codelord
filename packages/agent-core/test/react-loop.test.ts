@@ -52,17 +52,22 @@ describe('runAgent thinking support', () => {
       ],
     })
 
-    streamSimpleMock.mockReturnValueOnce(makeEventStream([
-      { type: 'thinking_start', contentIndex: 0 },
-      { type: 'thinking_delta', contentIndex: 0, delta: 'I should inspect ' },
-      { type: 'thinking_delta', contentIndex: 0, delta: 'the config first.' },
-      { type: 'thinking_end', contentIndex: 0, content: 'I should inspect the config first.' },
-      { type: 'text_start', contentIndex: 1 },
-      { type: 'text_delta', contentIndex: 1, delta: 'I checked the config' },
-      { type: 'text_delta', contentIndex: 1, delta: ' and found the issue.' },
-      { type: 'text_end', contentIndex: 1, content: 'I checked the config and found the issue.' },
-      { type: 'done', message: assistantMessage },
-    ], assistantMessage))
+    streamSimpleMock.mockReturnValueOnce(
+      makeEventStream(
+        [
+          { type: 'thinking_start', contentIndex: 0 },
+          { type: 'thinking_delta', contentIndex: 0, delta: 'I should inspect ' },
+          { type: 'thinking_delta', contentIndex: 0, delta: 'the config first.' },
+          { type: 'thinking_end', contentIndex: 0, content: 'I should inspect the config first.' },
+          { type: 'text_start', contentIndex: 1 },
+          { type: 'text_delta', contentIndex: 1, delta: 'I checked the config' },
+          { type: 'text_delta', contentIndex: 1, delta: ' and found the issue.' },
+          { type: 'text_end', contentIndex: 1, content: 'I checked the config and found the issue.' },
+          { type: 'done', message: assistantMessage },
+        ],
+        assistantMessage,
+      ),
+    )
 
     const result = await runAgent({
       model: { id: 'test-model' } as never,
@@ -100,10 +105,13 @@ describe('runAgent single-shot AskUserQuestion compat', () => {
     })
 
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'toolcall_end', toolCall: askToolCall },
-        { type: 'done', message: assistantWithAsk },
-      ], assistantWithAsk),
+      makeEventStream(
+        [
+          { type: 'toolcall_end', toolCall: askToolCall },
+          { type: 'done', message: assistantWithAsk },
+        ],
+        assistantWithAsk,
+      ),
     )
 
     const result = await runAgent({
@@ -135,12 +143,17 @@ describe('runAgent lifecycle callbacks passthrough', () => {
       content: [{ type: 'text', text: 'Hello!' }],
     })
 
-    streamSimpleMock.mockReturnValueOnce(makeEventStream([
-      { type: 'text_start', contentIndex: 0 },
-      { type: 'text_delta', contentIndex: 0, delta: 'Hello!' },
-      { type: 'text_end', contentIndex: 0, content: 'Hello!' },
-      { type: 'done', message: assistantMessage },
-    ], assistantMessage))
+    streamSimpleMock.mockReturnValueOnce(
+      makeEventStream(
+        [
+          { type: 'text_start', contentIndex: 0 },
+          { type: 'text_delta', contentIndex: 0, delta: 'Hello!' },
+          { type: 'text_end', contentIndex: 0, content: 'Hello!' },
+          { type: 'done', message: assistantMessage },
+        ],
+        assistantMessage,
+      ),
+    )
 
     const result = await runAgent({
       model: { id: 'test-model' } as never,

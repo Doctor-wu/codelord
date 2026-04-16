@@ -2,11 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
 import * as readline from 'node:readline/promises'
-import {
-  getOAuthApiKey,
-  getOAuthProvider,
-  type OAuthCredentials,
-} from '@mariozechner/pi-ai/oauth'
+import { getOAuthApiKey, getOAuthProvider, type OAuthCredentials } from '@mariozechner/pi-ai/oauth'
 
 const CREDENTIALS_PATH = join(homedir(), '.codelord', 'credentials.json')
 

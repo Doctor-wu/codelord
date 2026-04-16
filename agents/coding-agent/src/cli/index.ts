@@ -20,9 +20,9 @@ interface CliFlags {
 }
 
 function readVersion(): string {
-  const packageJson = JSON.parse(
-    readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'),
-  ) as { version: string }
+  const packageJson = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf-8')) as {
+    version: string
+  }
 
   return packageJson.version
 }
@@ -75,7 +75,8 @@ function formatSessionList(store: SessionStore): string {
     if (meta.title) lines.push(`    "${meta.title}"`)
     lines.push(`    ${meta.cwd}${branch}`)
     lines.push(`    ${state}${question}${queue} · ${meta.messageCount} msgs · ${relativeTime(meta.updatedAt)}`)
-    if (meta.summary) lines.push(`    Last: "${meta.summary.length > 80 ? meta.summary.slice(0, 77) + '...' : meta.summary}"`)
+    if (meta.summary)
+      lines.push(`    Last: "${meta.summary.length > 80 ? meta.summary.slice(0, 77) + '...' : meta.summary}"`)
     lines.push('')
   }
   if (metas.length > 20) {
@@ -89,7 +90,7 @@ function formatSessionList(store: SessionStore): string {
 function formatSessionShow(store: SessionStore, sessionId: string): string {
   // Prefix match
   const metas = store.listAll()
-  const matches = metas.filter(m => m.sessionId.startsWith(sessionId))
+  const matches = metas.filter((m) => m.sessionId.startsWith(sessionId))
   if (matches.length === 0) return `Session not found: ${sessionId}`
   if (matches.length > 1) {
     const lines = [`Session id prefix is ambiguous: ${sessionId}`, 'Candidates:']
@@ -130,7 +131,7 @@ function formatSessionShow(store: SessionStore, sessionId: string): string {
     if (tools.length > 0) {
       lines.push('')
       lines.push(`  Tool stats:`)
-      for (const [name, stats] of tools.sort((a, b) => b[1].attempts - a[1].attempts).slice(0, 10)) {
+      for (const [name, stats] of tools.toSorted((a, b) => b[1].attempts - a[1].attempts).slice(0, 10)) {
         const errSuffix = stats.failures > 0 ? ` (${stats.failures} errors)` : ''
         lines.push(`    ${name}: ${stats.attempts} calls${errSuffix}`)
       }
@@ -179,24 +180,18 @@ function createCli() {
     .option('--output-format <format>', 'Output format for -p mode: text (default), json, stream-json')
     .option('--raw-trace', 'Include raw provider stream events in trace (verbose)')
 
-  cli
-    .command('init', 'Initialize configuration')
-    .action(async () => {
-      await runInit()
-    })
+  cli.command('init', 'Initialize configuration').action(async () => {
+    await runInit()
+  })
 
-  cli
-    .command('config', 'Show current configuration')
-    .action(async (options) => {
-      const config = loadConfig(toConfigOverrides(readFlags(options)))
-      console.log(JSON.stringify(config, null, 2))
-    })
+  cli.command('config', 'Show current configuration').action(async (options) => {
+    const config = loadConfig(toConfigOverrides(readFlags(options)))
+    console.log(JSON.stringify(config, null, 2))
+  })
 
-  cli
-    .command('help', 'Show help')
-    .action(() => {
-      cli.outputHelp()
-    })
+  cli.command('help', 'Show help').action(() => {
+    cli.outputHelp()
+  })
 
   return cli
 }
@@ -232,7 +227,9 @@ function buildProgressCallback(format: OutputFormat): ((event: HeadlessProgressE
             }
             break
           case 'done':
-            process.stderr.write(`\n[Done] ${event.outcome} in ${(event.durationMs / 1000).toFixed(1)}s | ${event.totalTokens} tokens | $${event.cost.toFixed(4)}\n`)
+            process.stderr.write(
+              `\n[Done] ${event.outcome} in ${(event.durationMs / 1000).toFixed(1)}s | ${event.totalTokens} tokens | $${event.cost.toFixed(4)}\n`,
+            )
             break
         }
       }
@@ -252,7 +249,11 @@ async function handlePipeMode(prompt: string, outputFormat: OutputFormat, cliFla
 
   const onProgress = buildProgressCallback(outputFormat)
   const result = await runHeadless({
-    model, apiKey, config, prompt, onProgress,
+    model,
+    apiKey,
+    config,
+    prompt,
+    onProgress,
     streaming: outputFormat === 'stream-json',
     rawTrace: cliFlags.rawTrace,
   })
@@ -262,33 +263,47 @@ async function handlePipeMode(prompt: string, outputFormat: OutputFormat, cliFla
       if (result.text) process.stdout.write(result.text + '\n')
       break
     case 'json':
-      process.stdout.write(JSON.stringify({
-        outcome: result.outcome,
-        text: result.text,
-        durationMs: result.durationMs,
-        toolStats: result.toolStats,
-        traceRunId: result.trace.runId,
-        usage: {
-          totalTokens: result.trace.usageSummary.totalTokens,
-          cost: result.trace.usageSummary.cost.total,
-        },
-      }, null, 2) + '\n')
+      process.stdout.write(
+        JSON.stringify(
+          {
+            outcome: result.outcome,
+            text: result.text,
+            durationMs: result.durationMs,
+            toolStats: result.toolStats,
+            traceRunId: result.trace.runId,
+            usage: {
+              totalTokens: result.trace.usageSummary.totalTokens,
+              cost: result.trace.usageSummary.cost.total,
+            },
+          },
+          null,
+          2,
+        ) + '\n',
+      )
       break
     case 'stream-json':
-      process.stdout.write(JSON.stringify({
-        type: 'result',
-        outcome: result.outcome.type,
-        text: result.text,
-        durationMs: result.durationMs,
-        traceRunId: result.trace.runId,
-      }) + '\n')
+      process.stdout.write(
+        JSON.stringify({
+          type: 'result',
+          outcome: result.outcome.type,
+          text: result.text,
+          durationMs: result.durationMs,
+          traceRunId: result.trace.runId,
+        }) + '\n',
+      )
       break
   }
 
   switch (result.outcome.type) {
-    case 'success': process.exitCode = 0; break
-    case 'error': process.exitCode = 1; break
-    default: process.exitCode = 2; break
+    case 'success':
+      process.exitCode = 0
+      break
+    case 'error':
+      process.exitCode = 1
+      break
+    default:
+      process.exitCode = 2
+      break
   }
 }
 
@@ -297,8 +312,8 @@ async function handlePipeMode(prompt: string, outputFormat: OutputFormat, cliFla
 // ---------------------------------------------------------------------------
 
 async function handleRunCommand(args: string[]): Promise<void> {
-  const flags = new Set(args.filter(a => a.startsWith('--')))
-  const positional = args.filter(a => !a.startsWith('--'))
+  const flags = new Set(args.filter((a) => a.startsWith('--')))
+  const positional = args.filter((a) => !a.startsWith('--'))
   const prompt = positional[0]
 
   if (!prompt) {
@@ -316,13 +331,19 @@ async function handleRunCommand(args: string[]): Promise<void> {
   if (flags.has('--trace')) {
     console.log(JSON.stringify(result.trace, null, 2))
   } else if (flags.has('--json')) {
-    console.log(JSON.stringify({
-      outcome: result.outcome,
-      text: result.text,
-      durationMs: result.durationMs,
-      toolStats: result.toolStats,
-      traceRunId: result.trace.runId,
-    }, null, 2))
+    console.log(
+      JSON.stringify(
+        {
+          outcome: result.outcome,
+          text: result.text,
+          durationMs: result.durationMs,
+          toolStats: result.toolStats,
+          traceRunId: result.trace.runId,
+        },
+        null,
+        2,
+      ),
+    )
   } else {
     if (result.text) console.log(result.text)
   }
@@ -334,8 +355,8 @@ export { handleRunCommand }
 // ---------------------------------------------------------------------------
 
 function handleTraceCommand(args: string[]): void {
-  const positional = args.filter(a => !a.startsWith('-'))
-  const flags = new Set(args.filter(a => a.startsWith('-')))
+  const positional = args.filter((a) => !a.startsWith('-'))
+  const flags = new Set(args.filter((a) => a.startsWith('-')))
   const sub = positional[0] ?? 'list'
 
   if (sub === 'list') {
@@ -376,7 +397,9 @@ function handleTraceCommand(args: string[]): void {
         break
     }
   } else {
-    console.error(`Unknown trace subcommand: ${sub}\nUsage: codelord trace list [--all] [--limit N]\n       codelord trace show <runId> [--detail|--raw]`)
+    console.error(
+      `Unknown trace subcommand: ${sub}\nUsage: codelord trace list [--all] [--limit N]\n       codelord trace show <runId> [--detail|--raw]`,
+    )
     process.exitCode = 1
   }
 }
@@ -385,8 +408,8 @@ function handleTraceCommand(args: string[]): void {
 export { handleTraceCommand }
 
 function handleSessionsCommand(args: string[]): void {
-  const positional = args.filter(a => !a.startsWith('-'))
-  const flags = new Set(args.filter(a => a.startsWith('-')))
+  const positional = args.filter((a) => !a.startsWith('-'))
+  const flags = new Set(args.filter((a) => a.startsWith('-')))
   const sub = positional[0] ?? 'list'
   const store = new SessionStore()
 
@@ -408,7 +431,7 @@ function handleSessionsCommand(args: string[]): void {
 
     const metas = store.listAll()
     const cutoff = all ? Infinity : Date.now() - days * 24 * 60 * 60 * 1000
-    const toDelete = all ? metas : metas.filter(m => m.updatedAt < cutoff)
+    const toDelete = all ? metas : metas.filter((m) => m.updatedAt < cutoff)
 
     if (toDelete.length === 0) {
       console.log(all ? 'No sessions found.' : `No sessions older than ${days} days.`)
@@ -434,7 +457,9 @@ function handleSessionsCommand(args: string[]): void {
     for (const m of toDelete) store.delete(m.sessionId)
     console.log(`Deleted ${toDelete.length} session(s).`)
   } else {
-    console.error(`Unknown sessions subcommand: ${sub}\nUsage: codelord sessions [list|show <id>|prune [--days N|--all] [--force]]`)
+    console.error(
+      `Unknown sessions subcommand: ${sub}\nUsage: codelord sessions [list|show <id>|prune [--days N|--all] [--force]]`,
+    )
     process.exitCode = 1
   }
 }
@@ -508,8 +533,8 @@ export async function runCli(argv = process.argv): Promise<void> {
   if (cli.args.length > 0) {
     console.error(
       `Single-shot mode has been removed. Use the interactive shell instead:\n` +
-      `  $ codelord\n` +
-      `Then type your message at the prompt.`,
+        `  $ codelord\n` +
+        `Then type your message at the prompt.`,
     )
     process.exitCode = 1
     return

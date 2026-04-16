@@ -32,7 +32,9 @@ function makeEventStream(text = 'Hello!') {
       yield { type: 'text_delta', contentIndex: 0, delta: text }
       yield { type: 'text_end', contentIndex: 0, content: text }
     },
-    async result() { return msg },
+    async result() {
+      return msg
+    },
   }
 }
 

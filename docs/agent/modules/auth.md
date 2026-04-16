@@ -22,11 +22,11 @@ It is the boundary between config-selected provider/model and the concrete crede
 
 ## Key Files
 
-| Path | Role |
-| --- | --- |
-| `agents/coding-agent/src/auth/index.ts` | unified auth dispatch |
-| `agents/coding-agent/src/auth/api-key.ts` | static-key resolution |
-| `agents/coding-agent/src/auth/oauth.ts` | OAuth flow and refresh |
+| Path                                           | Role                                               |
+| ---------------------------------------------- | -------------------------------------------------- |
+| `agents/coding-agent/src/auth/index.ts`        | unified auth dispatch                              |
+| `agents/coding-agent/src/auth/api-key.ts`      | static-key resolution                              |
+| `agents/coding-agent/src/auth/oauth.ts`        | OAuth flow and refresh                             |
 | `agents/coding-agent/src/auth/provider-env.ts` | provider SDK env sanitization during runtime calls |
 
 ## Invariants

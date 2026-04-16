@@ -99,9 +99,7 @@ export const askUserQuestionContract: ToolContract = {
     'You must have already attempted to resolve the ambiguity using available tools.',
     'Only one question can be pending at a time.',
   ],
-  failureSemantics: [
-    'The user answer arrives as a normal user message, not a toolResult.',
-  ],
+  failureSemantics: ['The user answer arrives as a normal user message, not a toolResult.'],
   fallbackHints: [
     'If the user does not answer, proceed with the default_plan_if_no_answer.',
     'Provide clear options when possible to make answering easy.',

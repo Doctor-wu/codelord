@@ -2,10 +2,7 @@ import { registerBenchmarkRenderer } from '@codelord/evals-shared'
 
 export function registerPolyglotRenderer(): void {
   registerBenchmarkRenderer('polyglot', (result) => {
-    const byLanguage = new Map<
-      string,
-      { total: number; passAttempt1: number; passAttempt2: number }
-    >()
+    const byLanguage = new Map<string, { total: number; passAttempt1: number; passAttempt2: number }>()
 
     for (const caseResult of result.cases) {
       const metadata = caseResult.metadata ?? {}
@@ -28,7 +25,9 @@ export function registerPolyglotRenderer(): void {
       '| --- | --- | --- | --- | --- | --- |',
     ]
 
-    for (const [language, stats] of [...byLanguage.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+    for (const [language, stats] of [...byLanguage.entries()].toSorted(([left], [right]) =>
+      left.localeCompare(right),
+    )) {
       const passRate1 = stats.total > 0 ? stats.passAttempt1 / stats.total : 0
       const passRate2 = stats.total > 0 ? stats.passAttempt2 / stats.total : 0
       lines.push(

@@ -16,8 +16,8 @@ interface ToolBatchCardProps {
 export function ToolBatchCard({ item, isLast }: ToolBatchCardProps) {
   const { toolCalls } = item
   const total = toolCalls.length
-  const completedCount = toolCalls.filter(tc => tc.phase === 'completed').length
-  const hasBlocked = toolCalls.some(tc => tc.phase === 'blocked')
+  const completedCount = toolCalls.filter((tc) => tc.phase === 'completed').length
+  const hasBlocked = toolCalls.some((tc) => tc.phase === 'blocked')
   const allDone = completedCount === total
 
   // Batch reasoning is intentionally NOT projected from generic assistant thought.
@@ -30,7 +30,10 @@ export function ToolBatchCard({ item, isLast }: ToolBatchCardProps) {
       <Box>
         <Text color={headerColor}>{GLYPH.batchTop} </Text>
         <Text color={headerColor}>work group</Text>
-        <Text dimColor> {completedCount}/{total}</Text>
+        <Text dimColor>
+          {' '}
+          {completedCount}/{total}
+        </Text>
         {hasBlocked && <Text color={LANE.error}> blocked</Text>}
       </Box>
 
@@ -44,11 +47,7 @@ export function ToolBatchCard({ item, isLast }: ToolBatchCardProps) {
             <Box>
               <Text color={headerColor}>{rail} </Text>
               <Box>
-                <ToolCallView
-                  tc={tc}
-                  isLast={isLast && isLastStep}
-                  dimCompleted={!allDone}
-                />
+                <ToolCallView tc={tc} isLast={isLast && isLastStep} dimCompleted={!allDone} />
               </Box>
             </Box>
           </Box>

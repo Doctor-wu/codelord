@@ -15,7 +15,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
  * Human-friendly tool name for display.
  */
 export function formatToolDisplayName(toolName: string): string {
-  return TOOL_DISPLAY_NAMES[toolName] ?? (toolName.slice(0, 1).toUpperCase() + toolName.slice(1))
+  return TOOL_DISPLAY_NAMES[toolName] ?? toolName.slice(0, 1).toUpperCase() + toolName.slice(1)
 }
 
 /**
@@ -25,11 +25,7 @@ export function formatToolDisplayName(toolName: string): string {
  * Returns null for tools that don't have a meaningful derived feedback,
  * letting the caller fall back to the generic phase label.
  */
-export function derivePhaseFeedback(
-  toolName: string,
-  phase: string,
-  args: Record<string, unknown>,
-): string | null {
+export function derivePhaseFeedback(toolName: string, phase: string, args: Record<string, unknown>): string | null {
   if (phase !== 'executing') return null
 
   const filePath = typeof args.file_path === 'string' ? shortenPath(args.file_path) : null

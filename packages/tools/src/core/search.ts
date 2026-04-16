@@ -20,15 +20,9 @@ const tool: Tool = {
   ].join(' '),
   parameters: Type.Object({
     query: Type.String({ description: 'The search pattern (literal string or regex if regex=true).' }),
-    path: Type.Optional(
-      Type.String({ description: 'Directory or file to search in. Defaults to cwd.' }),
-    ),
-    glob: Type.Optional(
-      Type.String({ description: 'Glob pattern to filter files (e.g. "*.ts", "**/*.json").' }),
-    ),
-    regex: Type.Optional(
-      Type.Boolean({ description: 'Treat query as a regex pattern. Defaults to false (literal).' }),
-    ),
+    path: Type.Optional(Type.String({ description: 'Directory or file to search in. Defaults to cwd.' })),
+    glob: Type.Optional(Type.String({ description: 'Glob pattern to filter files (e.g. "*.ts", "**/*.json").' })),
+    regex: Type.Optional(Type.Boolean({ description: 'Treat query as a regex pattern. Defaults to false (literal).' })),
     context_lines: Type.Optional(
       Type.Number({ description: 'Number of context lines before and after each match. Defaults to 0.' }),
     ),
@@ -54,12 +48,15 @@ function createSearchHandler(cwd: string): ToolHandler {
   return async (args) => {
     const query = args.query as string | undefined
     if (!query || typeof query !== 'string') {
-      return { output: 'ERROR [INVALID_ARGS]: query is required and must be a string.', isError: true, errorCode: 'INVALID_ARGS' }
+      return {
+        output: 'ERROR [INVALID_ARGS]: query is required and must be a string.',
+        isError: true,
+        errorCode: 'INVALID_ARGS',
+      }
     }
 
-    const searchPath = typeof args.path === 'string'
-      ? (isAbsolute(args.path) ? resolve(args.path) : resolve(cwd, args.path))
-      : cwd
+    const searchPath =
+      typeof args.path === 'string' ? (isAbsolute(args.path) ? resolve(args.path) : resolve(cwd, args.path)) : cwd
     const useRegex = args.regex === true
     const contextLines = Math.max(0, Number(args.context_lines) || 0)
     const maxResults = Math.max(1, Number(args.max_results) || DEFAULT_MAX_RESULTS)
@@ -137,8 +134,10 @@ function buildRgArgs(params: RgParams): string[] {
   const rgArgs: string[] = [
     '--line-number',
     '--no-heading',
-    '--color', 'never',
-    '--max-count', String(params.maxResults),
+    '--color',
+    'never',
+    '--max-count',
+    String(params.maxResults),
   ]
 
   if (!params.useRegex) {
@@ -237,9 +236,7 @@ const contract: ToolContract = {
     'Do not use when you already know the file path — use file_read directly.',
     'Do not use for browsing directory structure — use ls.',
   ],
-  preconditions: [
-    'A search query must be provided.',
-  ],
+  preconditions: ['A search query must be provided.'],
   failureSemantics: [
     'No matches found is NOT an error — the search completed successfully, there are simply no results.',
     'INVALID_ARGS: missing or invalid query.',

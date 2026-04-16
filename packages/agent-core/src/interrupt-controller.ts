@@ -6,7 +6,9 @@ export class InterruptController {
   private _requested = false
   private _abortController: AbortController | null = null
 
-  get isRequested(): boolean { return this._requested }
+  get isRequested(): boolean {
+    return this._requested
+  }
 
   /** Request an interrupt. If a stream is active, aborts it immediately. */
   requestInterrupt(): void {

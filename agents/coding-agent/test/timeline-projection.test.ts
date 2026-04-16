@@ -10,7 +10,15 @@ import {
   captureTimelineSnapshot,
   hydrateTimelineState,
 } from '../src/renderer/ink/timeline-projection.js'
-import type { TimelineState, AssistantItem, ToolCallItem, ToolBatchItem, UserItem, QuestionItem, StatusItem } from '../src/renderer/ink/timeline-projection.js'
+import type {
+  TimelineState,
+  AssistantItem,
+  ToolCallItem,
+  ToolBatchItem,
+  UserItem,
+  QuestionItem,
+  StatusItem,
+} from '../src/renderer/ink/timeline-projection.js'
 import { createToolCallLifecycle, _resetProvisionalIdCounter, createReasoningState, PipeableImpl } from '@codelord/core'
 import type { LifecycleEvent, ToolCallLifecycle, AssistantReasoningState } from '@codelord/core'
 
@@ -60,7 +68,12 @@ describe('Timeline Projection', () => {
       let state = createInitialTimelineState()
       state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'asst-1', reasoning, timestamp: 1000 })
       const endReasoning = { ...reasoning, rawThoughtText: 'done thinking', status: 'completed' as const }
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'asst-1', reasoning: endReasoning, timestamp: 2000 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_end',
+        id: 'asst-1',
+        reasoning: endReasoning,
+        timestamp: 2000,
+      })
 
       const item = state.items[0] as AssistantItem
       expect(item.isStreaming).toBe(false)
@@ -72,7 +85,12 @@ describe('Timeline Projection', () => {
   describe('raw stream deltas', () => {
     it('appends thinking delta to streaming assistant', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'asst-1', reasoning: createReasoningState(), timestamp: 1000 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'asst-1',
+        reasoning: createReasoningState(),
+        timestamp: 1000,
+      })
       state = applyThinkingDelta(state, 'hello ')
       state = applyThinkingDelta(state, 'world')
 
@@ -82,7 +100,12 @@ describe('Timeline Projection', () => {
 
     it('appends text delta to streaming assistant', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'asst-1', reasoning: createReasoningState(), timestamp: 1000 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'asst-1',
+        reasoning: createReasoningState(),
+        timestamp: 1000,
+      })
       state = applyTextDelta(state, 'foo ')
       state = applyTextDelta(state, 'bar')
 
@@ -122,7 +145,13 @@ describe('Timeline Projection', () => {
     it('route and safety info are on the same tool call object', () => {
       let state = createInitialTimelineState()
       const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'file_read', args: { file_path: 'x' }, command: 'x' })
-      tc.route = { wasRouted: true, ruleId: 'bash_cat_to_file_read', originalToolName: 'bash', originalArgs: { command: 'cat x' }, reason: 'routed' }
+      tc.route = {
+        wasRouted: true,
+        ruleId: 'bash_cat_to_file_read',
+        originalToolName: 'bash',
+        originalArgs: { command: 'cat x' },
+        reason: 'routed',
+      }
       tc.safety = { riskLevel: 'safe', allowed: true, ruleId: 'static_safe', reason: 'safe' }
       tc.phase = 'completed'
       tc.result = 'contents'
@@ -138,7 +167,12 @@ describe('Timeline Projection', () => {
 
     it('tool stdout/stderr streaming updates are reflected', () => {
       let state = createInitialTimelineState()
-      const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'echo hi' }, command: 'echo hi' })
+      const tc = createToolCallLifecycle({
+        id: 'tc-1',
+        toolName: 'bash',
+        args: { command: 'echo hi' },
+        command: 'echo hi',
+      })
       tc.phase = 'executing'
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: { ...tc } })
 
@@ -215,12 +249,22 @@ describe('Timeline Projection', () => {
     it('items appear in chronological order', () => {
       let state = createInitialTimelineState()
       state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'hi', timestamp: 1 })
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 2,
+      })
       const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'ls', args: {}, command: 'ls' })
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc })
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 3 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_end',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 3,
+      })
 
-      expect(state.items.map(i => i.type)).toEqual(['user', 'assistant', 'tool_call'])
+      expect(state.items.map((i) => i.type)).toEqual(['user', 'assistant', 'tool_call'])
     })
   })
 
@@ -282,7 +326,10 @@ describe('Timeline Projection', () => {
     it('reasoning snapshot is captured from thinking delta (not fleeting)', () => {
       let state = createInitialTimelineState()
       state = reduceLifecycleEvent(state, {
-        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
       })
       // Accumulate enough thinking text to trigger snapshot
       state = applyThinkingDelta(state, 'I need to check the configuration files to understand the project structure.')
@@ -295,7 +342,10 @@ describe('Timeline Projection', () => {
     it('reasoning snapshot persists after text arrives', () => {
       let state = createInitialTimelineState()
       state = reduceLifecycleEvent(state, {
-        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
       })
       state = applyThinkingDelta(state, 'I need to check the configuration files to understand the project structure.')
       // Now text arrives — reasoning snapshot should NOT be cleared
@@ -309,7 +359,10 @@ describe('Timeline Projection', () => {
     it('reasoning snapshot does not dump raw thought text', () => {
       let state = createInitialTimelineState()
       state = reduceLifecycleEvent(state, {
-        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
       })
       // Long thinking text
       const longThought = 'A'.repeat(200)
@@ -324,7 +377,10 @@ describe('Timeline Projection', () => {
     it('reasoning snapshot is null when thinking is too short', () => {
       let state = createInitialTimelineState()
       state = reduceLifecycleEvent(state, {
-        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
       })
       state = applyThinkingDelta(state, 'hmm')
 
@@ -335,12 +391,18 @@ describe('Timeline Projection', () => {
     it('reasoning snapshot preserved through assistant_turn_end', () => {
       let state = createInitialTimelineState()
       state = reduceLifecycleEvent(state, {
-        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
       })
       state = applyThinkingDelta(state, 'I will read the package.json to check dependencies.')
       state = applyTextDelta(state, 'Done.')
       state = reduceLifecycleEvent(state, {
-        type: 'assistant_turn_end', id: 'a1', reasoning: { ...createReasoningState(), status: 'completed' }, timestamp: 2,
+        type: 'assistant_turn_end',
+        id: 'a1',
+        reasoning: { ...createReasoningState(), status: 'completed' },
+        timestamp: 2,
       })
 
       const item = state.items[0] as AssistantItem
@@ -376,16 +438,31 @@ describe('Timeline Projection', () => {
     it('consecutive tool calls in same assistant turn merge into a batch', () => {
       let state = createInitialTimelineState()
       state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'hi', timestamp: 1 })
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 2,
+      })
 
-      const tc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'file_read', args: { file_path: 'a.ts' }, command: 'a.ts' })
+      const tc1 = createToolCallLifecycle({
+        id: 'tc-1',
+        toolName: 'file_read',
+        args: { file_path: 'a.ts' },
+        command: 'a.ts',
+      })
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc1 })
 
-      const tc2 = createToolCallLifecycle({ id: 'tc-2', toolName: 'file_read', args: { file_path: 'b.ts' }, command: 'b.ts' })
+      const tc2 = createToolCallLifecycle({
+        id: 'tc-2',
+        toolName: 'file_read',
+        args: { file_path: 'b.ts' },
+        command: 'b.ts',
+      })
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc2 })
 
       // Should have: user, assistant, tool_batch (not two separate tool_calls)
-      const types = state.items.map(i => i.type)
+      const types = state.items.map((i) => i.type)
       expect(types).toEqual(['user', 'assistant', 'tool_batch'])
 
       const batch = state.items[2] as ToolBatchItem
@@ -396,17 +473,27 @@ describe('Timeline Projection', () => {
 
     it('single tool call stays standalone (no batch wrapper)', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
 
       const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'ls' }, command: 'ls' })
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc })
 
-      expect(state.items.map(i => i.type)).toEqual(['assistant', 'tool_call'])
+      expect(state.items.map((i) => i.type)).toEqual(['assistant', 'tool_call'])
     })
 
     it('each tool call in batch retains independent identity', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
 
       const tc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'ls' }, command: 'ls' })
       tc1.route = { wasRouted: false, ruleId: null, originalToolName: 'bash', originalArgs: {}, reason: null }
@@ -427,12 +514,27 @@ describe('Timeline Projection', () => {
 
     it('stdout/stderr streaming updates work within a batch', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
 
-      const tc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'echo hi' }, command: 'echo hi' })
+      const tc1 = createToolCallLifecycle({
+        id: 'tc-1',
+        toolName: 'bash',
+        args: { command: 'echo hi' },
+        command: 'echo hi',
+      })
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc1 })
 
-      const tc2 = createToolCallLifecycle({ id: 'tc-2', toolName: 'bash', args: { command: 'echo bye' }, command: 'echo bye' })
+      const tc2 = createToolCallLifecycle({
+        id: 'tc-2',
+        toolName: 'bash',
+        args: { command: 'echo bye' },
+        command: 'echo bye',
+      })
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc2 })
 
       // Update tc1 with stdout
@@ -447,14 +549,29 @@ describe('Timeline Projection', () => {
 
     it('route/safety/blocked info not lost in batch merge', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
 
-      const tc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'rm -rf /' }, command: 'rm -rf /' })
+      const tc1 = createToolCallLifecycle({
+        id: 'tc-1',
+        toolName: 'bash',
+        args: { command: 'rm -rf /' },
+        command: 'rm -rf /',
+      })
       tc1.phase = 'blocked'
       tc1.safety = { riskLevel: 'critical', allowed: false, ruleId: 'destructive', reason: 'dangerous command' }
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc1 })
 
-      const tc2 = createToolCallLifecycle({ id: 'tc-2', toolName: 'file_read', args: { file_path: 'safe.ts' }, command: 'safe.ts' })
+      const tc2 = createToolCallLifecycle({
+        id: 'tc-2',
+        toolName: 'file_read',
+        args: { file_path: 'safe.ts' },
+        command: 'safe.ts',
+      })
       tc2.safety = { riskLevel: 'safe', allowed: true, ruleId: 'static', reason: 'safe' }
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc2 })
 
@@ -467,7 +584,12 @@ describe('Timeline Projection', () => {
 
     it('user_turn breaks the current batch', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
 
       const tc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'ls' }, command: 'ls' })
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc1 })
@@ -480,13 +602,21 @@ describe('Timeline Projection', () => {
 
     it('blocked_enter breaks the current batch', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
 
       const tc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'ls' }, command: 'ls' })
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc1 })
 
       state = reduceLifecycleEvent(state, {
-        type: 'blocked_enter', reason: 'waiting_user', question: 'Continue?', timestamp: 2,
+        type: 'blocked_enter',
+        reason: 'waiting_user',
+        question: 'Continue?',
+        timestamp: 2,
       })
 
       expect(state._currentBatchId).toBeNull()
@@ -494,7 +624,12 @@ describe('Timeline Projection', () => {
 
     it('session_done breaks the current batch', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
 
       const tc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'ls' }, command: 'ls' })
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc1 })
@@ -507,14 +642,24 @@ describe('Timeline Projection', () => {
 
     it('three consecutive tool calls all end up in one batch', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
 
       for (let i = 1; i <= 3; i++) {
-        const tc = createToolCallLifecycle({ id: `tc-${i}`, toolName: 'file_read', args: { file_path: `f${i}.ts` }, command: `f${i}.ts` })
+        const tc = createToolCallLifecycle({
+          id: `tc-${i}`,
+          toolName: 'file_read',
+          args: { file_path: `f${i}.ts` },
+          command: `f${i}.ts`,
+        })
         state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc })
       }
 
-      expect(state.items.map(i => i.type)).toEqual(['assistant', 'tool_batch'])
+      expect(state.items.map((i) => i.type)).toEqual(['assistant', 'tool_batch'])
       const batch = state.items[1] as ToolBatchItem
       expect(batch.toolCalls).toHaveLength(3)
     })
@@ -525,9 +670,19 @@ describe('Timeline Projection', () => {
       let state = createInitialTimelineState()
       state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning, timestamp: 1 })
 
-      const tc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'file_read', args: { file_path: 'a.ts' }, command: 'a.ts' })
+      const tc1 = createToolCallLifecycle({
+        id: 'tc-1',
+        toolName: 'file_read',
+        args: { file_path: 'a.ts' },
+        command: 'a.ts',
+      })
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc1 })
-      const tc2 = createToolCallLifecycle({ id: 'tc-2', toolName: 'file_read', args: { file_path: 'b.ts' }, command: 'b.ts' })
+      const tc2 = createToolCallLifecycle({
+        id: 'tc-2',
+        toolName: 'file_read',
+        args: { file_path: 'b.ts' },
+        command: 'b.ts',
+      })
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc2 })
 
       const batch = state.items[1] as ToolBatchItem
@@ -538,20 +693,30 @@ describe('Timeline Projection', () => {
     it('timeline ordering and key stability preserved with batches', () => {
       let state = createInitialTimelineState()
       state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'hi', timestamp: 1 })
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 2,
+      })
 
       const tc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'ls', args: {}, command: 'ls' })
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc1 })
       const tc2 = createToolCallLifecycle({ id: 'tc-2', toolName: 'bash', args: { command: 'pwd' }, command: 'pwd' })
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc2 })
 
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 3 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_end',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 3,
+      })
 
-      const types = state.items.map(i => i.type)
+      const types = state.items.map((i) => i.type)
       expect(types).toEqual(['user', 'assistant', 'tool_batch'])
 
       // All items have unique ids
-      const ids = state.items.map(i => i.id)
+      const ids = state.items.map((i) => i.id)
       expect(new Set(ids).size).toBe(ids.length)
     })
   })
@@ -565,18 +730,43 @@ describe('Timeline Projection', () => {
       let state = createInitialTimelineState()
       expect(state.stepCount).toBe(0)
 
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
       expect(state.stepCount).toBe(1)
 
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a2', reasoning: createReasoningState(), timestamp: 3 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_end',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 2,
+      })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a2',
+        reasoning: createReasoningState(),
+        timestamp: 3,
+      })
       expect(state.stepCount).toBe(2)
     })
 
     it('survives timeline snapshot round-trip', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a2', reasoning: createReasoningState(), timestamp: 2 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a2',
+        reasoning: createReasoningState(),
+        timestamp: 2,
+      })
       expect(state.stepCount).toBe(2)
 
       const snapshot = captureTimelineSnapshot(state)
@@ -593,9 +783,14 @@ describe('Timeline Projection', () => {
     it('stores usage aggregate in timeline state', () => {
       let state = createInitialTimelineState()
       const usage = {
-        input: 100, output: 50, cacheRead: 30, cacheWrite: 10, totalTokens: 190,
+        input: 100,
+        output: 50,
+        cacheRead: 30,
+        cacheWrite: 10,
+        totalTokens: 190,
         cost: { input: 0.001, output: 0.002, cacheRead: 0.0003, cacheWrite: 0.0001, total: 0.0034 },
-        llmCalls: 1, lastCall: null,
+        llmCalls: 1,
+        lastCall: null,
       }
       state = reduceLifecycleEvent(state, { type: 'usage_updated', usage, timestamp: Date.now() })
       expect(state.usage).not.toBeNull()
@@ -606,9 +801,14 @@ describe('Timeline Projection', () => {
     it('usage survives timeline snapshot round-trip', () => {
       let state = createInitialTimelineState()
       const usage = {
-        input: 200, output: 100, cacheRead: 50, cacheWrite: 20, totalTokens: 370,
+        input: 200,
+        output: 100,
+        cacheRead: 50,
+        cacheWrite: 20,
+        totalTokens: 370,
         cost: { input: 0.01, output: 0.02, cacheRead: 0.005, cacheWrite: 0.002, total: 0.037 },
-        llmCalls: 3, lastCall: null,
+        llmCalls: 3,
+        lastCall: null,
       }
       state = reduceLifecycleEvent(state, { type: 'usage_updated', usage, timestamp: Date.now() })
 
@@ -627,12 +827,17 @@ describe('Timeline Projection', () => {
   describe('provisional tool calls (raw stream → UI)', () => {
     it('toolcall_start creates a provisional tool card before lifecycle', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
 
       state = applyToolCallStart(state, 0, 'file_write', { file_path: 'foo.ts' })
 
       // Should have assistant + provisional tool_call
-      expect(state.items.map(i => i.type)).toEqual(['assistant', 'tool_call'])
+      expect(state.items.map((i) => i.type)).toEqual(['assistant', 'tool_call'])
       const tc = (state.items[1] as ToolCallItem).toolCall
       expect(tc.toolName).toBe('file_write')
       expect(tc.phase).toBe('generating')
@@ -641,7 +846,12 @@ describe('Timeline Projection', () => {
 
     it('toolcall_delta updates provisional tool args', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
       state = applyToolCallStart(state, 0, 'file_write', { file_path: 'foo.ts' })
       state = applyToolCallDelta(state, 0, 'file_write', { file_path: 'foo.ts', content: 'partial content...' })
 
@@ -651,7 +861,12 @@ describe('Timeline Projection', () => {
 
     it('toolcall_end finalizes provisional with real id', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
       state = applyToolCallStart(state, 0, 'file_write', { file_path: 'foo.ts' })
       state = applyToolCallEnd(state, 0, 'tc-real-1', 'file_write', { file_path: 'foo.ts', content: 'full content' })
 
@@ -662,18 +877,28 @@ describe('Timeline Projection', () => {
 
     it('provisional → stable handoff: no duplicate on tool_call_created', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
 
       // Raw stream creates provisional
       state = applyToolCallStart(state, 0, 'file_write', { file_path: 'foo.ts' })
       state = applyToolCallEnd(state, 0, 'tc-real-1', 'file_write', { file_path: 'foo.ts', content: 'done' })
 
       // Lifecycle arrives — should replace, not duplicate
-      const stableTc = createToolCallLifecycle({ id: 'tc-real-1', toolName: 'file_write', args: { file_path: 'foo.ts', content: 'done' }, command: 'foo.ts' })
+      const stableTc = createToolCallLifecycle({
+        id: 'tc-real-1',
+        toolName: 'file_write',
+        args: { file_path: 'foo.ts', content: 'done' },
+        command: 'foo.ts',
+      })
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: stableTc })
 
       // Still only 2 items: assistant + tool_call (not 3)
-      expect(state.items.map(i => i.type)).toEqual(['assistant', 'tool_call'])
+      expect(state.items.map((i) => i.type)).toEqual(['assistant', 'tool_call'])
       const tc = (state.items[1] as ToolCallItem).toolCall
       expect(tc.id).toBe('tc-real-1')
       // Stable version should have null provisionalId
@@ -682,7 +907,12 @@ describe('Timeline Projection', () => {
 
     it('provisional appears before lifecycle tool_call_created', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
 
       // After toolcall_start, tool is visible
       state = applyToolCallStart(state, 0, 'bash', { command: 'ls' })
@@ -698,7 +928,12 @@ describe('Timeline Projection', () => {
   describe('no thinking + toolcall delta only (live proxy)', () => {
     it('assistant gets liveProxy when no thinking_* events', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
 
       // Initial live proxy
       const item0 = state.items[0] as AssistantItem
@@ -713,7 +948,12 @@ describe('Timeline Projection', () => {
 
     it('liveProxy updates with args preview on toolcall_delta', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
       state = applyToolCallStart(state, 0, 'file_read', { file_path: 'src/main.ts' })
       state = applyToolCallDelta(state, 0, 'file_read', { file_path: 'src/main.ts' })
 
@@ -724,7 +964,12 @@ describe('Timeline Projection', () => {
 
     it('liveProxy is null when provider sends thinking_*', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
 
       // Provider sends thinking
       state = applyThinkingDelta(state, 'I need to check the file structure.')
@@ -741,10 +986,20 @@ describe('Timeline Projection', () => {
 
     it('liveProxy cleared on assistant_turn_end', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
       state = applyToolCallStart(state, 0, 'bash', { command: 'ls' })
 
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_end',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 2,
+      })
       const item = state.items[0] as AssistantItem
       expect(item.liveProxy).toBeNull()
     })
@@ -753,7 +1008,12 @@ describe('Timeline Projection', () => {
   describe('reasoning fallback when no provider thought', () => {
     it('assistant item is visible even with only liveProxy (no thinking, no text)', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
 
       const item = state.items[0] as AssistantItem
       // Has liveProxy but no thinking/text
@@ -767,7 +1027,12 @@ describe('Timeline Projection', () => {
   describe('throttled partial updates flush final state', () => {
     it('multiple toolcall_delta produce consistent final args', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
       state = applyToolCallStart(state, 0, 'file_write', { file_path: 'x.ts' })
 
       // Simulate many deltas (in real usage, throttled by TimelineStore)
@@ -781,7 +1046,12 @@ describe('Timeline Projection', () => {
 
     it('toolcall_end after many deltas has correct final state', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
       state = applyToolCallStart(state, 0, 'file_write', { file_path: 'x.ts' })
 
       for (let i = 0; i < 50; i++) {
@@ -799,20 +1069,30 @@ describe('Timeline Projection', () => {
   describe('provisional tool in batch', () => {
     it('two provisional tools form a batch', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
 
       state = applyToolCallStart(state, 0, 'file_read', { file_path: 'a.ts' })
       state = applyToolCallStart(state, 1, 'file_read', { file_path: 'b.ts' })
 
       // Should form a batch
-      expect(state.items.map(i => i.type)).toEqual(['assistant', 'tool_batch'])
+      expect(state.items.map((i) => i.type)).toEqual(['assistant', 'tool_batch'])
       const batch = state.items[1] as ToolBatchItem
       expect(batch.toolCalls).toHaveLength(2)
     })
 
     it('provisional batch handoff: stable lifecycle replaces provisional in batch', () => {
       let state = createInitialTimelineState()
-      state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+      state = reduceLifecycleEvent(state, {
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
+      })
 
       // Two provisional tools
       state = applyToolCallStart(state, 0, 'file_read', { file_path: 'a.ts' })
@@ -821,13 +1101,23 @@ describe('Timeline Projection', () => {
       state = applyToolCallEnd(state, 1, 'tc-2', 'file_read', { file_path: 'b.ts' })
 
       // Lifecycle arrives for both
-      const stableTc1 = createToolCallLifecycle({ id: 'tc-1', toolName: 'file_read', args: { file_path: 'a.ts' }, command: 'a.ts' })
+      const stableTc1 = createToolCallLifecycle({
+        id: 'tc-1',
+        toolName: 'file_read',
+        args: { file_path: 'a.ts' },
+        command: 'a.ts',
+      })
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: stableTc1 })
-      const stableTc2 = createToolCallLifecycle({ id: 'tc-2', toolName: 'file_read', args: { file_path: 'b.ts' }, command: 'b.ts' })
+      const stableTc2 = createToolCallLifecycle({
+        id: 'tc-2',
+        toolName: 'file_read',
+        args: { file_path: 'b.ts' },
+        command: 'b.ts',
+      })
       state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: stableTc2 })
 
       // Still a batch with 2 items, not 4
-      expect(state.items.map(i => i.type)).toEqual(['assistant', 'tool_batch'])
+      expect(state.items.map((i) => i.type)).toEqual(['assistant', 'tool_batch'])
       const batch = state.items[1] as ToolBatchItem
       expect(batch.toolCalls).toHaveLength(2)
       expect(batch.toolCalls[0]!.id).toBe('tc-1')
@@ -843,7 +1133,10 @@ describe('Timeline Projection', () => {
     it('continuous thinking_delta keeps updating thinking text (not frozen)', () => {
       let state = createInitialTimelineState()
       state = reduceLifecycleEvent(state, {
-        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
       })
 
       // Simulate many thinking deltas
@@ -857,7 +1150,7 @@ describe('Timeline Projection', () => {
       const item = state.items[0] as AssistantItem
       // Full thinking text is preserved
       expect(item.thinking).toContain('Sixth line')
-      expect(item.thinking.split('\n').filter(l => l).length).toBe(6)
+      expect(item.thinking.split('\n').filter((l) => l).length).toBe(6)
       // hasProviderThought is true
       expect(item.hasProviderThought).toBe(true)
     })
@@ -865,7 +1158,10 @@ describe('Timeline Projection', () => {
     it('reasoningSnapshot freezes early but thinking keeps growing', () => {
       let state = createInitialTimelineState()
       state = reduceLifecycleEvent(state, {
-        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
       })
 
       state = applyThinkingDelta(state, 'I need to check the configuration files to understand the project structure.')
@@ -887,7 +1183,10 @@ describe('Timeline Projection', () => {
     it('hasProviderThought=true prevents liveProxy from being set', () => {
       let state = createInitialTimelineState()
       state = reduceLifecycleEvent(state, {
-        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
       })
 
       // Provider sends thought
@@ -904,7 +1203,10 @@ describe('Timeline Projection', () => {
     it('hasProviderThought=false allows liveProxy display', () => {
       let state = createInitialTimelineState()
       state = reduceLifecycleEvent(state, {
-        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
       })
 
       // No thinking_delta, just toolcall
@@ -919,7 +1221,10 @@ describe('Timeline Projection', () => {
     it('after thinking_end, settled summary is available', () => {
       let state = createInitialTimelineState()
       state = reduceLifecycleEvent(state, {
-        type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1,
+        type: 'assistant_turn_start',
+        id: 'a1',
+        reasoning: createReasoningState(),
+        timestamp: 1,
       })
 
       state = applyThinkingDelta(state, 'I will read the package.json to check dependencies.')
@@ -927,7 +1232,10 @@ describe('Timeline Projection', () => {
 
       // End the turn
       state = reduceLifecycleEvent(state, {
-        type: 'assistant_turn_end', id: 'a1', reasoning: { ...createReasoningState(), status: 'completed' }, timestamp: 2,
+        type: 'assistant_turn_end',
+        id: 'a1',
+        reasoning: { ...createReasoningState(), status: 'completed' },
+        timestamp: 2,
       })
 
       const item = state.items[0] as AssistantItem
@@ -965,7 +1273,11 @@ describe('Settled Reasoning Policy', () => {
     p.complete(delta)
   }
 
-  function buildAssistantTurnState(opts: { hasProviderThought: boolean; thinking: string; reasoningSnapshot: string | null }): TimelineStore {
+  function buildAssistantTurnState(opts: {
+    hasProviderThought: boolean
+    thinking: string
+    reasoningSnapshot: string | null
+  }): TimelineStore {
     const store = new TimelineStore(false, 'high')
     const reasoning = createReasoningState()
     reasoning.rawThoughtText = opts.thinking
@@ -989,7 +1301,7 @@ describe('Settled Reasoning Policy', () => {
     // Manually set reasoningSnapshot if needed
     const state = store.getState()
     const items = [...state.items]
-    const idx = items.findIndex(i => i.type === 'assistant')
+    const idx = items.findIndex((i) => i.type === 'assistant')
     if (idx !== -1) {
       const a = items[idx] as AssistantItem
       items[idx] = { ...a, reasoningSnapshot: opts.reasoningSnapshot }
@@ -1014,7 +1326,7 @@ describe('Settled Reasoning Policy', () => {
     store.onLifecycleEvent({ type: 'assistant_turn_end', id: 'turn-1', reasoning, timestamp: Date.now() })
 
     const items = store.getState().items
-    const assistant = items.find(i => i.type === 'assistant') as AssistantItem
+    const assistant = items.find((i) => i.type === 'assistant') as AssistantItem
     expect(assistant.thinking).toBe('Deep analysis of the code')
   })
 
@@ -1030,7 +1342,7 @@ describe('Settled Reasoning Policy', () => {
     store.onLifecycleEvent({ type: 'assistant_turn_end', id: 'turn-1', reasoning, timestamp: Date.now() })
 
     const items = store.getState().items
-    const assistant = items.find(i => i.type === 'assistant') as AssistantItem
+    const assistant = items.find((i) => i.type === 'assistant') as AssistantItem
     expect(assistant.thinking).toBe('')
     // reasoningSnapshot may or may not be set depending on projection logic
   })
@@ -1045,7 +1357,7 @@ describe('Settled Reasoning Policy', () => {
     store.onLifecycleEvent({ type: 'assistant_turn_end', id: 'turn-1', reasoning, timestamp: Date.now() })
 
     const items = store.getState().items
-    const assistant = items.find(i => i.type === 'assistant') as AssistantItem
+    const assistant = items.find((i) => i.type === 'assistant') as AssistantItem
     expect(assistant.thinking).toBe('')
     expect(assistant.reasoningSnapshot).toBeNull()
     expect(assistant.liveProxy).toBeNull()
@@ -1061,7 +1373,7 @@ describe('Settled Reasoning Policy', () => {
     store.onLifecycleEvent({ type: 'assistant_turn_end', id: 'turn-1', reasoning, timestamp: Date.now() })
 
     const items = store.getState().items
-    const assistant = items.find(i => i.type === 'assistant') as AssistantItem
+    const assistant = items.find((i) => i.type === 'assistant') as AssistantItem
     expect(assistant.thinking).toBe('')
     expect(assistant.reasoningSnapshot).toBeNull()
     expect(assistant.liveProxy).toBeNull()
@@ -1079,7 +1391,7 @@ describe('Settled Reasoning Policy', () => {
     store.onLifecycleEvent({ type: 'assistant_turn_end', id: 'turn-1', reasoning, timestamp: Date.now() })
 
     const items = store.getState().items
-    const assistant = items.find(i => i.type === 'assistant') as AssistantItem
+    const assistant = items.find((i) => i.type === 'assistant') as AssistantItem
     expect(assistant.thinking).toBe('')
     // reasoningSnapshot should be preserved (set by applyThinkingDelta)
     expect(assistant.reasoningSnapshot).not.toBeNull()

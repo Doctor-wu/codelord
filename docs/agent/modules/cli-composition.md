@@ -6,6 +6,7 @@ This module owns the concrete `codelord` application shell.
 It takes stable lower-level pieces and turns them into a runnable product.
 
 It covers:
+
 - CLI command surface
 - REPL startup and run loop
 - model resolution and runtime assembly
@@ -31,15 +32,15 @@ It covers:
 
 ## Key Files
 
-| Path | Role |
-| --- | --- |
-| `agents/coding-agent/src/bin.ts` | package executable entry |
-| `agents/coding-agent/src/cli/index.ts` | CLI parsing and subcommand dispatch |
-| `agents/coding-agent/src/cli/repl.ts` | REPL orchestration |
-| `agents/coding-agent/src/cli/run.ts` | model resolution and run helpers |
-| `agents/coding-agent/src/cli/tool-kernel.ts` | tool-kernel assembly |
-| `agents/coding-agent/src/cli/system-prompt.ts` | system prompt builder |
-| `agents/coding-agent/src/cli/init.ts` | config init UX |
+| Path                                           | Role                                |
+| ---------------------------------------------- | ----------------------------------- |
+| `agents/coding-agent/src/bin.ts`               | package executable entry            |
+| `agents/coding-agent/src/cli/index.ts`         | CLI parsing and subcommand dispatch |
+| `agents/coding-agent/src/cli/repl.ts`          | REPL orchestration                  |
+| `agents/coding-agent/src/cli/run.ts`           | model resolution and run helpers    |
+| `agents/coding-agent/src/cli/tool-kernel.ts`   | tool-kernel assembly                |
+| `agents/coding-agent/src/cli/system-prompt.ts` | system prompt builder               |
+| `agents/coding-agent/src/cli/init.ts`          | config init UX                      |
 
 ## Invariants
 

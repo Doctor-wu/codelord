@@ -22,10 +22,7 @@ export interface ModelCapabilities {
  * Providers known to stream thinking content (thinking_start/delta/end).
  * Other providers may support reasoning as a parameter but don't stream the thinking process.
  */
-const THINKING_STREAM_PROVIDERS = new Set([
-  'anthropic',
-  'amazon-bedrock',
-])
+const THINKING_STREAM_PROVIDERS = new Set(['anthropic', 'amazon-bedrock'])
 
 /**
  * Resolve model capabilities directly from pi-ai Model object.

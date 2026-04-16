@@ -20,14 +20,14 @@
 
 对你正在做的变更，使用可用的最强级别。
 
-| 级别 | 证据 | 适用场景 |
-| --- | --- | --- |
-| 0 | 仅设计论证 | 永远不足以支撑行为声明 |
-| 1 | 本地 trace 检查 | 检查 events、ledgers 和可见性事实是否存在 |
-| 2 | 固定回归 fixture | 防止 current-focus 区域的重复回归 |
-| 3 | Dogfooding session 证据 | 验证 operator 信任和感知行为 |
-| 4 | Product Eval 套件 | 未来的发布门槛，用于稳定的用户可见行为 |
-| 5 | Research Eval 对比 | 未来的机制对比，跨 prompt/context/model 变体 |
+| 级别 | 证据                    | 适用场景                                     |
+| ---- | ----------------------- | -------------------------------------------- |
+| 0    | 仅设计论证              | 永远不足以支撑行为声明                       |
+| 1    | 本地 trace 检查         | 检查 events、ledgers 和可见性事实是否存在    |
+| 2    | 固定回归 fixture        | 防止 current-focus 区域的重复回归            |
+| 3    | Dogfooding session 证据 | 验证 operator 信任和感知行为                 |
+| 4    | Product Eval 套件       | 未来的发布门槛，用于稳定的用户可见行为       |
+| 5    | Research Eval 对比      | 未来的机制对比，跨 prompt/context/model 变体 |
 
 对于当前 M1X/M2 工作，级别 1–3 是最低有用标准。
 
@@ -36,6 +36,7 @@
 ### Streaming / operator 反馈工作
 
 必须在 trace 或 dogfooding 中展示以下至少一项改进：
+
 - 当 provider thought 存在时，reasoning 可见
 - 当 provider thought 不存在时，存在诚实的 live proxy
 - provisional tool 构建在 stable tool lifecycle 确定之前出现
@@ -45,6 +46,7 @@
 ### Trace 解释工作
 
 必须展示 trace 能回答以下问题之一：
+
 - 为什么没有 thought 可见
 - 为什么某个 tool 出现得晚
 - UI 看起来冻结是因为 provider 行为还是 projection 行为
@@ -53,6 +55,7 @@
 ### 临时状态工作
 
 如果妥协确实不可避免，在以下时机更新 `docs/planning/RoadMap.md` 对应章节和 `docs/planning/Sprint.md`：
+
 - 引入妥协时
 - 妥协形态变化时
 - 产品目标变得更清晰时
@@ -60,16 +63,16 @@
 
 ## M1X + M2 期间优先的 Metrics
 
-| Metric | 含义 | 来源 |
-| --- | --- | --- |
-| `reasoning_visible_rate` | operator 看到 provider thought 或诚实 proxy 的频率 | trace + dogfooding |
-| `first_tool_visible_latency` | tool 变为 operator 可见所需时间 | trace diagnostics |
-| `visible_tool_latency` | 从不可见到可见 tool 状态的产品级间隙 | trace diagnostics |
+| Metric                                      | 含义                                                        | 来源               |
+| ------------------------------------------- | ----------------------------------------------------------- | ------------------ |
+| `reasoning_visible_rate`                    | operator 看到 provider thought 或诚实 proxy 的频率          | trace + dogfooding |
+| `first_tool_visible_latency`                | tool 变为 operator 可见所需时间                             | trace diagnostics  |
+| `visible_tool_latency`                      | 从不可见到可见 tool 状态的产品级间隙                        | trace diagnostics  |
 | `provisional_to_stable_handoff_correctness` | provisional tool 对象是否干净地协调为 stable lifecycle 对象 | trace + UI fixture |
-| `queue_trace_completeness` | queue 的创建、注入、消费和状态转换是否全部被表示 | trace |
-| `interrupt_recovery_clarity` | interrupt / blocked / resumed 状态对 operator 是否可理解 | dogfooding + trace |
-| `reason_quality_coverage` | 带有有意义的 tool-scoped rationale 的 tool calls 占比 | trace + 人工审查 |
-| `operator_trust_signal` | operator 是否不再需要猜测正在发生什么 | dogfooding |
+| `queue_trace_completeness`                  | queue 的创建、注入、消费和状态转换是否全部被表示            | trace              |
+| `interrupt_recovery_clarity`                | interrupt / blocked / resumed 状态对 operator 是否可理解    | dogfooding + trace |
+| `reason_quality_coverage`                   | 带有有意义的 tool-scoped rationale 的 tool calls 占比       | trace + 人工审查   |
+| `operator_trust_signal`                     | operator 是否不再需要猜测正在发生什么                       | dogfooding         |
 
 ## 证明规则
 
@@ -87,6 +90,7 @@
 
 用于发布信心。
 问题：
+
 - agent 是否更易理解？
 - operator 体验是否更安全、更少困惑？
 - 是否回归了 current-focus 行为？
@@ -95,6 +99,7 @@
 
 用于机制对比。
 问题：
+
 - 新策略是否改善了 pass rate、latency、cost 或 trust signal？
 - context/skill/model/routing 变更是否值得其复杂度？
 
@@ -104,6 +109,7 @@
 ## 何时更新本文档
 
 在以下情况更新 `EVALS.md`：
+
 - 仓库开始默认使用更强的证据级别
 - 新的 metric 成为 first-class
 - 发布证明标准变更

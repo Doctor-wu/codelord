@@ -30,13 +30,13 @@ PYTHONPATH=. harbor run -d terminal-bench@2.0 \
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|---|---|---|
-| `CODELORD_API_KEY` | Provider API key | (required) |
-| `MODEL` | Harbor model format `provider/model` | `anthropic/claude-sonnet-4-6` |
-| `N_CONCURRENT` | Parallel tasks | `4` |
-| `LIMIT` | Max tasks to run (empty = all) | (empty) |
-| `CODELORD_REASONING_LEVEL` | Reasoning level | `low` |
+| Variable                   | Description                          | Default                       |
+| -------------------------- | ------------------------------------ | ----------------------------- |
+| `CODELORD_API_KEY`         | Provider API key                     | (required)                    |
+| `MODEL`                    | Harbor model format `provider/model` | `anthropic/claude-sonnet-4-6` |
+| `N_CONCURRENT`             | Parallel tasks                       | `4`                           |
+| `LIMIT`                    | Max tasks to run (empty = all)       | (empty)                       |
+| `CODELORD_REASONING_LEVEL` | Reasoning level                      | `low`                         |
 
 ## Architecture
 

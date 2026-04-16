@@ -66,7 +66,7 @@ export async function loadDataset(cacheDir: string): Promise<BrowseCompEntry[]> 
   if (!resp.ok) throw new Error(`Failed to download dataset: ${resp.status} ${resp.statusText}`)
   const csv = await resp.text()
 
-  const lines = csv.split('\n').filter(l => l.trim())
+  const lines = csv.split('\n').filter((l) => l.trim())
   const header = parseCSVLine(lines[0]!)
   // Dataset uses 'problem' as the question column name
   const qIdx = header.indexOf('problem')

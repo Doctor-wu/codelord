@@ -2,7 +2,15 @@
 // Timeline Projection — reduces LifecycleEvents into a stable view model
 // ---------------------------------------------------------------------------
 
-import type { LifecycleEvent, ToolCallLifecycle, AssistantReasoningState, QuestionDetail, UsageAggregate, SessionSnapshot, PendingQuestion } from '@codelord/core'
+import type {
+  LifecycleEvent,
+  ToolCallLifecycle,
+  AssistantReasoningState,
+  QuestionDetail,
+  UsageAggregate,
+  SessionSnapshot,
+  PendingQuestion,
+} from '@codelord/core'
 import { createToolCallLifecycle } from '@codelord/core'
 
 // ---------------------------------------------------------------------------
@@ -67,13 +75,7 @@ export interface StatusItem {
   timestamp: number
 }
 
-export type TimelineItem =
-  | UserItem
-  | AssistantItem
-  | ToolCallItem
-  | ToolBatchItem
-  | QuestionItem
-  | StatusItem
+export type TimelineItem = UserItem | AssistantItem | ToolCallItem | ToolBatchItem | QuestionItem | StatusItem
 
 // ---------------------------------------------------------------------------
 // TimelineState — the complete view model for Ink
@@ -143,12 +145,15 @@ export function reduceLifecycleEvent(state: TimelineState, event: LifecycleEvent
         isRunning: true,
         // User turn breaks any open batch
         _currentBatchId: null,
-        items: [...state.items, {
-          type: 'user',
-          id: event.id,
-          content: event.content,
-          timestamp: event.timestamp,
-        }],
+        items: [
+          ...state.items,
+          {
+            type: 'user',
+            id: event.id,
+            content: event.content,
+            timestamp: event.timestamp,
+          },
+        ],
       }
 
     case 'assistant_turn_start':
@@ -158,23 +163,26 @@ export function reduceLifecycleEvent(state: TimelineState, event: LifecycleEvent
         _currentBatchId: null,
         _provisionalToolCalls: new Map(),
         stepCount: state.stepCount + 1,
-        items: [...state.items, {
-          type: 'assistant',
-          id: event.id,
-          thinking: '',
-          text: '',
-          isStreaming: true,
-          reasoning: event.reasoning ?? null,
-          reasoningSnapshot: null,
-          liveProxy: event.reasoning ? 'Thinking…' : null,
-          hasProviderThought: false,
-          timestamp: event.timestamp,
-        }],
+        items: [
+          ...state.items,
+          {
+            type: 'assistant',
+            id: event.id,
+            thinking: '',
+            text: '',
+            isStreaming: true,
+            reasoning: event.reasoning ?? null,
+            reasoningSnapshot: null,
+            liveProxy: event.reasoning ? 'Thinking…' : null,
+            hasProviderThought: false,
+            timestamp: event.timestamp,
+          },
+        ],
       }
 
     case 'assistant_turn_end': {
       const items = [...state.items]
-      const idx = findLastIndex(items, i => i.type === 'assistant' && i.id === event.id)
+      const idx = findLastIndex(items, (i) => i.type === 'assistant' && i.id === event.id)
       if (idx !== -1) {
         const item = items[idx] as AssistantItem
         const reasoning = event.reasoning ?? item.reasoning
@@ -230,13 +238,16 @@ export function reduceLifecycleEvent(state: TimelineState, event: LifecycleEvent
         // For error: show the error message in a status item.
         items: event.success
           ? state.items
-          : [...state.items, {
-              type: 'status' as const,
-              id: `status-${nextId}`,
-              status: 'error' as const,
-              message: event.error,
-              timestamp: event.timestamp,
-            }],
+          : [
+              ...state.items,
+              {
+                type: 'status' as const,
+                id: `status-${nextId}`,
+                status: 'error' as const,
+                message: event.error,
+                timestamp: event.timestamp,
+              },
+            ],
       }
     }
 
@@ -245,13 +256,16 @@ export function reduceLifecycleEvent(state: TimelineState, event: LifecycleEvent
       return {
         ...state,
         _nextId: nextId,
-        items: [...state.items, {
-          type: 'status' as const,
-          id: `status-${nextId}`,
-          status: event.success ? 'info' as const : 'error' as const,
-          message: event.message,
-          timestamp: event.timestamp,
-        }],
+        items: [
+          ...state.items,
+          {
+            type: 'status' as const,
+            id: `status-${nextId}`,
+            status: event.success ? ('info' as const) : ('error' as const),
+            message: event.message,
+            timestamp: event.timestamp,
+          },
+        ],
       }
     }
 
@@ -298,20 +312,21 @@ function reduceToolCallEvent(
   }
 
   // Check if this tool call already exists in a batch
-  const existingBatchIdx = findLastIndex(items, i =>
-    i.type === 'tool_batch' && (i as ToolBatchItem).toolCalls.some(t => t.id === tc.id),
+  const existingBatchIdx = findLastIndex(
+    items,
+    (i) => i.type === 'tool_batch' && (i as ToolBatchItem).toolCalls.some((t) => t.id === tc.id),
   )
 
   if (existingBatchIdx !== -1) {
     // Update existing tool call within its batch
     const batch = items[existingBatchIdx] as ToolBatchItem
-    const updatedToolCalls = batch.toolCalls.map(t => t.id === tc.id ? tc : t)
+    const updatedToolCalls = batch.toolCalls.map((t) => (t.id === tc.id ? tc : t))
     items[existingBatchIdx] = { ...batch, toolCalls: updatedToolCalls }
     return { ...state, items }
   }
 
   // Check if this tool call exists as a standalone item (legacy / single)
-  const existingStandaloneIdx = findLastIndex(items, i => i.type === 'tool_call' && i.id === tc.id)
+  const existingStandaloneIdx = findLastIndex(items, (i) => i.type === 'tool_call' && i.id === tc.id)
   if (existingStandaloneIdx !== -1) {
     items[existingStandaloneIdx] = { type: 'tool_call', id: tc.id, toolCall: tc }
     return { ...state, items }
@@ -321,7 +336,7 @@ function reduceToolCallEvent(
   if (event.type === 'tool_call_created' && state._currentAssistantTurnId) {
     // Try to append to current open batch
     if (state._currentBatchId) {
-      const batchIdx = findLastIndex(items, i => i.type === 'tool_batch' && i.id === state._currentBatchId)
+      const batchIdx = findLastIndex(items, (i) => i.type === 'tool_batch' && i.id === state._currentBatchId)
       if (batchIdx !== -1) {
         const batch = items[batchIdx] as ToolBatchItem
         const assistantItem = findAssistantItem(items, state._currentAssistantTurnId)
@@ -373,7 +388,7 @@ function handoffProvisionalToStable(items: TimelineItem[], stableTc: ToolCallLif
     }
     if (item.type === 'tool_batch') {
       const batch = item as ToolBatchItem
-      const tcIdx = batch.toolCalls.findIndex(tc => tc.id === stableTc.id && tc.provisionalId)
+      const tcIdx = batch.toolCalls.findIndex((tc) => tc.id === stableTc.id && tc.provisionalId)
       if (tcIdx !== -1) {
         const updatedTcs = [...batch.toolCalls]
         updatedTcs[tcIdx] = stableTc
@@ -400,7 +415,7 @@ function handoffProvisionalByProvId(items: TimelineItem[], stableTc: ToolCallLif
     }
     if (item.type === 'tool_batch') {
       const batch = item as ToolBatchItem
-      const tcIdx = batch.toolCalls.findIndex(tc => tc.provisionalId && tc.id === tc.provisionalId)
+      const tcIdx = batch.toolCalls.findIndex((tc) => tc.provisionalId && tc.id === tc.provisionalId)
       if (tcIdx !== -1) {
         const updatedTcs = [...batch.toolCalls]
         updatedTcs[tcIdx] = stableTc
@@ -426,7 +441,7 @@ function findAssistantItem(items: TimelineItem[], turnId: string): AssistantItem
 
 export function applyThinkingDelta(state: TimelineState, delta: string): TimelineState {
   const items = [...state.items]
-  const idx = findLastIndex(items, i => i.type === 'assistant' && (i as AssistantItem).isStreaming)
+  const idx = findLastIndex(items, (i) => i.type === 'assistant' && (i as AssistantItem).isStreaming)
   if (idx !== -1) {
     const item = items[idx] as AssistantItem
     const newThinking = item.thinking + delta
@@ -438,7 +453,7 @@ export function applyThinkingDelta(state: TimelineState, delta: string): Timelin
 
 export function applyTextDelta(state: TimelineState, delta: string): TimelineState {
   const items = [...state.items]
-  const idx = findLastIndex(items, i => i.type === 'assistant' && (i as AssistantItem).isStreaming)
+  const idx = findLastIndex(items, (i) => i.type === 'assistant' && (i as AssistantItem).isStreaming)
   if (idx !== -1) {
     const item = items[idx] as AssistantItem
     items[idx] = { ...item, text: item.text + delta }
@@ -503,9 +518,7 @@ export function applyToolCallDelta(
 
   // Update live proxy
   const argsPreview = formatArgsPreview(args)
-  const proxyText = argsPreview
-    ? `正在构建 ${toolName}(${argsPreview})…`
-    : `正在构建 ${toolName} 调用…`
+  const proxyText = argsPreview ? `正在构建 ${toolName}(${argsPreview})…` : `正在构建 ${toolName} 调用…`
   updateAssistantLiveProxy(items, state._currentAssistantTurnId, proxyText)
 
   // Find and update the provisional tool call
@@ -581,7 +594,7 @@ function formatProvisionalCommand(toolName: string, args: Record<string, unknown
 /** Update the liveProxy field on the current streaming assistant item */
 function updateAssistantLiveProxy(items: TimelineItem[], turnId: string | null, proxy: string): void {
   if (!turnId) return
-  const idx = findLastIndex(items, i => i.type === 'assistant' && i.id === turnId)
+  const idx = findLastIndex(items, (i) => i.type === 'assistant' && i.id === turnId)
   if (idx !== -1) {
     const item = items[idx] as AssistantItem
     // Only set live proxy if provider hasn't sent real thoughts
@@ -606,7 +619,7 @@ function updateProvisionalToolCall(
     }
     if (item.type === 'tool_batch') {
       const batch = item as ToolBatchItem
-      const tcIdx = batch.toolCalls.findIndex(tc => tc.id === provisionalId)
+      const tcIdx = batch.toolCalls.findIndex((tc) => tc.id === provisionalId)
       if (tcIdx !== -1) {
         const updatedTcs = [...batch.toolCalls]
         updatedTcs[tcIdx] = updater(updatedTcs[tcIdx]!)
@@ -624,7 +637,7 @@ function addProvisionalToolCall(state: TimelineState, tc: ToolCallLifecycle): Ti
   if (state._currentAssistantTurnId) {
     // Try to append to current open batch
     if (state._currentBatchId) {
-      const batchIdx = findLastIndex(items, i => i.type === 'tool_batch' && i.id === state._currentBatchId)
+      const batchIdx = findLastIndex(items, (i) => i.type === 'tool_batch' && i.id === state._currentBatchId)
       if (batchIdx !== -1) {
         const batch = items[batchIdx] as ToolBatchItem
         const assistantItem = findAssistantItem(items, state._currentAssistantTurnId)
@@ -699,7 +712,7 @@ export interface TimelineSnapshot {
 /** Extract a serializable snapshot from timeline state */
 export function captureTimelineSnapshot(state: TimelineState): TimelineSnapshot {
   return {
-    items: state.items.map(item => {
+    items: state.items.map((item) => {
       if (item.type === 'assistant') {
         return { ...item, isStreaming: false, liveProxy: null }
       }
@@ -777,7 +790,7 @@ export function reconcileTimelineForResume(
   }
 
   // --- Remove stale control items ---
-  const items = state.items.filter(item => {
+  const items = state.items.filter((item) => {
     // Remove question items if runtime has no pending question
     if (item.type === 'question' && !snapshot.pendingQuestion) return false
     return true

@@ -160,24 +160,12 @@ export function runTest(exercise: ExerciseInfo): { passed: boolean; output: stri
  */
 export function checkLanguagePrereqs(language: string): string | null {
   const checks: Record<string, { command: string; errorHint: string }[]> = {
-    python: [
-      { command: 'python3 -m pytest --version', errorHint: 'pytest not found. Install: pip3 install pytest' },
-    ],
-    javascript: [
-      { command: 'npm --version', errorHint: 'npm not found. Install Node.js' },
-    ],
-    rust: [
-      { command: 'cargo --version', errorHint: 'cargo not found. Install Rust: https://rustup.rs' },
-    ],
-    go: [
-      { command: 'go version', errorHint: 'go not found. Install Go: https://go.dev/dl/' },
-    ],
-    cpp: [
-      { command: 'cmake --version', errorHint: 'cmake not found. Install: brew install cmake' },
-    ],
-    java: [
-      { command: 'gradle --version', errorHint: 'gradle not found. Install: brew install gradle' },
-    ],
+    python: [{ command: 'python3 -m pytest --version', errorHint: 'pytest not found. Install: pip3 install pytest' }],
+    javascript: [{ command: 'npm --version', errorHint: 'npm not found. Install Node.js' }],
+    rust: [{ command: 'cargo --version', errorHint: 'cargo not found. Install Rust: https://rustup.rs' }],
+    go: [{ command: 'go version', errorHint: 'go not found. Install Go: https://go.dev/dl/' }],
+    cpp: [{ command: 'cmake --version', errorHint: 'cmake not found. Install: brew install cmake' }],
+    java: [{ command: 'gradle --version', errorHint: 'gradle not found. Install: brew install gradle' }],
   }
 
   const langChecks = checks[language]

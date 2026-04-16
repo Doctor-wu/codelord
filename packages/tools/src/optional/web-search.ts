@@ -18,9 +18,7 @@ const tool: Tool = {
   ].join(' '),
   parameters: Type.Object({
     query: Type.String({ description: 'The search query string.' }),
-    limit: Type.Optional(
-      Type.Number({ description: 'Maximum number of results to return. Defaults to 5, max 20.' }),
-    ),
+    limit: Type.Optional(Type.Number({ description: 'Maximum number of results to return. Defaults to 5, max 20.' })),
     reason: Type.Optional(
       Type.String({ description: 'Brief explanation of why you are calling this tool for this specific step.' }),
     ),
@@ -44,7 +42,11 @@ function createWebSearchHandler(ctx: ToolPluginContext): ToolHandler {
     }
     const query = args.query as string | undefined
     if (!query || typeof query !== 'string') {
-      return { output: 'ERROR [INVALID_ARGS]: query is required and must be a string.', isError: true, errorCode: 'INVALID_ARGS' }
+      return {
+        output: 'ERROR [INVALID_ARGS]: query is required and must be a string.',
+        isError: true,
+        errorCode: 'INVALID_ARGS',
+      }
     }
 
     const limit = Math.min(Math.max(1, Number(args.limit) || 5), 20)
@@ -72,7 +74,7 @@ function createWebSearchHandler(ctx: ToolPluginContext): ToolHandler {
         }
       }
 
-      const data = await response.json() as {
+      const data = (await response.json()) as {
         results?: Array<{ title?: string; url?: string; content?: string }>
       }
 
@@ -81,17 +83,23 @@ function createWebSearchHandler(ctx: ToolPluginContext): ToolHandler {
         return { output: `No results found for "${query}".`, isError: false }
       }
 
-      const formatted = results.map((r, i) => {
-        const title = r.title ?? '(no title)'
-        const url = r.url ?? '(no url)'
-        const snippet = r.content ?? '(no snippet)'
-        return `${i + 1}. ${title}\n   URL: ${url}\n   ${snippet}`
-      }).join('\n\n')
+      const formatted = results
+        .map((r, i) => {
+          const title = r.title ?? '(no title)'
+          const url = r.url ?? '(no url)'
+          const snippet = r.content ?? '(no snippet)'
+          return `${i + 1}. ${title}\n   URL: ${url}\n   ${snippet}`
+        })
+        .join('\n\n')
 
       return { output: `Found ${results.length} results for "${query}":\n\n${formatted}`, isError: false }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'TimeoutError') {
-        return { output: 'ERROR [NETWORK_ERROR]: Tavily API request timed out after 30s.', isError: true, errorCode: 'NETWORK_ERROR' }
+        return {
+          output: 'ERROR [NETWORK_ERROR]: Tavily API request timed out after 30s.',
+          isError: true,
+          errorCode: 'NETWORK_ERROR',
+        }
       }
       return {
         output: `ERROR [NETWORK_ERROR]: ${err instanceof Error ? err.message : String(err)}`,
@@ -118,9 +126,7 @@ const contract: ToolContract = {
     'Do not use for reading local files — use file_read.',
     'Do not use for searching code in the current project — use search.',
   ],
-  preconditions: [
-    'TAVILY_API_KEY must be configured (via environment variable or tool config).',
-  ],
+  preconditions: ['TAVILY_API_KEY must be configured (via environment variable or tool config).'],
   failureSemantics: [
     'CONFIG_ERROR: Tavily API key not configured.',
     'INVALID_ARGS: query is missing.',

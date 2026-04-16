@@ -17,12 +17,22 @@ export class InputBridge {
   private _runtimeQueue: RuntimeQueueInfo | null = null
   private _reasoningLevel = 'high'
 
-  get isActive(): boolean { return this._isActive }
-  get isRunning(): boolean { return this._isRunning }
-  get runtimeQueue(): RuntimeQueueInfo | null { return this._runtimeQueue }
-  get reasoningLevel(): string { return this._reasoningLevel }
+  get isActive(): boolean {
+    return this._isActive
+  }
+  get isRunning(): boolean {
+    return this._isRunning
+  }
+  get runtimeQueue(): RuntimeQueueInfo | null {
+    return this._runtimeQueue
+  }
+  get reasoningLevel(): string {
+    return this._reasoningLevel
+  }
 
-  setOnChange(callback: () => void): void { this._onChange = callback }
+  setOnChange(callback: () => void): void {
+    this._onChange = callback
+  }
 
   setReasoningLevel(level: string): void {
     this._reasoningLevel = level
@@ -41,9 +51,15 @@ export class InputBridge {
     this._onChange?.()
   }
 
-  setQueueTarget(enqueue: (text: string) => void): void { this._queueTarget = enqueue }
-  setInterruptHandler(handler: () => void): void { this._interruptHandler = handler }
-  setExitHandler(handler: () => void): void { this._exitHandler = handler }
+  setQueueTarget(enqueue: (text: string) => void): void {
+    this._queueTarget = enqueue
+  }
+  setInterruptHandler(handler: () => void): void {
+    this._interruptHandler = handler
+  }
+  setExitHandler(handler: () => void): void {
+    this._exitHandler = handler
+  }
 
   submit(text: string): void {
     const isSlashCommand = text.trimStart().startsWith('/')
@@ -57,11 +73,17 @@ export class InputBridge {
     }
   }
 
-  interrupt(): void { this._interruptHandler?.() }
-  exit(): void { this._exitHandler?.() }
+  interrupt(): void {
+    this._interruptHandler?.()
+  }
+  exit(): void {
+    this._exitHandler?.()
+  }
 
   waitForInput(): Promise<string | null> {
-    return new Promise(resolve => { this._resolve = resolve })
+    return new Promise((resolve) => {
+      this._resolve = resolve
+    })
   }
 
   close(): void {

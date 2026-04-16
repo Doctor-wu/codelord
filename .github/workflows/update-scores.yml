@@ -83,8 +83,8 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "[eval] Update ${{ steps.detect.outputs.benchmark }} scores"
-          title: "[eval] Update ${{ steps.detect.outputs.benchmark }} scores"
+          commit-message: '[eval] Update ${{ steps.detect.outputs.benchmark }} scores'
+          title: '[eval] Update ${{ steps.detect.outputs.benchmark }} scores'
           body: |
             Automated score update from [CI run](https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}).
 

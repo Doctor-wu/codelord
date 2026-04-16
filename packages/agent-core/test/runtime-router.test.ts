@@ -75,10 +75,15 @@ describe('Runtime + ToolRouter integration', () => {
     })
 
     streamSimpleMock
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'toolcall_end', toolCall },
-        { type: 'done', message: assistantWithTool },
-      ], assistantWithTool))
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall },
+            { type: 'done', message: assistantWithTool },
+          ],
+          assistantWithTool,
+        ),
+      )
       .mockReturnValueOnce(makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant))
 
     const rt = new AgentRuntime({
@@ -94,19 +99,18 @@ describe('Runtime + ToolRouter integration', () => {
     await rt.run()
 
     // file_read handler was called, not bash
-    expect(fileReadHandler).toHaveBeenCalledWith(
-      { file_path: 'src/index.ts' },
-      expect.anything(),
-    )
+    expect(fileReadHandler).toHaveBeenCalledWith({ file_path: 'src/index.ts' }, expect.anything())
     expect(toolHandlers.get('bash')).not.toHaveBeenCalled()
 
     // History: toolResult message reflects file_read, not bash
-    const toolResultMsg = rt.messages.find(m => m.role === 'toolResult')
+    const toolResultMsg = rt.messages.find((m) => m.role === 'toolResult')
     expect(toolResultMsg).toBeDefined()
     expect((toolResultMsg as any).toolName).toBe('file_read')
 
     // History: assistant message's tool call was rewritten
-    const assistantMsg = rt.messages.find(m => m.role === 'assistant' && (m as any).content?.some?.((c: any) => c.type === 'toolCall'))
+    const assistantMsg = rt.messages.find(
+      (m) => m.role === 'assistant' && (m as any).content?.some?.((c: any) => c.type === 'toolCall'),
+    )
     const rewrittenTc = (assistantMsg as any).content.find((c: any) => c.type === 'toolCall')
     expect(rewrittenTc.name).toBe('file_read')
     expect(rewrittenTc.arguments).toEqual({ file_path: 'src/index.ts' })
@@ -124,9 +128,7 @@ describe('Runtime + ToolRouter integration', () => {
       isError: false,
     }))
 
-    const toolHandlers = new Map<string, ToolHandler>([
-      ['bash', bashHandler],
-    ])
+    const toolHandlers = new Map<string, ToolHandler>([['bash', bashHandler]])
 
     const toolCall = {
       type: 'toolCall',
@@ -145,10 +147,15 @@ describe('Runtime + ToolRouter integration', () => {
     })
 
     streamSimpleMock
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'toolcall_end', toolCall },
-        { type: 'done', message: assistantWithTool },
-      ], assistantWithTool))
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall },
+            { type: 'done', message: assistantWithTool },
+          ],
+          assistantWithTool,
+        ),
+      )
       .mockReturnValueOnce(makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant))
 
     const rt = new AgentRuntime({
@@ -170,7 +177,7 @@ describe('Runtime + ToolRouter integration', () => {
     expect(rt.routeRecords).toHaveLength(0)
 
     // History reflects bash
-    const toolResultMsg = rt.messages.find(m => m.role === 'toolResult')
+    const toolResultMsg = rt.messages.find((m) => m.role === 'toolResult')
     expect((toolResultMsg as any).toolName).toBe('bash')
   })
 
@@ -194,10 +201,13 @@ describe('Runtime + ToolRouter integration', () => {
     })
 
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'toolcall_end', toolCall },
-        { type: 'done', message: assistantWithAsk },
-      ], assistantWithAsk),
+      makeEventStream(
+        [
+          { type: 'toolcall_end', toolCall },
+          { type: 'done', message: assistantWithAsk },
+        ],
+        assistantWithAsk,
+      ),
     )
 
     const rt = new AgentRuntime({
@@ -225,9 +235,7 @@ describe('Runtime + ToolRouter integration', () => {
       isError: false,
     }))
 
-    const toolHandlers = new Map<string, ToolHandler>([
-      ['file_read', fileReadHandler],
-    ])
+    const toolHandlers = new Map<string, ToolHandler>([['file_read', fileReadHandler]])
 
     const toolCall = {
       type: 'toolCall',
@@ -246,10 +254,15 @@ describe('Runtime + ToolRouter integration', () => {
     })
 
     streamSimpleMock
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'toolcall_end', toolCall },
-        { type: 'done', message: assistantWithTool },
-      ], assistantWithTool))
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall },
+            { type: 'done', message: assistantWithTool },
+          ],
+          assistantWithTool,
+        ),
+      )
       .mockReturnValueOnce(makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant))
 
     const rt = new AgentRuntime({

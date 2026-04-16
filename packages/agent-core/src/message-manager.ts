@@ -13,12 +13,14 @@ export class MessageManager {
   readonly messages: Message[] = []
   private _pendingInbound: Message[] = []
 
-  get pendingInboundCount(): number { return this._pendingInbound.length }
+  get pendingInboundCount(): number {
+    return this._pendingInbound.length
+  }
 
   get pendingInboundPreviews(): string[] {
     return this._pendingInbound
-      .filter(m => m.role === 'user' && typeof m.content === 'string')
-      .map(m => m.content as string)
+      .filter((m) => m.role === 'user' && typeof m.content === 'string')
+      .map((m) => m.content as string)
   }
 
   enqueue(message: Message): void {
@@ -39,13 +41,15 @@ export class MessageManager {
     this.messages.push(...drained)
     this._pendingInbound = []
     const userParts = drained
-      .filter(m => m.role === 'user' && typeof m.content === 'string')
-      .map(m => m.content as string)
+      .filter((m) => m.role === 'user' && typeof m.content === 'string')
+      .map((m) => m.content as string)
     return { drained, userParts }
   }
 
   /** Export pending inbound for snapshot. */
-  exportPending(): Message[] { return [...this._pendingInbound] }
+  exportPending(): Message[] {
+    return [...this._pendingInbound]
+  }
 
   /** Restore from snapshot. */
   hydrate(messages: Message[], pendingInbound: Message[]): void {

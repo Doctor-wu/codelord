@@ -5,13 +5,15 @@ import type { EvalResult } from '../src/index.js'
 
 describe('renderSummaryMarkdown', () => {
   it('renders overview, cases, and benchmark-specific extension tables', () => {
-    registerBenchmarkRenderer('polyglot', () => [
-      '### By Language',
-      '',
-      '| language | total | pass@1 | pass@2 | pass_rate_1 | pass_rate_2 |',
-      '| --- | --- | --- | --- | --- | --- |',
-      '| python | 1 | 1 | 1 | 1.000 | 1.000 |',
-    ].join('\n'))
+    registerBenchmarkRenderer('polyglot', () =>
+      [
+        '### By Language',
+        '',
+        '| language | total | pass@1 | pass@2 | pass_rate_1 | pass_rate_2 |',
+        '| --- | --- | --- | --- | --- | --- |',
+        '| python | 1 | 1 | 1 | 1.000 | 1.000 |',
+      ].join('\n'),
+    )
 
     const result: EvalResult = {
       benchmark: 'polyglot',

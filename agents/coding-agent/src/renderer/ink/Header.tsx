@@ -38,16 +38,20 @@ export function Header({ version, cwd, provider, model, reasoningLevel }: Header
   return (
     <Box flexDirection="column" marginTop={1}>
       {LOGO.map((line, i) => (
-        <Text key={i} color={APP_COLOR} bold>{line}</Text>
+        <Text key={i} color={APP_COLOR} bold>
+          {line}
+        </Text>
       ))}
-      <Text dimColor>  v{version}</Text>
+      <Text dimColor> v{version}</Text>
       <Text> </Text>
       <Box>
-        <Text dimColor>  {shortenHome(cwd)} · </Text>
-        <Text color={brand.color}>{brand.symbol} {model}</Text>
+        <Text dimColor> {shortenHome(cwd)} · </Text>
+        <Text color={brand.color}>
+          {brand.symbol} {model}
+        </Text>
         <Text dimColor> · reasoning:{reasoningLevel}</Text>
       </Box>
-      <Text dimColor>  Type /help for commands</Text>
+      <Text dimColor> Type /help for commands</Text>
       <Text dimColor>{GLYPH.thinRule.repeat(cols)}</Text>
     </Box>
   )

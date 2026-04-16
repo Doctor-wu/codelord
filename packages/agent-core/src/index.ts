@@ -41,7 +41,13 @@ export { assertUniqueToolNames, assertUniqueContractToolNames } from './tool-reg
 
 export type { ToolPlugin, ToolPluginContext } from './tool-plugin.js'
 
-export { createToolCallLifecycle, _resetProvisionalIdCounter, createReasoningState, projectDisplayReason, createUsageAggregate } from './events.js'
+export {
+  createToolCallLifecycle,
+  _resetProvisionalIdCounter,
+  createReasoningState,
+  projectDisplayReason,
+  createUsageAggregate,
+} from './events.js'
 export type {
   ToolCallLifecycle,
   ToolCallPhase,
@@ -69,10 +75,20 @@ export { redact, previewText, safePreview } from './redact.js'
 export type { RedactionHit, RedactionResult } from './redact.js'
 
 export type {
-  TraceRun, TraceStep, TraceEvent,
-  TraceLLMCall, TraceToolExecution, TraceQueueMessage, TraceAskUser, TraceUserInterrupt,
-  TraceRunV2, TraceStepV2, TraceEventEntry, TraceSegment,
-  ProviderStreamTraceEvent, LifecycleTraceEvent,
+  TraceRun,
+  TraceStep,
+  TraceEvent,
+  TraceLLMCall,
+  TraceToolExecution,
+  TraceQueueMessage,
+  TraceAskUser,
+  TraceUserInterrupt,
+  TraceRunV2,
+  TraceStepV2,
+  TraceEventEntry,
+  TraceSegment,
+  ProviderStreamTraceEvent,
+  LifecycleTraceEvent,
 } from './trace.js'
 export { normalizeTrace } from './trace.js'
 

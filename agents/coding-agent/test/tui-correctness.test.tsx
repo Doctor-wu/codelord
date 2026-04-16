@@ -9,7 +9,14 @@ import {
   applyTextDelta,
   captureTimelineSnapshot,
 } from '../src/renderer/ink/timeline-projection.js'
-import type { TimelineState, AssistantItem, UserItem, QuestionItem, StatusItem, ToolCallItem } from '../src/renderer/ink/timeline-projection.js'
+import type {
+  TimelineState,
+  AssistantItem,
+  UserItem,
+  QuestionItem,
+  StatusItem,
+  ToolCallItem,
+} from '../src/renderer/ink/timeline-projection.js'
 import { TimelineStore } from '../src/renderer/ink/timeline-store.js'
 import { InputBridge } from '../src/renderer/ink/input-bridge.js'
 import { createToolCallLifecycle, _resetProvisionalIdCounter, createReasoningState } from '@codelord/core'
@@ -26,7 +33,10 @@ function storeFromState(state: TimelineState): TimelineStore {
   return store
 }
 
-function makeInputBridge(running = false, queue?: { pendingInboundCount: number; pendingInboundPreviews: string[] }): InputBridge {
+function makeInputBridge(
+  running = false,
+  queue?: { pendingInboundCount: number; pendingInboundPreviews: string[] },
+): InputBridge {
   const bridge = new InputBridge()
   bridge.setActive(true)
   if (running) bridge.setRunning(true, queue)
@@ -36,7 +46,15 @@ function makeInputBridge(running = false, queue?: { pendingInboundCount: number;
 function renderApp(state: TimelineState, opts?: { withInput?: boolean }): string {
   const bridge = opts?.withInput ? makeInputBridge(state.isRunning) : null
   return renderToString(
-    <App store={storeFromState(state)} inputBridge={bridge} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
+    <App
+      store={storeFromState(state)}
+      inputBridge={bridge}
+      version="0.0.1"
+      cwd="/test"
+      provider="test"
+      model="test"
+      reasoningLevel="high"
+    />,
   )
 }
 
@@ -45,9 +63,19 @@ function simulateFullTurn(initialState?: TimelineState): TimelineState {
   // User turn
   state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'hello', timestamp: 1 })
   // Assistant turn
-  state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+  state = reduceLifecycleEvent(state, {
+    type: 'assistant_turn_start',
+    id: 'a1',
+    reasoning: createReasoningState(),
+    timestamp: 2,
+  })
   state = applyTextDelta(state, 'The answer is 42.')
-  state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: { ...createReasoningState(), status: 'completed' }, timestamp: 3 })
+  state = reduceLifecycleEvent(state, {
+    type: 'assistant_turn_end',
+    id: 'a1',
+    reasoning: { ...createReasoningState(), status: 'completed' },
+    timestamp: 3,
+  })
   // Session done (success)
   state = reduceLifecycleEvent(state, { type: 'session_done', success: true, text: 'The answer is 42.', timestamp: 4 })
   return state
@@ -63,7 +91,7 @@ describe('Final result deduplication', () => {
   it('success session_done does not add a status item (text already in AssistantItem)', () => {
     const state = simulateFullTurn()
     // Should have: user, assistant — no 'done' status item
-    const types = state.items.map(i => i.type)
+    const types = state.items.map((i) => i.type)
     expect(types).toEqual(['user', 'assistant'])
     expect(types).not.toContain('status')
   })
@@ -77,7 +105,12 @@ describe('Final result deduplication', () => {
 
   it('error session_done still adds an error status item', () => {
     let state = createInitialTimelineState()
-    state = reduceLifecycleEvent(state, { type: 'session_done', success: false, error: 'Max steps exceeded', timestamp: 1 })
+    state = reduceLifecycleEvent(state, {
+      type: 'session_done',
+      success: false,
+      error: 'Max steps exceeded',
+      timestamp: 1,
+    })
     const last = state.items[state.items.length - 1] as StatusItem
     expect(last.type).toBe('status')
     expect(last.status).toBe('error')
@@ -93,20 +126,14 @@ describe('REPL stdout ownership', () => {
   it('REPL module does not import readline', async () => {
     // Structural test: the repl module should not import readline
     const { readFileSync } = await import('node:fs')
-    const replSource = readFileSync(
-      new URL('../src/cli/repl.ts', import.meta.url),
-      'utf-8',
-    )
+    const replSource = readFileSync(new URL('../src/cli/repl.ts', import.meta.url), 'utf-8')
     expect(replSource).not.toContain("from 'node:readline'")
     expect(replSource).not.toContain('require(')
   })
 
   it('REPL module does not use console.log or console.error', async () => {
     const { readFileSync } = await import('node:fs')
-    const replSource = readFileSync(
-      new URL('../src/cli/repl.ts', import.meta.url),
-      'utf-8',
-    )
+    const replSource = readFileSync(new URL('../src/cli/repl.ts', import.meta.url), 'utf-8')
     expect(replSource).not.toContain('console.log')
     expect(replSource).not.toContain('console.error')
   })
@@ -122,7 +149,7 @@ describe('User input in timeline', () => {
   it('user_turn adds exactly one UserItem', () => {
     let state = createInitialTimelineState()
     state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'hello world', timestamp: 1 })
-    const userItems = state.items.filter(i => i.type === 'user')
+    const userItems = state.items.filter((i) => i.type === 'user')
     expect(userItems).toHaveLength(1)
     expect((userItems[0] as UserItem).content).toBe('hello world')
   })
@@ -158,7 +185,7 @@ describe('Question display deduplication', () => {
       question: 'What color?',
       timestamp: 1,
     })
-    const questionItems = state.items.filter(i => i.type === 'question')
+    const questionItems = state.items.filter((i) => i.type === 'question')
     expect(questionItems).toHaveLength(1)
   })
 
@@ -185,7 +212,12 @@ describe('Tool streaming correctness', () => {
 
   it('tool stdout updates are reflected in timeline', () => {
     let state = createInitialTimelineState()
-    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'echo hi' }, command: 'echo hi' })
+    const tc = createToolCallLifecycle({
+      id: 'tc-1',
+      toolName: 'bash',
+      args: { command: 'echo hi' },
+      command: 'echo hi',
+    })
     tc.phase = 'executing'
     state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: { ...tc } })
 
@@ -211,7 +243,12 @@ describe('Tool streaming correctness', () => {
 
   it('assistant text streaming works via deltas', () => {
     let state = createInitialTimelineState()
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+    state = reduceLifecycleEvent(state, {
+      type: 'assistant_turn_start',
+      id: 'a1',
+      reasoning: createReasoningState(),
+      timestamp: 1,
+    })
     state = applyTextDelta(state, 'hello ')
     state = applyTextDelta(state, 'world')
 
@@ -222,8 +259,16 @@ describe('Tool streaming correctness', () => {
 
   it('assistant thinking is shown as compact summary, not raw dump', () => {
     let state = createInitialTimelineState()
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
-    state = applyThinkingDelta(state, 'I need to check the project structure first. Then I will look at the config files.')
+    state = reduceLifecycleEvent(state, {
+      type: 'assistant_turn_start',
+      id: 'a1',
+      reasoning: createReasoningState(),
+      timestamp: 1,
+    })
+    state = applyThinkingDelta(
+      state,
+      'I need to check the project structure first. Then I will look at the config files.',
+    )
 
     const item = state.items[0] as AssistantItem
     // Raw thinking is still stored in the item
@@ -246,18 +291,33 @@ describe('Timeline ordering stability', () => {
   it('items appear in chronological order across a full turn', () => {
     let state = createInitialTimelineState()
     state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'hi', timestamp: 1 })
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+    state = reduceLifecycleEvent(state, {
+      type: 'assistant_turn_start',
+      id: 'a1',
+      reasoning: createReasoningState(),
+      timestamp: 2,
+    })
     const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'ls', args: {}, command: 'ls' })
     state = reduceLifecycleEvent(state, { type: 'tool_call_created', toolCall: tc })
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 3 })
+    state = reduceLifecycleEvent(state, {
+      type: 'assistant_turn_end',
+      id: 'a1',
+      reasoning: createReasoningState(),
+      timestamp: 3,
+    })
 
-    expect(state.items.map(i => i.type)).toEqual(['user', 'assistant', 'tool_call'])
+    expect(state.items.map((i) => i.type)).toEqual(['user', 'assistant', 'tool_call'])
   })
 
   it('all items have stable ids (not purely index-based)', () => {
     let state = createInitialTimelineState()
     state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'hi', timestamp: 1 })
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+    state = reduceLifecycleEvent(state, {
+      type: 'assistant_turn_start',
+      id: 'a1',
+      reasoning: createReasoningState(),
+      timestamp: 2,
+    })
     state = reduceLifecycleEvent(state, { type: 'blocked_enter', reason: 'waiting_user', question: 'Q?', timestamp: 3 })
 
     for (const item of state.items) {
@@ -286,17 +346,37 @@ describe('Timeline ordering stability', () => {
     let state = createInitialTimelineState(true)
     // Turn 1
     state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'first', timestamp: 1 })
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+    state = reduceLifecycleEvent(state, {
+      type: 'assistant_turn_start',
+      id: 'a1',
+      reasoning: createReasoningState(),
+      timestamp: 2,
+    })
     state = applyTextDelta(state, 'response 1')
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 3 })
+    state = reduceLifecycleEvent(state, {
+      type: 'assistant_turn_end',
+      id: 'a1',
+      reasoning: createReasoningState(),
+      timestamp: 3,
+    })
     state = reduceLifecycleEvent(state, { type: 'session_done', success: true, text: 'response 1', timestamp: 4 })
     // Turn 2
     state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u2', content: 'second', timestamp: 5 })
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a2', reasoning: createReasoningState(), timestamp: 6 })
+    state = reduceLifecycleEvent(state, {
+      type: 'assistant_turn_start',
+      id: 'a2',
+      reasoning: createReasoningState(),
+      timestamp: 6,
+    })
     state = applyTextDelta(state, 'response 2')
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a2', reasoning: createReasoningState(), timestamp: 7 })
+    state = reduceLifecycleEvent(state, {
+      type: 'assistant_turn_end',
+      id: 'a2',
+      reasoning: createReasoningState(),
+      timestamp: 7,
+    })
 
-    expect(state.items.map(i => i.type)).toEqual(['user', 'assistant', 'user', 'assistant'])
+    expect(state.items.map((i) => i.type)).toEqual(['user', 'assistant', 'user', 'assistant'])
     expect((state.items[0] as UserItem).content).toBe('first')
     expect((state.items[2] as UserItem).content).toBe('second')
   })
@@ -376,8 +456,19 @@ describe('ToolCallCard production display', () => {
   beforeEach(() => _resetProvisionalIdCounter())
 
   it('renders route info when tool was routed', () => {
-    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'file_read', args: { file_path: 'x.ts' }, command: 'x.ts' })
-    tc.route = { wasRouted: true, ruleId: 'bash_cat', originalToolName: 'bash', originalArgs: { command: 'cat x.ts' }, reason: 'cat → Read' }
+    const tc = createToolCallLifecycle({
+      id: 'tc-1',
+      toolName: 'file_read',
+      args: { file_path: 'x.ts' },
+      command: 'x.ts',
+    })
+    tc.route = {
+      wasRouted: true,
+      ruleId: 'bash_cat',
+      originalToolName: 'bash',
+      originalArgs: { command: 'cat x.ts' },
+      reason: 'cat → Read',
+    }
     tc.phase = 'completed'
     tc.result = 'file contents'
     tc.completedAt = Date.now()
@@ -392,7 +483,12 @@ describe('ToolCallCard production display', () => {
   })
 
   it('renders safety blocked prominently', () => {
-    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'rm -rf /' }, command: 'rm -rf /' })
+    const tc = createToolCallLifecycle({
+      id: 'tc-1',
+      toolName: 'bash',
+      args: { command: 'rm -rf /' },
+      command: 'rm -rf /',
+    })
     tc.safety = { riskLevel: 'dangerous', allowed: false, ruleId: 'rm_rf', reason: 'destructive command' }
     tc.phase = 'blocked'
     tc.isError = true
@@ -421,7 +517,12 @@ describe('ToolCallCard production display', () => {
   })
 
   it('renders completion with duration', () => {
-    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'echo hi' }, command: 'echo hi' })
+    const tc = createToolCallLifecycle({
+      id: 'tc-1',
+      toolName: 'bash',
+      args: { command: 'echo hi' },
+      command: 'echo hi',
+    })
     tc.phase = 'completed'
     tc.result = 'hi'
     tc.executionStartedAt = 1000
@@ -453,7 +554,15 @@ describe('Session mode in composer', () => {
     })
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge()} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
+      <App
+        store={storeFromState(state)}
+        inputBridge={makeInputBridge()}
+        version="0.0.1"
+        cwd="/test"
+        provider="test"
+        model="test"
+        reasoningLevel="high"
+      />,
     )
     expect(output).toContain('answer the question')
   })
@@ -465,7 +574,15 @@ describe('Session mode in composer', () => {
     }
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge(true)} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
+      <App
+        store={storeFromState(state)}
+        inputBridge={makeInputBridge(true)}
+        version="0.0.1"
+        cwd="/test"
+        provider="test"
+        model="test"
+        reasoningLevel="high"
+      />,
     )
     expect(output).toContain('working')
     expect(output).toContain('Esc to interrupt')
@@ -481,7 +598,12 @@ describe('Thinking vs working convergence', () => {
 
   it('renders thinking as a bounded viewport, not a full dump', () => {
     let state = createInitialTimelineState()
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+    state = reduceLifecycleEvent(state, {
+      type: 'assistant_turn_start',
+      id: 'a1',
+      reasoning: createReasoningState(),
+      timestamp: 1,
+    })
     // Add many lines of thinking — only the last 5 should be visible
     for (let i = 1; i <= 10; i++) {
       state = applyThinkingDelta(state, `Thought line ${i}.\n`)
@@ -502,7 +624,15 @@ describe('Thinking vs working convergence', () => {
     }
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge(true)} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
+      <App
+        store={storeFromState(state)}
+        inputBridge={makeInputBridge(true)}
+        version="0.0.1"
+        cwd="/test"
+        provider="test"
+        model="test"
+        reasoningLevel="high"
+      />,
     )
     // Composer shows working — this is the authoritative running indicator
     expect(output).toContain('working')
@@ -510,13 +640,23 @@ describe('Thinking vs working convergence', () => {
 
   it('settled provider thought preserves viewport, not single-line summary', () => {
     let state = createInitialTimelineState()
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1 })
+    state = reduceLifecycleEvent(state, {
+      type: 'assistant_turn_start',
+      id: 'a1',
+      reasoning: createReasoningState(),
+      timestamp: 1,
+    })
     for (let i = 1; i <= 8; i++) {
       state = applyThinkingDelta(state, `Settled line ${i}.\n`)
     }
     state = applyTextDelta(state, 'Final answer.')
     // End the turn — settled
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: { ...createReasoningState(), status: 'completed' }, timestamp: 2 })
+    state = reduceLifecycleEvent(state, {
+      type: 'assistant_turn_end',
+      id: 'a1',
+      reasoning: { ...createReasoningState(), status: 'completed' },
+      timestamp: 2,
+    })
 
     const output = renderApp(state)
     // Latest lines should still be visible even after settling
@@ -539,7 +679,15 @@ describe('Composer always visible', () => {
     }
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge(true)} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
+      <App
+        store={storeFromState(state)}
+        inputBridge={makeInputBridge(true)}
+        version="0.0.1"
+        cwd="/test"
+        provider="test"
+        model="test"
+        reasoningLevel="high"
+      />,
     )
     // Prompt character should be visible even when disabled
     expect(output).toContain('>')
@@ -550,7 +698,15 @@ describe('Composer always visible', () => {
     const state = createInitialTimelineState(true)
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge()} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
+      <App
+        store={storeFromState(state)}
+        inputBridge={makeInputBridge()}
+        version="0.0.1"
+        cwd="/test"
+        provider="test"
+        model="test"
+        reasoningLevel="high"
+      />,
     )
     expect(output).toContain('>')
     expect(output).toContain('Enter to send')
@@ -572,9 +728,19 @@ describe('User lane identity', () => {
   it('user and assistant items are visually distinct', () => {
     let state = createInitialTimelineState()
     state = reduceLifecycleEvent(state, { type: 'user_turn', id: 'u1', content: 'my message', timestamp: 1 })
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 2 })
+    state = reduceLifecycleEvent(state, {
+      type: 'assistant_turn_start',
+      id: 'a1',
+      reasoning: createReasoningState(),
+      timestamp: 2,
+    })
     state = applyTextDelta(state, 'assistant reply')
-    state = reduceLifecycleEvent(state, { type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 3 })
+    state = reduceLifecycleEvent(state, {
+      type: 'assistant_turn_end',
+      id: 'a1',
+      reasoning: createReasoningState(),
+      timestamp: 3,
+    })
 
     const output = renderApp(state)
     // User has YOU label, assistant does not
@@ -601,7 +767,12 @@ describe('ToolCallCard progressive execution', () => {
   })
 
   it('completed tool card has dimmed border', () => {
-    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'echo hi' }, command: 'echo hi' })
+    const tc = createToolCallLifecycle({
+      id: 'tc-1',
+      toolName: 'bash',
+      args: { command: 'echo hi' },
+      command: 'echo hi',
+    })
     tc.phase = 'completed'
     tc.result = 'hi'
     tc.completedAt = Date.now()
@@ -629,7 +800,15 @@ describe('Queue input during running', () => {
     }
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge(true)} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
+      <App
+        store={storeFromState(state)}
+        inputBridge={makeInputBridge(true)}
+        version="0.0.1"
+        cwd="/test"
+        provider="test"
+        model="test"
+        reasoningLevel="high"
+      />,
     )
     // Prompt should be visible
     expect(output).toContain('>')
@@ -644,7 +823,18 @@ describe('Queue input during running', () => {
     }
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge(true, { pendingInboundCount: 2, pendingInboundPreviews: ['fix the bug', 'then run tests'] })} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
+      <App
+        store={storeFromState(state)}
+        inputBridge={makeInputBridge(true, {
+          pendingInboundCount: 2,
+          pendingInboundPreviews: ['fix the bug', 'then run tests'],
+        })}
+        version="0.0.1"
+        cwd="/test"
+        provider="test"
+        model="test"
+        reasoningLevel="high"
+      />,
     )
     expect(output).toContain('2 queued')
   })
@@ -656,7 +846,18 @@ describe('Queue input during running', () => {
     }
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge(true, { pendingInboundCount: 2, pendingInboundPreviews: ['fix the bug', 'then run tests'] })} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
+      <App
+        store={storeFromState(state)}
+        inputBridge={makeInputBridge(true, {
+          pendingInboundCount: 2,
+          pendingInboundPreviews: ['fix the bug', 'then run tests'],
+        })}
+        version="0.0.1"
+        cwd="/test"
+        provider="test"
+        model="test"
+        reasoningLevel="high"
+      />,
     )
     expect(output).toContain('fix the bug')
     expect(output).toContain('then run tests')
@@ -670,7 +871,15 @@ describe('Queue input during running', () => {
     }
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge(true, { pendingInboundCount: 1, pendingInboundPreviews: [longMsg] })} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
+      <App
+        store={storeFromState(state)}
+        inputBridge={makeInputBridge(true, { pendingInboundCount: 1, pendingInboundPreviews: [longMsg] })}
+        version="0.0.1"
+        cwd="/test"
+        provider="test"
+        model="test"
+        reasoningLevel="high"
+      />,
     )
     // Should be truncated with ellipsis
     expect(output).toContain('…')
@@ -684,7 +893,15 @@ describe('Queue input during running', () => {
     }
 
     const output = renderToString(
-      <App store={storeFromState(state)} inputBridge={makeInputBridge(true)} version="0.0.1" cwd="/test" provider="test" model="test" reasoningLevel="high" />,
+      <App
+        store={storeFromState(state)}
+        inputBridge={makeInputBridge(true)}
+        version="0.0.1"
+        cwd="/test"
+        provider="test"
+        model="test"
+        reasoningLevel="high"
+      />,
     )
     expect(output).not.toContain('queued')
   })

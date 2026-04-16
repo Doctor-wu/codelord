@@ -5,7 +5,12 @@ import {
   captureTimelineSnapshot,
   reconcileTimelineForResume,
 } from '../src/renderer/ink/timeline-projection.js'
-import type { TimelineState, QuestionItem, StatusItem, TimelineSnapshot } from '../src/renderer/ink/timeline-projection.js'
+import type {
+  TimelineState,
+  QuestionItem,
+  StatusItem,
+  TimelineSnapshot,
+} from '../src/renderer/ink/timeline-projection.js'
 import type { SessionSnapshot, PendingQuestion } from '@codelord/core'
 import { createReasoningState, createUsageAggregate } from '@codelord/core'
 
@@ -107,7 +112,7 @@ describe('reconcileTimelineForResume', () => {
     })
 
     // Should have exactly one question item (from timeline), not duplicated
-    const questions = state.items.filter(i => i.type === 'question')
+    const questions = state.items.filter((i) => i.type === 'question')
     expect(questions).toHaveLength(1)
   })
 
@@ -125,7 +130,7 @@ describe('reconcileTimelineForResume', () => {
       interruptedDuring: 'STREAMING',
     })
 
-    const interrupts = state.items.filter(i => i.type === 'status' && (i as StatusItem).status === 'interrupted')
+    const interrupts = state.items.filter((i) => i.type === 'status' && (i as StatusItem).status === 'interrupted')
     expect(interrupts).toHaveLength(0)
   })
 
@@ -167,7 +172,7 @@ describe('reconcileTimelineForResume', () => {
       interruptedDuring: null,
     })
 
-    const questions = state.items.filter(i => i.type === 'question')
+    const questions = state.items.filter((i) => i.type === 'question')
     expect(questions).toHaveLength(0)
   })
 

@@ -11,10 +11,7 @@ export interface Pipeable<TDelta, TFinal> {
 
 // --- Full implementation (held by runtime) ---
 
-type State<TFinal> =
-  | { kind: 'active' }
-  | { kind: 'completed'; value: TFinal }
-  | { kind: 'errored'; error: Error }
+type State<TFinal> = { kind: 'active' } | { kind: 'completed'; value: TFinal } | { kind: 'errored'; error: Error }
 
 const noop: Unsubscribe = () => {}
 
@@ -58,7 +55,9 @@ export class PipeableImpl<TDelta, TFinal> implements Pipeable<TDelta, TFinal> {
   subscribe(handler: (delta: TDelta) => void): Unsubscribe {
     if (this._state.kind !== 'active') return noop
     this._subscribers.add(handler)
-    return () => { this._subscribers.delete(handler) }
+    return () => {
+      this._subscribers.delete(handler)
+    }
   }
 
   done(): Promise<TFinal> {

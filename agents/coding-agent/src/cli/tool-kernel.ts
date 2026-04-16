@@ -21,11 +21,7 @@ export interface ToolKernelOptions {
   config: CodelordConfig
 }
 
-function assertUniqueNames(
-  names: readonly string[],
-  label: string,
-  scope: string,
-): void {
+function assertUniqueNames(names: readonly string[], label: string, scope: string): void {
   const seen = new Set<string>()
 
   for (const name of names) {
@@ -55,9 +51,7 @@ export function createToolKernel(options: ToolKernelOptions): ToolKernel {
 
     // Check required environment variables (skip silently if not available)
     if (plugin.requiredEnv && plugin.requiredEnv.length > 0) {
-      const hasEnv = plugin.requiredEnv.every(
-        (key: string) => process.env[key] || toolConfig?.[key],
-      )
+      const hasEnv = plugin.requiredEnv.every((key: string) => process.env[key] || toolConfig?.[key])
       if (!hasEnv) continue
     }
 
@@ -86,8 +80,16 @@ export function createToolKernel(options: ToolKernelOptions): ToolKernel {
   // Keep only the contract here so the system prompt documents it once.
   contracts.push(askUserQuestionContract)
 
-  assertUniqueNames(tools.map((tool) => tool.name), 'tool name', 'tool kernel assembly')
-  assertUniqueNames(contracts.map((contract) => contract.toolName), 'tool contract', 'tool kernel assembly')
+  assertUniqueNames(
+    tools.map((tool) => tool.name),
+    'tool name',
+    'tool kernel assembly',
+  )
+  assertUniqueNames(
+    contracts.map((contract) => contract.toolName),
+    'tool contract',
+    'tool kernel assembly',
+  )
 
   const router = new ToolRouter(contracts)
   const safetyPolicy = new ToolSafetyPolicy({ cwd, riskMap })

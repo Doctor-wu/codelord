@@ -6,9 +6,9 @@ import { InkRenderer } from '../renderer/index.js'
 import type { InteractiveRenderer } from '../renderer/index.js'
 
 export function readVersion(): string {
-  const packageJson = JSON.parse(
-    readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'),
-  ) as { version: string }
+  const packageJson = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf-8')) as {
+    version: string
+  }
   return packageJson.version
 }
 
@@ -19,8 +19,7 @@ export function resolveModel(config: CodelordConfig): Model<Api> {
   if (!model) {
     const availableModels = models.map((candidate) => candidate.id).join(', ')
     throw new Error(
-      `Unknown model "${config.model}" for provider "${config.provider}". ` +
-      `Available models: ${availableModels}`,
+      `Unknown model "${config.model}" for provider "${config.provider}". ` + `Available models: ${availableModels}`,
     )
   }
 

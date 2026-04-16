@@ -34,40 +34,41 @@
 
 ## 按任务类型的阅读顺序
 
-| 任务 | 先读 |
-| --- | --- |
-| 全仓设计 / 优先级决策 | `docs/planning/Sprint.md` → `docs/planning/RoadMap.md` → `docs/system/ARCHITECTURE.md` |
-| current-focus 子系统工作 | `docs/planning/Sprint.md` → `docs/planning/RoadMap.md` 中对应章节 |
-| Runtime / queue / interrupt / resume | `packages/agent-core/AGENTS.md` → `docs/agent/modules/runtime.md` |
-| Tool contracts / router / safety | `packages/agent-core/AGENTS.md` → `docs/agent/modules/tool-platform.md` |
-| Event / trace / redaction / diagnostics | `packages/agent-core/AGENTS.md` → `docs/agent/modules/observability.md` |
-| CLI / REPL / system prompt 组装 | `agents/coding-agent/AGENTS.md` → `docs/agent/modules/cli-composition.md` |
-| Ink renderer / timeline projection | `agents/coding-agent/AGENTS.md` → `docs/agent/modules/renderer.md` |
-| Session store / trace store / undo | `agents/coding-agent/AGENTS.md` → `docs/agent/modules/persistence.md` |
-| Config schema / 加载 | `packages/config/AGENTS.md` → `docs/agent/modules/config.md` |
-| Provider 凭证 / OAuth | `agents/coding-agent/AGENTS.md` → `docs/agent/modules/auth.md` |
-| 长期 roadmap 推演 | `docs/planning/RoadMap.md` → `docs/planning/DecisionLog.md` |
+| 任务                                    | 先读                                                                                   |
+| --------------------------------------- | -------------------------------------------------------------------------------------- |
+| 全仓设计 / 优先级决策                   | `docs/planning/Sprint.md` → `docs/planning/RoadMap.md` → `docs/system/ARCHITECTURE.md` |
+| current-focus 子系统工作                | `docs/planning/Sprint.md` → `docs/planning/RoadMap.md` 中对应章节                      |
+| Runtime / queue / interrupt / resume    | `packages/agent-core/AGENTS.md` → `docs/agent/modules/runtime.md`                      |
+| Tool contracts / router / safety        | `packages/agent-core/AGENTS.md` → `docs/agent/modules/tool-platform.md`                |
+| Event / trace / redaction / diagnostics | `packages/agent-core/AGENTS.md` → `docs/agent/modules/observability.md`                |
+| CLI / REPL / system prompt 组装         | `agents/coding-agent/AGENTS.md` → `docs/agent/modules/cli-composition.md`              |
+| Ink renderer / timeline projection      | `agents/coding-agent/AGENTS.md` → `docs/agent/modules/renderer.md`                     |
+| Session store / trace store / undo      | `agents/coding-agent/AGENTS.md` → `docs/agent/modules/persistence.md`                  |
+| Config schema / 加载                    | `packages/config/AGENTS.md` → `docs/agent/modules/config.md`                           |
+| Provider 凭证 / OAuth                   | `agents/coding-agent/AGENTS.md` → `docs/agent/modules/auth.md`                         |
+| 长期 roadmap 推演                       | `docs/planning/RoadMap.md` → `docs/planning/DecisionLog.md`                            |
 
 ## 文档地图
 
-| 路径 | 职责 | 不应包含 |
-| --- | --- | --- |
-| `README.md` | 面向人类/operator 的入口、快速上手、文档索引 | 细粒度 agent 指令 |
-| `AGENTS.md` | Agent 入口规则、阅读顺序、权威顺序、文档路由 | 长篇哲学论述、sprint 内部细节、模块内部细节 |
-| `docs/planning/RoadMap.md` | 长期能力地图、里程碑意图、硬性门槛 | 短半衰期的执行排序 |
-| `docs/planning/Sprint.md` | 当前 sprint 合约、进度、未关闭缺口、下一切片 | 完整历史归档 |
-| `docs/planning/DecisionLog.md` | 优先级或框架变更的原因记录 | 规范性执行规则 |
-| `docs/planning/archive/sprints/*.md` | 已完成 sprint 的历史归档 | 当前活跃 sprint |
-| `docs/system/ARCHITECTURE.md` | 稳定分层、依赖方向、source-of-truth 规则、系统流程 | 临时 workaround、当前 sprint 排序 |
-| `docs/system/DesignPrinciples.md` | 跨领域设计规则与权衡 | 目录级别的编辑指令 |
-| `docs/system/EVALS.md` | 证据要求、metrics、证明标准 | 历史决策日记 |
-| `docs/agent/modules/*.md` | 稳定的模块摘要、所有权边界、编辑入口 | 历史讨论、每日进度 |
+| 路径                                 | 职责                                               | 不应包含                                    |
+| ------------------------------------ | -------------------------------------------------- | ------------------------------------------- |
+| `README.md`                          | 面向人类/operator 的入口、快速上手、文档索引       | 细粒度 agent 指令                           |
+| `AGENTS.md`                          | Agent 入口规则、阅读顺序、权威顺序、文档路由       | 长篇哲学论述、sprint 内部细节、模块内部细节 |
+| `docs/planning/RoadMap.md`           | 长期能力地图、里程碑意图、硬性门槛                 | 短半衰期的执行排序                          |
+| `docs/planning/Sprint.md`            | 当前 sprint 合约、进度、未关闭缺口、下一切片       | 完整历史归档                                |
+| `docs/planning/DecisionLog.md`       | 优先级或框架变更的原因记录                         | 规范性执行规则                              |
+| `docs/planning/archive/sprints/*.md` | 已完成 sprint 的历史归档                           | 当前活跃 sprint                             |
+| `docs/system/ARCHITECTURE.md`        | 稳定分层、依赖方向、source-of-truth 规则、系统流程 | 临时 workaround、当前 sprint 排序           |
+| `docs/system/DesignPrinciples.md`    | 跨领域设计规则与权衡                               | 目录级别的编辑指令                          |
+| `docs/system/EVALS.md`               | 证据要求、metrics、证明标准                        | 历史决策日记                                |
+| `docs/agent/modules/*.md`            | 稳定的模块摘要、所有权边界、编辑入口               | 历史讨论、每日进度                          |
 
 ## Sprint 生命周期
 
 从 `docs/planning/Sprint.md` 出发工作，不要直接从 `docs/planning/RoadMap.md` 出发。
 
 当一个 sprint 关闭时：
+
 - 更新 `docs/planning/RoadMap.md`
 - 如果不可避免地做了妥协，将其目标状态和剩余缺口直接写入 `docs/planning/RoadMap.md` 对应章节和 `docs/planning/Sprint.md`
 - 如果路线或框架发生变更，更新 `docs/planning/DecisionLog.md`
@@ -76,14 +77,14 @@
 
 ## 仓库地图
 
-| 路径 | 含义 |
-| --- | --- |
-| `packages/config` | Config schema 与分层加载 |
-| `packages/agent-core` | 可复用 engine、tools、event spine、trace schema |
+| 路径                  | 含义                                                     |
+| --------------------- | -------------------------------------------------------- |
+| `packages/config`     | Config schema 与分层加载                                 |
+| `packages/agent-core` | 可复用 engine、tools、event spine、trace schema          |
 | `agents/coding-agent` | CLI app shell、REPL、renderer、auth、stores、checkpoints |
-| `docs/planning` | 面向 owner 的规划与 sprint 控制 |
-| `docs/system` | 稳定的设计与架构规则 |
-| `docs/agent/modules` | 面向 agent 的模块摘要 |
+| `docs/planning`       | 面向 owner 的规划与 sprint 控制                          |
+| `docs/system`         | 稳定的设计与架构规则                                     |
+| `docs/agent/modules`  | 面向 agent 的模块摘要                                    |
 
 ## 强制更新规则
 

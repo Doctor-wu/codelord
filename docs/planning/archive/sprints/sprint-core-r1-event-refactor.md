@@ -33,15 +33,15 @@
 
 从 raw events 聚合投射出的语义回调，每个回调带 **Pipeable** 值：
 
-| Callback | Pipeable 内容 | 完成态 |
-|----------|--------------|--------|
-| `onStart` | — | — |
-| `onText(event)` | `text_delta` | full text |
-| `onThinking(event)` | `thinking_delta` | full thinking |
+| Callback            | Pipeable 内容               | 完成态         |
+| ------------------- | --------------------------- | -------------- |
+| `onStart`           | —                           | —              |
+| `onText(event)`     | `text_delta`                | full text      |
+| `onThinking(event)` | `thinking_delta`            | full thinking  |
 | `onToolCall(event)` | `executing → result` 状态流 | ToolCallResult |
-| `onError(event)` | — | error info |
-| `onAbort(event)` | — | abort info |
-| `onDone(event)` | — | final outcome |
+| `onError(event)`    | —                           | error info     |
+| `onAbort(event)`    | —                           | abort info     |
+| `onDone(event)`     | —                           | final outcome  |
 
 ### Pipeable 原语
 
@@ -54,12 +54,12 @@ interface Pipeable<TDelta, TFinal> {
 
 ### 消费者接入方式
 
-| 消费者 | 接入方式 |
-|--------|---------|
-| **Streaming UI** | subscribe pipeable → 拿 delta 驱动渲染 |
-| **Headless** | await `.done()` 拿完成态 |
-| **Trace 默认** | 监听 lifecycle 完成态 → 按时间序记录 trajectory |
-| **Trace --raw** | 默认 trace + Layer 0 raw events |
+| 消费者           | 接入方式                                        |
+| ---------------- | ----------------------------------------------- |
+| **Streaming UI** | subscribe pipeable → 拿 delta 驱动渲染          |
+| **Headless**     | await `.done()` 拿完成态                        |
+| **Trace 默认**   | 监听 lifecycle 完成态 → 按时间序记录 trajectory |
+| **Trace --raw**  | 默认 trace + Layer 0 raw events                 |
 
 ---
 

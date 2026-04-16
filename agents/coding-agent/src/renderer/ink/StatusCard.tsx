@@ -17,7 +17,9 @@ export function StatusCard({ item }: { item: StatusItem }) {
   if (item.status === 'error') {
     return (
       <Box marginTop={1}>
-        <Text color={LANE.error} bold>{GLYPH.phaseFail} ERROR </Text>
+        <Text color={LANE.error} bold>
+          {GLYPH.phaseFail} ERROR{' '}
+        </Text>
         <Text color={LANE.error}>{item.message}</Text>
       </Box>
     )

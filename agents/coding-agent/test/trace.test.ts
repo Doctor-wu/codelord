@@ -29,12 +29,23 @@ const recorderOpts = {
 function makeUsageAggregate(): UsageAggregate {
   return {
     ...createUsageAggregate(),
-    input: 100, output: 50, cacheRead: 30, cacheWrite: 10, totalTokens: 190,
+    input: 100,
+    output: 50,
+    cacheRead: 30,
+    cacheWrite: 10,
+    totalTokens: 190,
     cost: { input: 0.001, output: 0.002, cacheRead: 0.0003, cacheWrite: 0.0001, total: 0.0034 },
     llmCalls: 1,
     lastCall: {
-      model: 'claude-3', provider: 'anthropic', stopReason: 'stop', latencyMs: 500,
-      input: 100, output: 50, cacheRead: 30, cacheWrite: 10, totalTokens: 190,
+      model: 'claude-3',
+      provider: 'anthropic',
+      stopReason: 'stop',
+      latencyMs: 500,
+      input: 100,
+      output: 50,
+      cacheRead: 30,
+      cacheWrite: 10,
+      totalTokens: 190,
       cost: { input: 0.001, output: 0.002, cacheRead: 0.0003, cacheWrite: 0.0001, total: 0.0034 },
     },
   }
@@ -42,9 +53,20 @@ function makeUsageAggregate(): UsageAggregate {
 
 function makeProviderEvent(overrides: Partial<ProviderStreamTraceEvent> = {}): ProviderStreamTraceEvent {
   return {
-    eventId: 1, seq: 0, type: 'text_delta', timestamp: Date.now(), step: 1, turnId: 'a1',
-    source: 'provider_stream', contentIndex: 0, toolCallId: null, toolName: null,
-    deltaPreview: 'hello', contentPreview: null, argsPreview: null, stopReason: null,
+    eventId: 1,
+    seq: 0,
+    type: 'text_delta',
+    timestamp: Date.now(),
+    step: 1,
+    turnId: 'a1',
+    source: 'provider_stream',
+    contentIndex: 0,
+    toolCallId: null,
+    toolName: null,
+    deltaPreview: 'hello',
+    contentPreview: null,
+    argsPreview: null,
+    stopReason: null,
     ...overrides,
   }
 }
@@ -72,7 +94,7 @@ describe('TraceRecorder v2', () => {
     expect(trace.steps).toHaveLength(1)
 
     const step = trace.steps[0]
-    const lCount = step.events.filter(e => e.source === 'lifecycle_event').length
+    const lCount = step.events.filter((e) => e.source === 'lifecycle_event').length
     expect(lCount).toBeGreaterThanOrEqual(2)
 
     expect(trace.eventCounts.providerStream).toBe(0)
@@ -88,11 +110,13 @@ describe('TraceRecorder v2', () => {
     rec.onLifecycleEvent({ type: 'tool_call_created', toolCall: tc })
 
     // tool_call_updated — should be skipped
-    tc.phase = 'executing'; tc.executionStartedAt = 1050
+    tc.phase = 'executing'
+    tc.executionStartedAt = 1050
     rec.onLifecycleEvent({ type: 'tool_call_updated', toolCall: { ...tc } })
 
     // tool_call_completed — should be recorded
-    tc.phase = 'completed'; tc.completedAt = 1100
+    tc.phase = 'completed'
+    tc.completedAt = 1100
     rec.onLifecycleEvent({ type: 'tool_call_completed', toolCall: { ...tc } })
 
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1200 })
@@ -100,11 +124,11 @@ describe('TraceRecorder v2', () => {
     const trace = rec.finalize({ type: 'success', text: '' })
     const step = trace.steps[0]
 
-    const completedTc = step.events.find(e => e.source === 'lifecycle_event' && e.type === 'tool_call_completed')
+    const completedTc = step.events.find((e) => e.source === 'lifecycle_event' && e.type === 'tool_call_completed')
     expect(completedTc).toBeDefined()
 
-    const createdTc = step.events.find(e => e.type === 'tool_call_created')
-    const updatedTc = step.events.find(e => e.type === 'tool_call_updated')
+    const createdTc = step.events.find((e) => e.type === 'tool_call_created')
+    const updatedTc = step.events.find((e) => e.type === 'tool_call_updated')
     expect(createdTc).toBeUndefined()
     expect(updatedTc).toBeUndefined()
   })
@@ -113,15 +137,19 @@ describe('TraceRecorder v2', () => {
     const rec = new TraceRecorder({ ...recorderOpts, rawMode: true })
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
 
-    rec.onProviderStreamEvent(makeProviderEvent({
-      step: 1, turnId: 'a1', type: 'text_delta',
-      deltaPreview: 'key: sk-aaaabbbbccccddddeeeeffffgggg',
-    }))
+    rec.onProviderStreamEvent(
+      makeProviderEvent({
+        step: 1,
+        turnId: 'a1',
+        type: 'text_delta',
+        deltaPreview: 'key: sk-aaaabbbbccccddddeeeeffffgggg',
+      }),
+    )
 
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1100 })
     const trace = rec.finalize({ type: 'success', text: '' })
 
-    const delta = trace.steps[0].events.find(e => e.source === 'provider_stream' && e.type === 'text_delta') as any
+    const delta = trace.steps[0].events.find((e) => e.source === 'provider_stream' && e.type === 'text_delta') as any
     expect(delta.deltaPreview).toContain('[REDACTED:API_KEY]')
     expect(delta.deltaPreview).not.toContain('sk-aaaa')
   })
@@ -131,17 +159,19 @@ describe('TraceRecorder v2', () => {
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
     rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'text_delta' }))
     rec.onLifecycleEvent({ type: 'usage_updated', usage: makeUsageAggregate(), timestamp: 1500 })
-    rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'done', stopReason: 'stop', eventId: 2 }))
+    rec.onProviderStreamEvent(
+      makeProviderEvent({ step: 1, turnId: 'a1', type: 'done', stopReason: 'stop', eventId: 2 }),
+    )
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1700 })
 
     const trace = rec.finalize({ type: 'success', text: '' })
     const step = trace.steps[0]
 
     // Collect all seqs across layers
-    const allSeqs = step.events.map(e => e.seq).sort((a, b) => a - b)
+    const allSeqs = step.events.map((e) => e.seq).toSorted((a, b) => a - b)
 
     // All seqs should be unique and positive
-    expect(allSeqs.every(s => s > 0)).toBe(true)
+    expect(allSeqs.every((s) => s > 0)).toBe(true)
     expect(new Set(allSeqs).size).toBe(allSeqs.length)
   })
 
@@ -154,31 +184,46 @@ describe('TraceRecorder v2', () => {
 
     const trace = rec.finalize({ type: 'success', text: 'ok' })
     expect(trace.runEvents.length).toBeGreaterThanOrEqual(1)
-    expect(trace.runEvents.some(e => e.type === 'session_done')).toBe(true)
+    expect(trace.runEvents.some((e) => e.type === 'session_done')).toBe(true)
     // Should NOT be in step events
     for (const step of trace.steps) {
-      expect(step.events.some(e => e.type === 'session_done')).toBe(false)
+      expect(step.events.some((e) => e.type === 'session_done')).toBe(false)
     }
   })
 
   it('queue_drained without currentStep goes to runEvents', () => {
     const rec = new TraceRecorder(recorderOpts)
     // No step started — queue_drained should go to run-level
-    rec.onLifecycleEvent({ type: 'queue_drained', count: 2, messages: [{ content: 'a', enqueuedAt: 900 }, { content: 'b', enqueuedAt: 950 }], injectedAt: 1000 })
+    rec.onLifecycleEvent({
+      type: 'queue_drained',
+      count: 2,
+      messages: [
+        { content: 'a', enqueuedAt: 900 },
+        { content: 'b', enqueuedAt: 950 },
+      ],
+      injectedAt: 1000,
+    })
 
     const trace = rec.finalize({ type: 'success', text: '' })
-    expect(trace.runEvents.some(e => e.type === 'queue_drained')).toBe(true)
-    const qd = trace.runEvents.find(e => e.type === 'queue_drained')! as any
+    expect(trace.runEvents.some((e) => e.type === 'queue_drained')).toBe(true)
+    const qd = trace.runEvents.find((e) => e.type === 'queue_drained')! as any
     expect(qd.count).toBe(2)
     expect(qd.messageCount).toBe(2)
   })
 
   it('question_answered without currentStep goes to runEvents', () => {
     const rec = new TraceRecorder(recorderOpts)
-    rec.onLifecycleEvent({ type: 'question_answered', question: 'Which?', whyAsk: 'Need', askedAt: 1000, answer: 'pg', answeredAt: 2000 })
+    rec.onLifecycleEvent({
+      type: 'question_answered',
+      question: 'Which?',
+      whyAsk: 'Need',
+      askedAt: 1000,
+      answer: 'pg',
+      answeredAt: 2000,
+    })
 
     const trace = rec.finalize({ type: 'success', text: '' })
-    expect(trace.runEvents.some(e => e.type === 'question_answered')).toBe(true)
+    expect(trace.runEvents.some((e) => e.type === 'question_answered')).toBe(true)
   })
 
   it('step-internal events stay in step events, not run-level', () => {
@@ -189,8 +234,8 @@ describe('TraceRecorder v2', () => {
 
     const trace = rec.finalize({ type: 'success', text: '' })
     // usage_updated should be in step, not run-level
-    expect(trace.steps[0].events.some(e => e.type === 'usage_updated')).toBe(true)
-    expect(trace.runEvents.some(e => e.type === 'usage_updated')).toBe(false)
+    expect(trace.steps[0].events.some((e) => e.type === 'usage_updated')).toBe(true)
+    expect(trace.runEvents.some((e) => e.type === 'usage_updated')).toBe(false)
   })
 
   // --- Interrupt chain recording ---
@@ -203,7 +248,7 @@ describe('TraceRecorder v2', () => {
 
     const trace = rec.finalize({ type: 'blocked', reason: 'interrupted' })
     const step = trace.steps[0]
-    const reqEvent = step.events.find(e => e.type === 'interrupt_requested') as any
+    const reqEvent = step.events.find((e) => e.type === 'interrupt_requested') as any
     expect(reqEvent).toBeDefined()
     expect(reqEvent!.interruptSource).toBe('sigint')
     expect(reqEvent!.seq).toBeGreaterThan(0)
@@ -218,7 +263,7 @@ describe('TraceRecorder v2', () => {
 
     const trace = rec.finalize({ type: 'blocked', reason: 'interrupted' })
     const step = trace.steps[0]
-    const obsEvent = step.events.find(e => e.type === 'interrupt_observed') as any
+    const obsEvent = step.events.find((e) => e.type === 'interrupt_observed') as any
     expect(obsEvent).toBeDefined()
     expect(obsEvent!.interruptSource).toBe('sigint')
     expect(obsEvent!.requestedAt).not.toBeNull()
@@ -235,9 +280,9 @@ describe('TraceRecorder v2', () => {
 
     const trace = rec.finalize({ type: 'blocked', reason: 'interrupted' })
     const step = trace.steps[0]
-    const reqSeq = step.events.find(e => e.type === 'interrupt_requested')!.seq
-    const obsSeq = step.events.find(e => e.type === 'interrupt_observed')!.seq
-    const blockedSeq = step.events.find(e => e.type === 'blocked_enter' && (e as any).reason === 'interrupted')!.seq
+    const reqSeq = step.events.find((e) => e.type === 'interrupt_requested')!.seq
+    const obsSeq = step.events.find((e) => e.type === 'interrupt_observed')!.seq
+    const blockedSeq = step.events.find((e) => e.type === 'blocked_enter' && (e as any).reason === 'interrupted')!.seq
     expect(reqSeq).toBeLessThan(obsSeq)
     expect(obsSeq).toBeLessThan(blockedSeq)
   })
@@ -248,8 +293,8 @@ describe('TraceRecorder v2', () => {
     rec.recordInterruptRequest('api')
 
     const trace = rec.finalize({ type: 'blocked', reason: 'interrupted' })
-    expect(trace.runEvents.some(e => e.type === 'interrupt_requested')).toBe(true)
-    expect((trace.runEvents.find(e => e.type === 'interrupt_requested') as any)!.interruptSource).toBe('api')
+    expect(trace.runEvents.some((e) => e.type === 'interrupt_requested')).toBe(true)
+    expect((trace.runEvents.find((e) => e.type === 'interrupt_requested') as any)!.interruptSource).toBe('api')
   })
 
   it('interrupt events do not duplicate across step and run-level', () => {
@@ -261,10 +306,10 @@ describe('TraceRecorder v2', () => {
 
     const trace = rec.finalize({ type: 'blocked', reason: 'interrupted' })
     // All interrupt events should be in step, not run-level
-    expect(trace.steps[0].events.filter(e => e.type === 'interrupt_requested')).toHaveLength(1)
-    expect(trace.steps[0].events.filter(e => e.type === 'interrupt_observed')).toHaveLength(1)
-    expect(trace.runEvents.filter(e => e.type === 'interrupt_requested')).toHaveLength(0)
-    expect(trace.runEvents.filter(e => e.type === 'interrupt_observed')).toHaveLength(0)
+    expect(trace.steps[0].events.filter((e) => e.type === 'interrupt_requested')).toHaveLength(1)
+    expect(trace.steps[0].events.filter((e) => e.type === 'interrupt_observed')).toHaveLength(1)
+    expect(trace.runEvents.filter((e) => e.type === 'interrupt_requested')).toHaveLength(0)
+    expect(trace.runEvents.filter((e) => e.type === 'interrupt_observed')).toHaveLength(0)
   })
 
   it('records queue_enqueued event', () => {
@@ -273,7 +318,7 @@ describe('TraceRecorder v2', () => {
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1100 })
     const trace = rec.finalize({ type: 'success', text: '' })
-    const enqueued = trace.runEvents.find(e => e.type === 'queue_enqueued')
+    const enqueued = trace.runEvents.find((e) => e.type === 'queue_enqueued')
     expect(enqueued).toBeDefined()
     expect(enqueued!.source).toBe('lifecycle_event')
     expect((enqueued as any).question).toBe('hello from queue')
@@ -295,7 +340,7 @@ describe('TraceStore v2', () => {
   })
 
   function makeTrace(overrides: Partial<Record<string, unknown>> = {}) {
-    const rec = new TraceRecorder({ ...recorderOpts, ...overrides as any })
+    const rec = new TraceRecorder({ ...recorderOpts, ...(overrides as any) })
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
     rec.onLifecycleEvent({ type: 'usage_updated', usage: makeUsageAggregate(), timestamp: 1500 })
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1700 })
@@ -303,7 +348,8 @@ describe('TraceStore v2', () => {
   }
 
   it('writes to workspace subdirectory', () => {
-    const dir = makeTmpDir(); dirs.push(dir)
+    const dir = makeTmpDir()
+    dirs.push(dir)
     const store = new TraceStore(dir)
     const trace = makeTrace()
     store.save(trace)
@@ -318,7 +364,8 @@ describe('TraceStore v2', () => {
   })
 
   it('load finds trace across workspaces', () => {
-    const dir = makeTmpDir(); dirs.push(dir)
+    const dir = makeTmpDir()
+    dirs.push(dir)
     const store = new TraceStore(dir)
     const trace = makeTrace()
     store.save(trace)
@@ -330,7 +377,8 @@ describe('TraceStore v2', () => {
   })
 
   it('list filters by workspace', () => {
-    const dir = makeTmpDir(); dirs.push(dir)
+    const dir = makeTmpDir()
+    dirs.push(dir)
     const store = new TraceStore(dir)
 
     const t1 = makeTrace()
@@ -344,7 +392,8 @@ describe('TraceStore v2', () => {
   })
 
   it('list --all returns cross-workspace', () => {
-    const dir = makeTmpDir(); dirs.push(dir)
+    const dir = makeTmpDir()
+    dirs.push(dir)
     const store = new TraceStore(dir)
 
     const t1 = makeTrace()
@@ -357,15 +406,20 @@ describe('TraceStore v2', () => {
   })
 
   it('trace on disk is redacted', () => {
-    const dir = makeTmpDir(); dirs.push(dir)
+    const dir = makeTmpDir()
+    dirs.push(dir)
     const store = new TraceStore(dir)
 
     const rec = new TraceRecorder({ ...recorderOpts, rawMode: true })
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
-    rec.onProviderStreamEvent(makeProviderEvent({
-      step: 1, turnId: 'a1', type: 'text_delta',
-      deltaPreview: 'secret: sk-aaaabbbbccccddddeeeeffffgggg',
-    }))
+    rec.onProviderStreamEvent(
+      makeProviderEvent({
+        step: 1,
+        turnId: 'a1',
+        type: 'text_delta',
+        deltaPreview: 'secret: sk-aaaabbbbccccddddeeeeffffgggg',
+      }),
+    )
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1100 })
     const trace = rec.finalize({ type: 'success', text: '' })
     store.save(trace)
@@ -412,7 +466,7 @@ describe('TraceStore prefix matching', () => {
   })
 
   function makeTrace(overrides: Partial<Record<string, unknown>> = {}) {
-    const rec = new TraceRecorder({ ...recorderOpts, ...overrides as any })
+    const rec = new TraceRecorder({ ...recorderOpts, ...(overrides as any) })
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
     rec.onLifecycleEvent({ type: 'usage_updated', usage: makeUsageAggregate(), timestamp: 1500 })
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1700 })
@@ -420,7 +474,8 @@ describe('TraceStore prefix matching', () => {
   }
 
   it('exact id match works', () => {
-    const dir = makeTmpDir(); dirs.push(dir)
+    const dir = makeTmpDir()
+    dirs.push(dir)
     const store = new TraceStore(dir)
     const trace = makeTrace()
     store.save(trace)
@@ -430,7 +485,8 @@ describe('TraceStore prefix matching', () => {
   })
 
   it('unique prefix match works', () => {
-    const dir = makeTmpDir(); dirs.push(dir)
+    const dir = makeTmpDir()
+    dirs.push(dir)
     const store = new TraceStore(dir)
     const trace = makeTrace()
     store.save(trace)
@@ -443,7 +499,8 @@ describe('TraceStore prefix matching', () => {
   })
 
   it('ambiguous prefix returns candidates', () => {
-    const dir = makeTmpDir(); dirs.push(dir)
+    const dir = makeTmpDir()
+    dirs.push(dir)
     const store = new TraceStore(dir)
     const t1 = makeTrace()
     const t2 = makeTrace()
@@ -459,7 +516,8 @@ describe('TraceStore prefix matching', () => {
   })
 
   it('non-existent prefix returns not_found', () => {
-    const dir = makeTmpDir(); dirs.push(dir)
+    const dir = makeTmpDir()
+    dirs.push(dir)
     const store = new TraceStore(dir)
 
     const result = store.findByPrefix('zzzzzzzzz')
@@ -467,7 +525,8 @@ describe('TraceStore prefix matching', () => {
   })
 
   it('load() still works with full id', () => {
-    const dir = makeTmpDir(); dirs.push(dir)
+    const dir = makeTmpDir()
+    dirs.push(dir)
     const store = new TraceStore(dir)
     const trace = makeTrace()
     store.save(trace)
@@ -476,7 +535,8 @@ describe('TraceStore prefix matching', () => {
   })
 
   it('load() works with unique prefix', () => {
-    const dir = makeTmpDir(); dirs.push(dir)
+    const dir = makeTmpDir()
+    dirs.push(dir)
     const store = new TraceStore(dir)
     const trace = makeTrace()
     store.save(trace)
@@ -495,10 +555,39 @@ describe('formatTraceShow debugger view', () => {
     const rec = new TraceRecorder({ ...recorderOpts, rawMode: true })
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
     rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'text_start', contentIndex: 0 }))
-    rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'text_delta', deltaPreview: 'hello', contentIndex: 0, eventId: 2 }))
-    rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'text_delta', deltaPreview: ' world', contentIndex: 0, eventId: 3 }))
-    rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'text_end', contentIndex: 0, contentPreview: 'hello world', eventId: 4 }))
-    rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'done', stopReason: 'stop', eventId: 5 }))
+    rec.onProviderStreamEvent(
+      makeProviderEvent({
+        step: 1,
+        turnId: 'a1',
+        type: 'text_delta',
+        deltaPreview: 'hello',
+        contentIndex: 0,
+        eventId: 2,
+      }),
+    )
+    rec.onProviderStreamEvent(
+      makeProviderEvent({
+        step: 1,
+        turnId: 'a1',
+        type: 'text_delta',
+        deltaPreview: ' world',
+        contentIndex: 0,
+        eventId: 3,
+      }),
+    )
+    rec.onProviderStreamEvent(
+      makeProviderEvent({
+        step: 1,
+        turnId: 'a1',
+        type: 'text_end',
+        contentIndex: 0,
+        contentPreview: 'hello world',
+        eventId: 4,
+      }),
+    )
+    rec.onProviderStreamEvent(
+      makeProviderEvent({ step: 1, turnId: 'a1', type: 'done', stopReason: 'stop', eventId: 5 }),
+    )
     rec.onLifecycleEvent({ type: 'usage_updated', usage: makeUsageAggregate(), timestamp: 1500 })
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1700 })
     return rec.finalize({ type: 'success', text: 'hello world' })
@@ -526,8 +615,15 @@ describe('formatTraceShow debugger view', () => {
   it('summary mode shows tool call with name and args/result', () => {
     const rec = new TraceRecorder(recorderOpts)
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
-    const tc = createToolCallLifecycle({ id: 'tc-1', toolName: 'bash', args: { command: 'echo hello' }, command: 'echo hello' })
-    tc.phase = 'completed'; tc.completedAt = 1100; tc.executionStartedAt = 1050
+    const tc = createToolCallLifecycle({
+      id: 'tc-1',
+      toolName: 'bash',
+      args: { command: 'echo hello' },
+      command: 'echo hello',
+    })
+    tc.phase = 'completed'
+    tc.completedAt = 1100
+    tc.executionStartedAt = 1050
     tc.result = 'hello'
     rec.onLifecycleEvent({ type: 'tool_call_completed', toolCall: tc })
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1200 })
@@ -549,7 +645,7 @@ describe('formatTraceShow debugger view', () => {
     const output = formatTraceShow(trace)
 
     expect(output).toContain('[interrupt] sigint')
-    expect(output).toContain('[blocked] interrupted')
+    expect(output).toContain('Outcome: blocked — interrupted')
   })
 
   it('summary mode shows session_done with reason in unified timeline', () => {
@@ -583,12 +679,20 @@ describe('formatTraceShow debugger view', () => {
   it('raw mode shows toolCallId correlation across layers', () => {
     const rec = new TraceRecorder({ ...recorderOpts, rawMode: true })
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
-    rec.onProviderStreamEvent(makeProviderEvent({
-      step: 1, turnId: 'a1', type: 'toolcall_end',
-      toolCallId: 'tc-abcd1234', toolName: 'bash', eventId: 1,
-    }))
+    rec.onProviderStreamEvent(
+      makeProviderEvent({
+        step: 1,
+        turnId: 'a1',
+        type: 'toolcall_end',
+        toolCallId: 'tc-abcd1234',
+        toolName: 'bash',
+        eventId: 1,
+      }),
+    )
     const tc = createToolCallLifecycle({ id: 'tc-abcd1234', toolName: 'bash', args: {}, command: 'echo' })
-    tc.phase = 'completed'; tc.completedAt = 1100; tc.executionStartedAt = 1050
+    tc.phase = 'completed'
+    tc.completedAt = 1100
+    tc.executionStartedAt = 1050
     rec.onLifecycleEvent({ type: 'tool_call_completed', toolCall: tc })
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1200 })
     const trace = rec.finalize({ type: 'success', text: '' })
@@ -601,14 +705,16 @@ describe('formatTraceShow debugger view', () => {
     const rec = new TraceRecorder({ ...recorderOpts, rawMode: true })
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
     for (let i = 0; i < 20; i++) {
-      rec.onProviderStreamEvent(makeProviderEvent({ step: 1, turnId: 'a1', type: 'thinking_delta', deltaPreview: 'x', eventId: i + 1 }))
+      rec.onProviderStreamEvent(
+        makeProviderEvent({ step: 1, turnId: 'a1', type: 'thinking_delta', deltaPreview: 'x', eventId: i + 1 }),
+      )
     }
     rec.onLifecycleEvent({ type: 'assistant_turn_end', id: 'a1', reasoning: createReasoningState(), timestamp: 1100 })
     const trace = rec.finalize({ type: 'success', text: '' })
     const output = formatTraceShow(trace, 'raw')
 
     expect(output).toContain('thinking_delta ×20')
-    const lines = output.split('\n').filter(l => l.includes('thinking_delta'))
+    const lines = output.split('\n').filter((l) => l.includes('thinking_delta'))
     expect(lines).toHaveLength(1)
   })
 

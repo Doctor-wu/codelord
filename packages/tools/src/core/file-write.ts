@@ -37,10 +37,18 @@ function createFileWriteHandler(cwd: string): ToolHandler {
   return async (args) => {
     const filePath = args.file_path as string | undefined
     if (!filePath || typeof filePath !== 'string') {
-      return { output: 'ERROR [INVALID_ARGS]: file_path is required and must be a string.', isError: true, errorCode: 'INVALID_ARGS' }
+      return {
+        output: 'ERROR [INVALID_ARGS]: file_path is required and must be a string.',
+        isError: true,
+        errorCode: 'INVALID_ARGS',
+      }
     }
     if (typeof args.content !== 'string') {
-      return { output: 'ERROR [INVALID_ARGS]: content is required and must be a string.', isError: true, errorCode: 'INVALID_ARGS' }
+      return {
+        output: 'ERROR [INVALID_ARGS]: content is required and must be a string.',
+        isError: true,
+        errorCode: 'INVALID_ARGS',
+      }
     }
 
     const resolved = isAbsolute(filePath) ? resolve(filePath) : resolve(cwd, filePath)
@@ -54,12 +62,23 @@ function createFileWriteHandler(cwd: string): ToolHandler {
       await writeFile(resolved, content, 'utf-8')
     } catch (err: unknown) {
       if (isNodeError(err) && err.code === 'ENOENT') {
-        return { output: `ERROR [NOT_FOUND]: Parent directory does not exist: ${dirname(resolved)}. Set create_directories to true to auto-create.`, isError: true, errorCode: 'NOT_FOUND' }
+        return {
+          output: `ERROR [NOT_FOUND]: Parent directory does not exist: ${dirname(resolved)}. Set create_directories to true to auto-create.`,
+          isError: true,
+          errorCode: 'NOT_FOUND',
+        }
       }
       if (isNodeError(err) && err.code === 'EACCES') {
-        return { output: `ERROR [PERMISSION_DENIED]: Permission denied: ${resolved}`, isError: true, errorCode: 'PERMISSION_DENIED' }
+        return {
+          output: `ERROR [PERMISSION_DENIED]: Permission denied: ${resolved}`,
+          isError: true,
+          errorCode: 'PERMISSION_DENIED',
+        }
       }
-      return { output: `ERROR: Failed to write file: ${err instanceof Error ? err.message : String(err)}`, isError: true }
+      return {
+        output: `ERROR: Failed to write file: ${err instanceof Error ? err.message : String(err)}`,
+        isError: true,
+      }
     }
 
     const lineCount = content.split('\n').length
@@ -73,10 +92,7 @@ function createFileWriteHandler(cwd: string): ToolHandler {
 
 const contract: ToolContract = {
   toolName: 'file_write',
-  whenToUse: [
-    'Creating a new file.',
-    'Overwriting an entire file with known complete content.',
-  ],
+  whenToUse: ['Creating a new file.', 'Overwriting an entire file with known complete content.'],
   whenNotToUse: [
     'Do not use for partial edits — use file_edit instead.',
     'Do not use if you only need to change a few lines in an existing file.',

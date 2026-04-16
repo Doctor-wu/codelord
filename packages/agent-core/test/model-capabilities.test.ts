@@ -30,34 +30,42 @@ describe('resolveModelCapabilities', () => {
   })
 
   it('anthropic provider returns supportsThinkingStream=true when reasoning=true', () => {
-    const caps = resolveModelCapabilities(makeModel({
-      provider: 'anthropic',
-      reasoning: true,
-    }))
+    const caps = resolveModelCapabilities(
+      makeModel({
+        provider: 'anthropic',
+        reasoning: true,
+      }),
+    )
     expect(caps.supportsThinkingStream).toBe(true)
   })
 
   it('anthropic provider returns supportsThinkingStream=false when reasoning=false', () => {
-    const caps = resolveModelCapabilities(makeModel({
-      provider: 'anthropic',
-      reasoning: false,
-    }))
+    const caps = resolveModelCapabilities(
+      makeModel({
+        provider: 'anthropic',
+        reasoning: false,
+      }),
+    )
     expect(caps.supportsThinkingStream).toBe(false)
   })
 
   it('openai provider returns supportsThinkingStream=false', () => {
-    const caps = resolveModelCapabilities(makeModel({
-      provider: 'openai',
-      reasoning: true,
-    }))
+    const caps = resolveModelCapabilities(
+      makeModel({
+        provider: 'openai',
+        reasoning: true,
+      }),
+    )
     expect(caps.supportsThinkingStream).toBe(false)
   })
 
   it('amazon-bedrock provider returns supportsThinkingStream=true when reasoning=true', () => {
-    const caps = resolveModelCapabilities(makeModel({
-      provider: 'amazon-bedrock',
-      reasoning: true,
-    }))
+    const caps = resolveModelCapabilities(
+      makeModel({
+        provider: 'amazon-bedrock',
+        reasoning: true,
+      }),
+    )
     expect(caps.supportsThinkingStream).toBe(true)
   })
 
@@ -82,12 +90,14 @@ describe('resolveModelCapabilities', () => {
   })
 
   it('works with google provider (no thinking stream)', () => {
-    const caps = resolveModelCapabilities(makeModel({
-      provider: 'google',
-      reasoning: true,
-      contextWindow: 1000000,
-      maxTokens: 65536,
-    }))
+    const caps = resolveModelCapabilities(
+      makeModel({
+        provider: 'google',
+        reasoning: true,
+        contextWindow: 1000000,
+        maxTokens: 65536,
+      }),
+    )
     expect(caps.supportsReasoning).toBe(true)
     expect(caps.supportsThinkingStream).toBe(false)
     expect(caps.maxContextTokens).toBe(1000000)

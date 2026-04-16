@@ -23,8 +23,10 @@ export function AssistantCard({ item }: { item: AssistantItem }) {
           <Box key={i}>
             <Text color={LANE.reasoningMuted}>{GLYPH.reasoningMark} </Text>
             {i === 0 && <Text color={LANE.reasoning}>{getReasoningIcon(reasoningStatus, item.isStreaming)} </Text>}
-            {i > 0 && <Text color={LANE.reasoning}>  </Text>}
-            <Text color={LANE.reasoning} italic dimColor={!item.isStreaming}>{line || ' '}</Text>
+            {i > 0 && <Text color={LANE.reasoning}> </Text>}
+            <Text color={LANE.reasoning} italic dimColor={!item.isStreaming}>
+              {line || ' '}
+            </Text>
           </Box>
         ))}
         {item.text && (
@@ -39,7 +41,8 @@ export function AssistantCard({ item }: { item: AssistantItem }) {
 
   // Mode B: No provider thought → derived live proxy or settled fallback
   const reasoningLine = item.reasoning ? projectDisplayReason(item.reasoning) : null
-  const stableReasoning = reasoningLine || item.reasoningSnapshot || (item.thinking ? summarizeThought(item.thinking) : null)
+  const stableReasoning =
+    reasoningLine || item.reasoningSnapshot || (item.thinking ? summarizeThought(item.thinking) : null)
   const displayReasoning = stableReasoning || (item.isStreaming ? item.liveProxy : null)
   const hasReasoning = !!displayReasoning
 
@@ -49,7 +52,9 @@ export function AssistantCard({ item }: { item: AssistantItem }) {
         <Box>
           <Text color={LANE.reasoningMuted}>{GLYPH.reasoningMark} </Text>
           <Text color={LANE.reasoning}>{getReasoningIcon(reasoningStatus, item.isStreaming)} </Text>
-          <Text color={LANE.reasoning} italic>{displayReasoning}</Text>
+          <Text color={LANE.reasoning} italic>
+            {displayReasoning}
+          </Text>
         </Box>
       )}
       {item.text && (
@@ -65,11 +70,17 @@ export function AssistantCard({ item }: { item: AssistantItem }) {
 function getReasoningIcon(status: ReasoningStatus, isStreaming: boolean): string {
   if (!isStreaming) return GLYPH.settled
   switch (status) {
-    case 'thinking': return '◐'
-    case 'deciding': return '◑'
-    case 'acting': return GLYPH.live
-    case 'blocked': return GLYPH.phaseBlocked
-    case 'completed': return GLYPH.settled
-    default: return GLYPH.settled
+    case 'thinking':
+      return '◐'
+    case 'deciding':
+      return '◑'
+    case 'acting':
+      return GLYPH.live
+    case 'blocked':
+      return GLYPH.phaseBlocked
+    case 'completed':
+      return GLYPH.settled
+    default:
+      return GLYPH.settled
   }
 }

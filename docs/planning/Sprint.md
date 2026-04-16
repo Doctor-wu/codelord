@@ -20,6 +20,7 @@
 M3-S2（Eval 规范化 + CI + 成绩看板）已关闭。
 
 **关键产出**：
+
 - `@codelord/evals-shared` 包：统一 `EvalResult` schema + `writeResult`/`exitWithResult`/`renderSummaryMarkdown`/`registerBenchmarkRenderer`
 - 四个 adapter 全部规范化：统一输出格式、退出码 0/1/2、标准 `scripts/run.sh`
 - BrowseComp Docker 化补齐

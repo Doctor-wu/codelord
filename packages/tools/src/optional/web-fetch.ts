@@ -32,7 +32,11 @@ function createWebFetchHandler(_ctx: ToolPluginContext): ToolHandler {
   return async (args): Promise<ToolExecutionResult> => {
     const url = args.url as string | undefined
     if (!url || typeof url !== 'string') {
-      return { output: 'ERROR [INVALID_ARGS]: url is required and must be a string.', isError: true, errorCode: 'INVALID_ARGS' }
+      return {
+        output: 'ERROR [INVALID_ARGS]: url is required and must be a string.',
+        isError: true,
+        errorCode: 'INVALID_ARGS',
+      }
     }
 
     // Validate URL format
@@ -43,14 +47,18 @@ function createWebFetchHandler(_ctx: ToolPluginContext): ToolHandler {
       return { output: `ERROR [INVALID_ARGS]: Invalid URL: ${url}`, isError: true, errorCode: 'INVALID_ARGS' }
     }
     if (!parsedUrl.protocol.startsWith('http')) {
-      return { output: `ERROR [INVALID_ARGS]: Only http/https URLs are supported: ${url}`, isError: true, errorCode: 'INVALID_ARGS' }
+      return {
+        output: `ERROR [INVALID_ARGS]: Only http/https URLs are supported: ${url}`,
+        isError: true,
+        errorCode: 'INVALID_ARGS',
+      }
     }
     try {
       const response = await fetch(url, {
         signal: AbortSignal.timeout(60_000),
         headers: {
           'User-Agent': 'Codelord/1.0 (+https://github.com/user/codelord)',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         },
         redirect: 'follow',
       })
@@ -86,14 +94,16 @@ function createWebFetchHandler(_ctx: ToolPluginContext): ToolHandler {
       // Truncate if needed
       const MAX_LENGTH = 50_000
       const truncated = content.length > MAX_LENGTH
-      const output = truncated
-        ? content.slice(0, MAX_LENGTH) + '\n\n[Content truncated at 50000 characters]'
-        : content
+      const output = truncated ? content.slice(0, MAX_LENGTH) + '\n\n[Content truncated at 50000 characters]' : content
 
       return { output: `Content from ${url}:\n\n${output}`, isError: false }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'TimeoutError') {
-        return { output: `ERROR [NETWORK_ERROR]: Request timed out after 60s for ${url}`, isError: true, errorCode: 'NETWORK_ERROR' }
+        return {
+          output: `ERROR [NETWORK_ERROR]: Request timed out after 60s for ${url}`,
+          isError: true,
+          errorCode: 'NETWORK_ERROR',
+        }
       }
       return {
         output: `ERROR [NETWORK_ERROR]: ${err instanceof Error ? err.message : String(err)}`,
@@ -119,9 +129,7 @@ const contract: ToolContract = {
     'Do not use for reading local files — use file_read.',
     'Do not use for downloading binary files (images, PDFs, etc).',
   ],
-  preconditions: [
-    'You must have a valid HTTP/HTTPS URL.',
-  ],
+  preconditions: ['You must have a valid HTTP/HTTPS URL.'],
   failureSemantics: [
     'INVALID_ARGS: URL is missing or malformed.',
     'API_ERROR: Remote server returned an error (4xx/5xx).',

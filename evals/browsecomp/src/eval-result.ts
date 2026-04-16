@@ -22,16 +22,14 @@ export function registerBrowseCompRenderer(): void {
       gradeBuckets.set(grade, (gradeBuckets.get(grade) ?? 0) + 1)
 
       const confidence = typeof caseResult.metadata?.confidence === 'number' ? caseResult.metadata.confidence : 0
-      confidenceBuckets.set(resolveConfidenceBucket(confidence), (confidenceBuckets.get(resolveConfidenceBucket(confidence)) ?? 0) + 1)
+      confidenceBuckets.set(
+        resolveConfidenceBucket(confidence),
+        (confidenceBuckets.get(resolveConfidenceBucket(confidence)) ?? 0) + 1,
+      )
     }
 
     const total = result.cases.length
-    const lines = [
-      '### BrowseComp Grade Distribution',
-      '',
-      '| grade | count | percentage |',
-      '| --- | --- | --- |',
-    ]
+    const lines = ['### BrowseComp Grade Distribution', '', '| grade | count | percentage |', '| --- | --- | --- |']
 
     for (const [grade, count] of gradeBuckets.entries()) {
       const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0'

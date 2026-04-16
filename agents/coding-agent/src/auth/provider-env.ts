@@ -26,11 +26,7 @@ async function withClearedEnvVars<T>(keys: readonly string[], fn: () => Promise<
   }
 }
 
-export async function withProviderAuthEnv<T>(
-  config: CodelordConfig,
-  apiKey: string,
-  fn: () => Promise<T>,
-): Promise<T> {
+export async function withProviderAuthEnv<T>(config: CodelordConfig, apiKey: string, fn: () => Promise<T>): Promise<T> {
   // Anthropic's SDK auto-reads ANTHROPIC_AUTH_TOKEN unless we clear it.
   // When codelord selected an explicit static API key, that env token becomes
   // a second auth mechanism and some proxies reject the request.

@@ -4,10 +4,7 @@ import { askUserQuestionContract } from '@codelord/core'
 import type { ToolContract } from '@codelord/core'
 import { corePlugins } from '@codelord/tools'
 
-const allContracts: readonly ToolContract[] = [
-  ...corePlugins.map(p => p.contract),
-  askUserQuestionContract,
-]
+const allContracts: readonly ToolContract[] = [...corePlugins.map((p) => p.contract), askUserQuestionContract]
 
 describe('buildSystemPrompt', () => {
   const prompt = buildSystemPrompt({ cwd: '/test/project', contracts: allContracts })

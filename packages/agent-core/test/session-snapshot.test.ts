@@ -62,7 +62,9 @@ const snapshotMeta = {
 // ---------------------------------------------------------------------------
 
 describe('Session snapshot: READY state', () => {
-  afterEach(() => { streamSimpleMock.mockReset() })
+  afterEach(() => {
+    streamSimpleMock.mockReset()
+  })
 
   it('exports and restores a READY session', async () => {
     const msg = makeAssistantMessage({ content: [{ type: 'text', text: 'hello' }] })
@@ -93,7 +95,9 @@ describe('Session snapshot: READY state', () => {
 // ---------------------------------------------------------------------------
 
 describe('Session snapshot: waiting_user (BLOCKED)', () => {
-  afterEach(() => { streamSimpleMock.mockReset() })
+  afterEach(() => {
+    streamSimpleMock.mockReset()
+  })
 
   it('exports and restores a BLOCKED/waiting_user session', async () => {
     const askToolCall = {
@@ -108,10 +112,13 @@ describe('Session snapshot: waiting_user (BLOCKED)', () => {
     })
 
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'toolcall_end', toolCall: askToolCall },
-        { type: 'done', message: assistantWithAsk },
-      ], assistantWithAsk),
+      makeEventStream(
+        [
+          { type: 'toolcall_end', toolCall: askToolCall },
+          { type: 'done', message: assistantWithAsk },
+        ],
+        assistantWithAsk,
+      ),
     )
 
     const rt = createRuntime()
@@ -138,7 +145,9 @@ describe('Session snapshot: waiting_user (BLOCKED)', () => {
 // ---------------------------------------------------------------------------
 
 describe('Session snapshot: pending question answer after restore', () => {
-  afterEach(() => { streamSimpleMock.mockReset() })
+  afterEach(() => {
+    streamSimpleMock.mockReset()
+  })
 
   it('restored pending question can be answered normally', async () => {
     const askToolCall = {
@@ -157,10 +166,13 @@ describe('Session snapshot: pending question answer after restore', () => {
     })
 
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'toolcall_end', toolCall: askToolCall },
-        { type: 'done', message: assistantWithAsk },
-      ], assistantWithAsk),
+      makeEventStream(
+        [
+          { type: 'toolcall_end', toolCall: askToolCall },
+          { type: 'done', message: assistantWithAsk },
+        ],
+        assistantWithAsk,
+      ),
     )
 
     const rt = createRuntime()
@@ -214,7 +226,9 @@ describe('Session snapshot: pendingInbound persistence', () => {
 // ---------------------------------------------------------------------------
 
 describe('Session snapshot: queue order preservation', () => {
-  afterEach(() => { streamSimpleMock.mockReset() })
+  afterEach(() => {
+    streamSimpleMock.mockReset()
+  })
 
   it('preserves queue message order through save/restore', async () => {
     const rt = createRuntime()
@@ -234,8 +248,8 @@ describe('Session snapshot: queue order preservation', () => {
     streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg }], msg))
 
     await rt2.run()
-    const userMsgs = rt2.messages.filter(m => m.role === 'user')
-    expect(userMsgs.map(m => m.content)).toEqual(['alpha', 'beta', 'gamma'])
+    const userMsgs = rt2.messages.filter((m) => m.role === 'user')
+    expect(userMsgs.map((m) => m.content)).toEqual(['alpha', 'beta', 'gamma'])
   })
 })
 
@@ -265,7 +279,16 @@ describe('Session snapshot: in-flight state handling', () => {
       safetyRecords: [],
       sessionStepCount: 1,
       checkpoints: [],
-      usageAggregate: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, llmCalls: 0, lastCall: null },
+      usageAggregate: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        llmCalls: 0,
+        lastCall: null,
+      },
     }
 
     const { state, wasDowngraded, interruptedDuring } = resolveResumeState(snapshot)
@@ -297,7 +320,12 @@ describe('Session snapshot: in-flight state handling', () => {
       wasInFlight: true,
       messages: [
         { role: 'user', content: 'hi', timestamp: Date.now() },
-        { role: 'assistant', content: [{ type: 'text', text: 'ok' }], stopReason: 'stop', timestamp: Date.now() } as any,
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'ok' }],
+          stopReason: 'stop',
+          timestamp: Date.now(),
+        } as any,
       ],
       pendingInbound: [{ role: 'user', content: 'queued', timestamp: Date.now() }],
       pendingQuestion: null,
@@ -307,7 +335,16 @@ describe('Session snapshot: in-flight state handling', () => {
       safetyRecords: [],
       sessionStepCount: 3,
       checkpoints: [],
-      usageAggregate: { input: 100, output: 50, cacheRead: 0, cacheWrite: 0, totalTokens: 150, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, llmCalls: 1, lastCall: null },
+      usageAggregate: {
+        input: 100,
+        output: 50,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 150,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        llmCalls: 1,
+        lastCall: null,
+      },
     }
 
     const rt = createRuntime()
@@ -369,7 +406,16 @@ describe('toSessionMeta', () => {
       safetyRecords: [],
       sessionStepCount: 5,
       checkpoints: [],
-      usageAggregate: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, llmCalls: 0, lastCall: null },
+      usageAggregate: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        llmCalls: 0,
+        lastCall: null,
+      },
     }
 
     const meta = toSessionMeta(snapshot)
@@ -403,7 +449,16 @@ describe('toSessionMeta', () => {
     safetyRecords: [],
     sessionStepCount: 0,
     checkpoints: [],
-    usageAggregate: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, llmCalls: 0, lastCall: null },
+    usageAggregate: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      llmCalls: 0,
+      lastCall: null,
+    },
   }
 
   it('extracts title from first user message', () => {
@@ -421,9 +476,7 @@ describe('toSessionMeta', () => {
   it('truncates long titles to 60 chars', () => {
     const snapshot: SessionSnapshot = {
       ...metaBase,
-      messages: [
-        { role: 'user', content: 'x'.repeat(100), timestamp: 1000 },
-      ],
+      messages: [{ role: 'user', content: 'x'.repeat(100), timestamp: 1000 }],
     }
     const meta = toSessionMeta(snapshot)
     expect(meta.title!.length).toBeLessThanOrEqual(60)
@@ -435,7 +488,12 @@ describe('toSessionMeta', () => {
       ...metaBase,
       messages: [
         { role: 'user', content: 'hi', timestamp: 1000 },
-        { role: 'assistant', content: [{ type: 'text', text: 'I fixed the import statement.' }], stopReason: 'stop', timestamp: 2000 } as any,
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'I fixed the import statement.' }],
+          stopReason: 'stop',
+          timestamp: 2000,
+        } as any,
       ],
     }
     const meta = toSessionMeta(snapshot)
@@ -447,7 +505,12 @@ describe('toSessionMeta', () => {
       ...metaBase,
       messages: [
         { role: 'user', content: 'hi', timestamp: 1000 },
-        { role: 'assistant', content: [{ type: 'text', text: 'y'.repeat(200) }], stopReason: 'stop', timestamp: 2000 } as any,
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'y'.repeat(200) }],
+          stopReason: 'stop',
+          timestamp: 2000,
+        } as any,
       ],
     }
     const meta = toSessionMeta(snapshot)
@@ -494,7 +557,16 @@ describe('resolveResumeState', () => {
     safetyRecords: [],
     sessionStepCount: 0,
     checkpoints: [],
-    usageAggregate: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, llmCalls: 0, lastCall: null },
+    usageAggregate: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      llmCalls: 0,
+      lastCall: null,
+    },
   }
 
   it.each([
@@ -508,10 +580,7 @@ describe('resolveResumeState', () => {
     expect(result.interruptedDuring).toBeNull()
   })
 
-  it.each([
-    ['STREAMING'],
-    ['TOOL_EXEC'],
-  ] as const)('%s is downgraded to READY', (state) => {
+  it.each([['STREAMING'], ['TOOL_EXEC']] as const)('%s is downgraded to READY', (state) => {
     const result = resolveResumeState({ ...base, runtimeState: state, wasInFlight: true })
     expect(result.state).toBe('READY')
     expect(result.wasDowngraded).toBe(true)

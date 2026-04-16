@@ -34,9 +34,13 @@ export async function gradeAnswer(opts: {
   try {
     // Collect text from stream events
     let text = ''
-    const stream = streamSimple(graderModel, {
-      messages: [{ role: 'user' as const, content: graderPrompt, timestamp: Date.now() }],
-    }, { apiKey: graderApiKey })
+    const stream = streamSimple(
+      graderModel,
+      {
+        messages: [{ role: 'user' as const, content: graderPrompt, timestamp: Date.now() }],
+      },
+      { apiKey: graderApiKey },
+    )
 
     for await (const event of stream) {
       if (event.type === 'text_delta') {
@@ -44,7 +48,10 @@ export async function gradeAnswer(opts: {
       }
     }
     // Parse JSON from response (handle markdown code blocks)
-    const jsonStr = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
+    const jsonStr = text
+      .replace(/```json\s*/g, '')
+      .replace(/```\s*/g, '')
+      .trim()
     const parsed = JSON.parse(jsonStr) as {
       extracted_final_answer?: string
       reasoning?: string

@@ -30,9 +30,13 @@ export class TimelineStore {
     this._reasoningLevel = reasoningLevel
   }
 
-  get reasoningLevel(): ReasoningLevel { return this._reasoningLevel }
+  get reasoningLevel(): ReasoningLevel {
+    return this._reasoningLevel
+  }
 
-  getState(): TimelineState { return this.state }
+  getState(): TimelineState {
+    return this.state
+  }
 
   /** Override running flag (used by tests and direct state injection) */
   setRunning(running: boolean): void {
@@ -113,7 +117,9 @@ export class TimelineStore {
     this.notify()
   }
 
-  captureSnapshot(): TimelineSnapshot { return captureTimelineSnapshot(this.state) }
+  captureSnapshot(): TimelineSnapshot {
+    return captureTimelineSnapshot(this.state)
+  }
 
   hydrateFromSnapshot(snapshot: TimelineSnapshot): void {
     this.state = hydrateTimelineState(snapshot)

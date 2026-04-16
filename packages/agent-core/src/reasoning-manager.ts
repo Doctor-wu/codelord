@@ -73,7 +73,8 @@ const EXTRACTION_PATTERNS = {
   why: /(?:^|\.\s+|\n|\s)((?:because|since|the reason|this is needed|in order to)[^.!?\n]*[.!?]?)/i,
   uncertainty: /(?:^|\.\s+|\n)([^.!?\n]*(?:not sure|might|possibly|unclear|I think|maybe|probably)[^.!?\n]*[.!?]?)/i,
   risk: /(?:^|\.\s+|\n)([^.!?\n]*(?:could break|careful|danger|risk|warning|might fail|could cause)[^.!?\n]*[.!?]?)/i,
-  expectedObservation: /(?:^|\.\s+|\n)([^.!?\n]*(?:expect to see|should show|should output|should return|will see)[^.!?\n]*[.!?]?)/i,
+  expectedObservation:
+    /(?:^|\.\s+|\n)([^.!?\n]*(?:expect to see|should show|should output|should return|will see)[^.!?\n]*[.!?]?)/i,
 } as const
 
 const MAX_FIELD_LENGTH = 120
@@ -98,10 +99,16 @@ export class ReasoningManager {
     this._level = level
   }
 
-  get level(): ReasoningLevel { return this._level }
-  get current(): AssistantReasoningState | null { return this._current }
+  get level(): ReasoningLevel {
+    return this._level
+  }
+  get current(): AssistantReasoningState | null {
+    return this._current
+  }
 
-  setLevel(level: ReasoningLevel): void { this._level = level }
+  setLevel(level: ReasoningLevel): void {
+    this._level = level
+  }
 
   /**
    * Begin a new assistant turn.

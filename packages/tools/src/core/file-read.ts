@@ -19,12 +19,8 @@ const tool: Tool = {
   ].join(' '),
   parameters: Type.Object({
     file_path: Type.String({ description: 'Absolute or relative path to the file.' }),
-    offset: Type.Optional(
-      Type.Number({ description: '1-based line number to start reading from. Defaults to 1.' }),
-    ),
-    limit: Type.Optional(
-      Type.Number({ description: 'Maximum number of lines to read. Defaults to no limit.' }),
-    ),
+    offset: Type.Optional(Type.Number({ description: '1-based line number to start reading from. Defaults to 1.' })),
+    limit: Type.Optional(Type.Number({ description: 'Maximum number of lines to read. Defaults to no limit.' })),
     reason: Type.Optional(
       Type.String({ description: 'Brief explanation of why you are calling this tool for this specific step.' }),
     ),
@@ -39,7 +35,11 @@ function createFileReadHandler(cwd: string): ToolHandler {
   return async (args) => {
     const filePath = args.file_path as string | undefined
     if (!filePath || typeof filePath !== 'string') {
-      return { output: 'ERROR [INVALID_ARGS]: file_path is required and must be a string.', isError: true, errorCode: 'INVALID_ARGS' }
+      return {
+        output: 'ERROR [INVALID_ARGS]: file_path is required and must be a string.',
+        isError: true,
+        errorCode: 'INVALID_ARGS',
+      }
     }
 
     const resolved = isAbsolute(filePath) ? resolve(filePath) : resolve(cwd, filePath)
@@ -52,12 +52,23 @@ function createFileReadHandler(cwd: string): ToolHandler {
         return { output: `ERROR [NOT_FOUND]: File not found: ${resolved}`, isError: true, errorCode: 'NOT_FOUND' }
       }
       if (isNodeError(err) && err.code === 'EACCES') {
-        return { output: `ERROR [PERMISSION_DENIED]: Permission denied: ${resolved}`, isError: true, errorCode: 'PERMISSION_DENIED' }
+        return {
+          output: `ERROR [PERMISSION_DENIED]: Permission denied: ${resolved}`,
+          isError: true,
+          errorCode: 'PERMISSION_DENIED',
+        }
       }
       if (isNodeError(err) && err.code === 'EISDIR') {
-        return { output: `ERROR [INVALID_ARGS]: Path is a directory, not a file: ${resolved}`, isError: true, errorCode: 'INVALID_ARGS' }
+        return {
+          output: `ERROR [INVALID_ARGS]: Path is a directory, not a file: ${resolved}`,
+          isError: true,
+          errorCode: 'INVALID_ARGS',
+        }
       }
-      return { output: `ERROR: Failed to read file: ${err instanceof Error ? err.message : String(err)}`, isError: true }
+      return {
+        output: `ERROR: Failed to read file: ${err instanceof Error ? err.message : String(err)}`,
+        isError: true,
+      }
     }
 
     const lines = content.split('\n')
@@ -96,9 +107,7 @@ const contract: ToolContract = {
     'Do not use for locating files — use search or ls first.',
     'Do not use when you do not know the file path yet.',
   ],
-  preconditions: [
-    'You must know the file path. If unknown, use ls or search to find it first.',
-  ],
+  preconditions: ['You must know the file path. If unknown, use ls or search to find it first.'],
   failureSemantics: [
     'NOT_FOUND: file does not exist at the given path.',
     'PERMISSION_DENIED: insufficient permissions.',

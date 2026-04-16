@@ -222,6 +222,7 @@ M1X 的优先级进一步聚焦到 streaming operator feedback，而不是继续
 ### 结果
 
 注意力推向更新后的优先顺序：
+
 1. M1X-Streaming 的 operator feedback semantics：reasoning 可见性 / provisional tool build / partial args progressive preview / 节流合并策略
 2. M1X 的 operator UX：recovery UX / queue visibility / progressive disclosure / composer polish
 3. M2 的 trace 解释闭环：把"为什么看不见 thought / 为什么 tool 突然出现"也变成可诊断事实
@@ -249,6 +250,7 @@ M1X 的优先级进一步聚焦到 streaming operator feedback，而不是继续
 ### 结果
 
 注意力推向四个收口方向：
+
 1. M1 的 control-plane semantics：queue atomicity / safe-boundary contract / undo control event / resume semantics
 2. M1X 的 operator UX：recovery UX / queue visibility / tool timeline progressive disclosure
 3. M2 的 control-plane trace closure：把 user input / operator action / queue lifecycle 全部纳入事实账本

@@ -34,7 +34,9 @@ function printSummary(result: EvalResult, outputPath: string): void {
   console.log('| --- | --- | --- | --- |')
 
   for (const caseResult of result.cases) {
-    console.log(`| ${caseResult.id} | ${caseResult.passed ? 'PASS' : 'FAIL'} | ${caseResult.durationMs} | ${caseResult.error ?? ''} |`)
+    console.log(
+      `| ${caseResult.id} | ${caseResult.passed ? 'PASS' : 'FAIL'} | ${caseResult.durationMs} | ${caseResult.error ?? ''} |`,
+    )
   }
 
   if (result.errors?.length) {

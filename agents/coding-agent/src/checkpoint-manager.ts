@@ -42,7 +42,9 @@ export class CheckpointManager {
     this._stack = opts.stack ? [...opts.stack] : []
   }
 
-  get stack(): readonly CheckpointRecord[] { return this._stack }
+  get stack(): readonly CheckpointRecord[] {
+    return this._stack
+  }
 
   /** Call at the start of each runtime burst */
   beginBurst(): void {
@@ -61,7 +63,9 @@ export class CheckpointManager {
       try {
         const status = this.shadowGit('status --porcelain')
         hasShadowDirty = status.length > 0
-      } catch { /* shadow repo unavailable — treat as no change */ }
+      } catch {
+        /* shadow repo unavailable — treat as no change */
+      }
     }
 
     if (hasFiles || hasShadowDirty) {
@@ -138,10 +142,12 @@ export class CheckpointManager {
       try {
         const gitDir = record.shadowGit.shadowGitDir
         const hash = record.shadowGit.commitHash
-        const sg = (args: string) => execSync(
-          `git --git-dir="${gitDir}" --work-tree="${this.cwd}" ${args}`,
-          { cwd: this.cwd, timeout: 10000, stdio: 'pipe' },
-        )
+        const sg = (args: string) =>
+          execSync(`git --git-dir="${gitDir}" --work-tree="${this.cwd}" ${args}`, {
+            cwd: this.cwd,
+            timeout: 10000,
+            stdio: 'pipe',
+          })
         // Reset working tree to the checkpoint state
         sg(`reset --hard ${hash}`)
         // Remove files that were added after the checkpoint
@@ -178,7 +184,9 @@ export class CheckpointManager {
     return this._stack.length > 0 && this._stack[this._stack.length - 1].canUndo
   }
 
-  get undoCount(): number { return this._stack.length }
+  get undoCount(): number {
+    return this._stack.length
+  }
 
   // --- Internal ---
 
@@ -212,7 +220,7 @@ export class CheckpointManager {
     }
 
     // Don't snapshot the same file twice in one burst
-    if (this._currentBurst.files.some(f => f.path === resolved)) return
+    if (this._currentBurst.files.some((f) => f.path === resolved)) return
 
     let existed = false
     let originalContent: string | null = null
@@ -236,10 +244,13 @@ export class CheckpointManager {
 
   /** Execute a git command against the shadow repo */
   private shadowGit(args: string, timeout = 5000): string {
-    return execSync(
-      `git --git-dir="${this.shadowGitDir}" --work-tree="${this.cwd}" ${args}`,
-      { cwd: this.cwd, timeout, stdio: 'pipe' },
-    ).toString().trim()
+    return execSync(`git --git-dir="${this.shadowGitDir}" --work-tree="${this.cwd}" ${args}`, {
+      cwd: this.cwd,
+      timeout,
+      stdio: 'pipe',
+    })
+      .toString()
+      .trim()
   }
 
   /** Lazy-init the shadow git repo. Returns true if ready. */

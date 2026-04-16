@@ -454,11 +454,7 @@ export class ToolRouter {
   private readonly rules: readonly RouteRule[]
 
   constructor(contracts?: readonly ToolContract[]) {
-    this.rules = [
-      ...BASH_RULES,
-      ...SEMANTIC_RULES,
-      ...(contracts ? generateContractRules(contracts) : []),
-    ]
+    this.rules = [...BASH_RULES, ...SEMANTIC_RULES, ...(contracts ? generateContractRules(contracts) : [])]
   }
 
   /**

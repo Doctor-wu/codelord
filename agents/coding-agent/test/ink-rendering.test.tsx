@@ -40,19 +40,21 @@ describe('App rendering', () => {
   it('renders the tool card instead of thinking once a tool call exists', () => {
     const state: TimelineState = {
       ...createInitialTimelineState(),
-      items: [{
-        type: 'tool_call',
-        id: 'tc-1',
-        toolCall: {
-          ...createToolCallLifecycle({
-            id: 'tc-1',
-            toolName: 'bash',
-            args: { command: 'rm -f result.md' },
-            command: 'rm -f result.md',
-          }),
-          phase: 'generating',
+      items: [
+        {
+          type: 'tool_call',
+          id: 'tc-1',
+          toolCall: {
+            ...createToolCallLifecycle({
+              id: 'tc-1',
+              toolName: 'bash',
+              args: { command: 'rm -f result.md' },
+              command: 'rm -f result.md',
+            }),
+            phase: 'generating',
+          },
         },
-      }],
+      ],
     }
 
     const output = renderToString(
@@ -84,11 +86,13 @@ describe('App rendering', () => {
 
     const state: TimelineState = {
       ...createInitialTimelineState(),
-      items: [{
-        type: 'tool_call',
-        id: 'tc-1',
-        toolCall: tc,
-      }],
+      items: [
+        {
+          type: 'tool_call',
+          id: 'tc-1',
+          toolCall: tc,
+        },
+      ],
     }
 
     const output = renderToString(
@@ -119,9 +123,7 @@ describe('Command classification', () => {
   })
 
   it('treats shell conditionals containing rm as WRITE', () => {
-    expect(
-      classifyCommand("pwd && if [ -e result.md ]; then rm -f result.md; fi"),
-    ).toBe('write')
+    expect(classifyCommand('pwd && if [ -e result.md ]; then rm -f result.md; fi')).toBe('write')
   })
 })
 
@@ -204,14 +206,16 @@ describe('Header status reflects session mode', () => {
         hasPendingQuestion: true,
         pendingInboundCount: 0,
       },
-      items: [{
-        type: 'question',
-        id: 'q-1',
-        question: 'Which DB?',
-        detail: null,
-        reasoning: null,
-        timestamp: Date.now(),
-      }],
+      items: [
+        {
+          type: 'question',
+          id: 'q-1',
+          question: 'Which DB?',
+          detail: null,
+          reasoning: null,
+          timestamp: Date.now(),
+        },
+      ],
     }
 
     const output = renderToString(
@@ -285,23 +289,19 @@ describe('Header status reflects session mode', () => {
 
 describe('derivePhaseFeedback', () => {
   it('returns tool-specific feedback for file_read in executing phase', () => {
-    expect(derivePhaseFeedback('file_read', 'executing', { file_path: '/src/foo.ts' }))
-      .toBe('reading …/src/foo.ts…')
+    expect(derivePhaseFeedback('file_read', 'executing', { file_path: '/src/foo.ts' })).toBe('reading …/src/foo.ts…')
   })
 
   it('returns tool-specific feedback for file_write', () => {
-    expect(derivePhaseFeedback('file_write', 'executing', { file_path: '/a/b/c.ts' }))
-      .toBe('writing …/b/c.ts…')
+    expect(derivePhaseFeedback('file_write', 'executing', { file_path: '/a/b/c.ts' })).toBe('writing …/b/c.ts…')
   })
 
   it('returns tool-specific feedback for file_edit', () => {
-    expect(derivePhaseFeedback('file_edit', 'executing', { file_path: 'short.ts' }))
-      .toBe('editing short.ts…')
+    expect(derivePhaseFeedback('file_edit', 'executing', { file_path: 'short.ts' })).toBe('editing short.ts…')
   })
 
   it('returns search feedback with query', () => {
-    expect(derivePhaseFeedback('search', 'executing', { query: 'TODO' }))
-      .toBe('searching "TODO"…')
+    expect(derivePhaseFeedback('search', 'executing', { query: 'TODO' })).toBe('searching "TODO"…')
   })
 
   it('truncates long search queries', () => {
@@ -312,28 +312,23 @@ describe('derivePhaseFeedback', () => {
   })
 
   it('returns ls feedback with path', () => {
-    expect(derivePhaseFeedback('ls', 'executing', { path: '/home/user/project' }))
-      .toBe('listing …/user/project…')
+    expect(derivePhaseFeedback('ls', 'executing', { path: '/home/user/project' })).toBe('listing …/user/project…')
   })
 
   it('returns ls feedback with default path', () => {
-    expect(derivePhaseFeedback('ls', 'executing', {}))
-      .toBe('listing .…')
+    expect(derivePhaseFeedback('ls', 'executing', {})).toBe('listing .…')
   })
 
   it('returns null for non-executing phase', () => {
-    expect(derivePhaseFeedback('file_read', 'generating', { file_path: '/foo.ts' }))
-      .toBeNull()
+    expect(derivePhaseFeedback('file_read', 'generating', { file_path: '/foo.ts' })).toBeNull()
   })
 
   it('returns null for unknown tools', () => {
-    expect(derivePhaseFeedback('custom_tool', 'executing', {}))
-      .toBeNull()
+    expect(derivePhaseFeedback('custom_tool', 'executing', {})).toBeNull()
   })
 
   it('falls back gracefully when file_path is missing', () => {
-    expect(derivePhaseFeedback('file_read', 'executing', {}))
-      .toBe('reading file…')
+    expect(derivePhaseFeedback('file_read', 'executing', {})).toBe('reading file…')
   })
 })
 
@@ -351,11 +346,13 @@ describe('Built-in tool card shows derived feedback when no stdout', () => {
 
     const state: TimelineState = {
       ...createInitialTimelineState(),
-      items: [{
-        type: 'tool_call',
-        id: 'tc-read',
-        toolCall: tc,
-      }],
+      items: [
+        {
+          type: 'tool_call',
+          id: 'tc-read',
+          toolCall: tc,
+        },
+      ],
     }
 
     const output = renderToString(
@@ -387,11 +384,13 @@ describe('Built-in tool card shows derived feedback when no stdout', () => {
 
     const state: TimelineState = {
       ...createInitialTimelineState(),
-      items: [{
-        type: 'tool_call',
-        id: 'tc-read2',
-        toolCall: tc,
-      }],
+      items: [
+        {
+          type: 'tool_call',
+          id: 'tc-read2',
+          toolCall: tc,
+        },
+      ],
     }
 
     const output = renderToString(

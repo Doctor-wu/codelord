@@ -171,7 +171,7 @@ export class SessionStore {
       return []
     }
 
-    return metas.sort((a, b) => b.updatedAt - a.updatedAt)
+    return metas.toSorted((a, b) => b.updatedAt - a.updatedAt)
   }
 
   /** Delete a session by ID */

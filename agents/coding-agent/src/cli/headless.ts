@@ -106,9 +106,12 @@ export async function runHeadless(options: HeadlessRunOptions): Promise<Headless
     },
     onToolCall: (event) => {
       onProgress?.({ type: 'tool_call', toolName: event.toolName, phase: 'started' })
-      event.pipeable.done().then((lifecycle) => {
-        onProgress?.({ type: 'tool_call', toolName: event.toolName, phase: 'completed', isError: lifecycle.isError })
-      }).catch(() => {}) // ignore abort errors
+      event.pipeable
+        .done()
+        .then((lifecycle) => {
+          onProgress?.({ type: 'tool_call', toolName: event.toolName, phase: 'completed', isError: lifecycle.isError })
+        })
+        .catch(() => {}) // ignore abort errors
     },
   }
 
@@ -144,7 +147,11 @@ export async function runHeadless(options: HeadlessRunOptions): Promise<Headless
   const trace = recorder.finalize(outcome, { toolStats })
 
   // Persist trace (best effort)
-  try { new TraceStore().save(trace) } catch { /* best effort */ }
+  try {
+    new TraceStore().save(trace)
+  } catch {
+    /* best effort */
+  }
 
   // Extract final text
   const text = outcome.type === 'success' ? outcome.text : ''

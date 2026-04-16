@@ -50,9 +50,10 @@ export function registerTerminalBenchRenderer(): void {
     const phaseAverages = computePhaseAverages(result.cases)
 
     for (const caseResult of result.cases) {
-      const errorType = typeof caseResult.metadata?.exception_type === 'string'
-        ? caseResult.metadata.exception_type
-        : caseResult.error ?? 'NONE'
+      const errorType =
+        typeof caseResult.metadata?.exception_type === 'string'
+          ? caseResult.metadata.exception_type
+          : (caseResult.error ?? 'NONE')
       errorCounts.set(errorType, (errorCounts.get(errorType) ?? 0) + 1)
     }
 
@@ -64,7 +65,9 @@ export function registerTerminalBenchRenderer(): void {
       '| --- | --- | --- |',
     ]
 
-    for (const [errorType, count] of [...errorCounts.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+    for (const [errorType, count] of [...errorCounts.entries()].toSorted(([left], [right]) =>
+      left.localeCompare(right),
+    )) {
       const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0'
       lines.push(`| ${errorType} | ${count} | ${percentage}% |`)
     }

@@ -11,10 +11,7 @@ type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K]
 }
 
-function deepMerge<T extends object>(
-  base: T,
-  override: DeepPartial<T>,
-): T {
+function deepMerge<T extends object>(base: T, override: DeepPartial<T>): T {
   const result = { ...base }
 
   for (const key of Object.keys(override) as (keyof T)[]) {
@@ -29,10 +26,7 @@ function deepMerge<T extends object>(
       typeof baseVal === 'object' &&
       baseVal !== null
     ) {
-      result[key] = deepMerge(
-        baseVal as object,
-        val as DeepPartial<object>,
-      ) as T[keyof T]
+      result[key] = deepMerge(baseVal as object, val as DeepPartial<object>) as T[keyof T]
     } else {
       result[key] = val as T[keyof T]
     }
@@ -52,7 +46,8 @@ function readEnvOverrides(env: Record<string, string | undefined>): DeepPartial<
   if (env.CODELORD_MODEL) overrides.model = env.CODELORD_MODEL
   if (env.CODELORD_API_KEY) overrides.apiKey = env.CODELORD_API_KEY
   if (env.CODELORD_MAX_STEPS) overrides.maxSteps = Number(env.CODELORD_MAX_STEPS)
-  if (env.CODELORD_REASONING_LEVEL) overrides.reasoningLevel = env.CODELORD_REASONING_LEVEL as CodelordConfig['reasoningLevel']
+  if (env.CODELORD_REASONING_LEVEL)
+    overrides.reasoningLevel = env.CODELORD_REASONING_LEVEL as CodelordConfig['reasoningLevel']
   if (env.CODELORD_BASE_URL) overrides.baseUrl = env.CODELORD_BASE_URL
 
   return overrides
@@ -62,10 +57,7 @@ function readEnvOverrides(env: Record<string, string | undefined>): DeepPartial<
  * Resolve apiKey fallback: if apiKey is still empty after merge,
  * try provider-specific env var (e.g. ANTHROPIC_API_KEY).
  */
-function resolveApiKeyFallback(
-  config: CodelordConfig,
-  env: Record<string, string | undefined>,
-): CodelordConfig {
+function resolveApiKeyFallback(config: CodelordConfig, env: Record<string, string | undefined>): CodelordConfig {
   if (config.apiKey) return config
 
   const envApiKey = getEnvApiKeyFromEnv(config.provider, env)
@@ -76,10 +68,7 @@ function resolveApiKeyFallback(
   return config
 }
 
-function getEnvApiKeyFromEnv(
-  provider: string,
-  env: Record<string, string | undefined>,
-): string | undefined {
+function getEnvApiKeyFromEnv(provider: string, env: Record<string, string | undefined>): string | undefined {
   if (env === process.env) {
     return getEnvApiKey(provider)
   }

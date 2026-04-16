@@ -61,7 +61,9 @@ export class InkRenderer implements InteractiveRenderer {
     }
   }
 
-  onLifecycleEvent(event: LifecycleEvent): void { this.store.onLifecycleEvent(event) }
+  onLifecycleEvent(event: LifecycleEvent): void {
+    this.store.onLifecycleEvent(event)
+  }
 
   buildLifecycleCallbacks(): AgentLifecycleCallbacks {
     return this.store.buildLifecycleCallbacks()
@@ -101,7 +103,9 @@ export class InkRenderer implements InteractiveRenderer {
     }
   }
 
-  captureTimelineSnapshot(): TimelineSnapshot { return this.store.captureSnapshot() }
+  captureTimelineSnapshot(): TimelineSnapshot {
+    return this.store.captureSnapshot()
+  }
 
   hydrateTimeline(snapshot: TimelineSnapshot): void {
     this.store.hydrateFromSnapshot(snapshot)

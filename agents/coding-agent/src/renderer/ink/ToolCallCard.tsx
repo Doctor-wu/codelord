@@ -22,12 +22,17 @@ export function ToolCallCard({ item, isLast }: ToolCallCardProps) {
 }
 
 /** Reusable inner view — renders a single ToolCallLifecycle */
-export function ToolCallView({ tc, isLast, dimCompleted = false }: {
+export function ToolCallView({
+  tc,
+  isLast,
+  dimCompleted = false,
+}: {
   tc: ToolCallLifecycle
   isLast: boolean
   dimCompleted?: boolean
 }) {
-  const isActive = tc.phase === 'executing' || tc.phase === 'generating' || tc.phase === 'routed' || tc.phase === 'checked'
+  const isActive =
+    tc.phase === 'executing' || tc.phase === 'generating' || tc.phase === 'routed' || tc.phase === 'checked'
   const isDone = tc.phase === 'completed'
   const isBlocked = tc.phase === 'blocked'
   const category = classifyToolCallCategory(tc)
@@ -49,9 +54,10 @@ export function ToolCallView({ tc, isLast, dimCompleted = false }: {
   const normalizedCommand = normalizeInline(command)
   const titleLine = `${toolName}(${normalizedCommand})`
   const maxTitleWidth = availableWidth - 4
-  const displayTitle = getDisplayWidth(titleLine) <= maxTitleWidth
-    ? titleLine
-    : `${toolName}(${normalizedCommand.slice(0, maxTitleWidth - toolName.length - 3)}…)`
+  const displayTitle =
+    getDisplayWidth(titleLine) <= maxTitleWidth
+      ? titleLine
+      : `${toolName}(${normalizedCommand.slice(0, maxTitleWidth - toolName.length - 3)}…)`
 
   // Result display
   const displayResult = buildDisplayResult(tc)
@@ -67,27 +73,44 @@ export function ToolCallView({ tc, isLast, dimCompleted = false }: {
     <Box flexDirection="column" marginTop={1}>
       {/* ── Header: phase icon + tool name + command + phase label ── */}
       <Box>
-        <Text color={color} dimColor={borderDim}>{borderChar} </Text>
-        <Text color={color} dimColor={borderDim}>{phaseIcon} </Text>
-        <Text color={color} bold={isActive} dimColor={borderDim}>{displayTitle}</Text>
+        <Text color={color} dimColor={borderDim}>
+          {borderChar}{' '}
+        </Text>
+        <Text color={color} dimColor={borderDim}>
+          {phaseIcon}{' '}
+        </Text>
+        <Text color={color} bold={isActive} dimColor={borderDim}>
+          {displayTitle}
+        </Text>
         {phaseLabel && <Text dimColor> {phaseLabel}</Text>}
       </Box>
 
       {/* ── Reasoning: why this tool was called (always single-line) ── */}
       {tc.displayReason && (
         <Box>
-          <Text color={color} dimColor={borderDim}>{borderChar} </Text>
-          <Text dimColor italic>  {GLYPH.settled} {sanitizeOperatorHint(tc.displayReason)}</Text>
+          <Text color={color} dimColor={borderDim}>
+            {borderChar}{' '}
+          </Text>
+          <Text dimColor italic>
+            {' '}
+            {GLYPH.settled} {sanitizeOperatorHint(tc.displayReason)}
+          </Text>
         </Box>
       )}
 
       {/* ── Route badge ── */}
       {tc.route?.wasRouted && (
         <Box>
-          <Text color={color} dimColor={borderDim}>{borderChar} </Text>
-          <Text dimColor>  routed </Text>
+          <Text color={color} dimColor={borderDim}>
+            {borderChar}{' '}
+          </Text>
+          <Text dimColor> routed </Text>
           <Text dimColor>{formatToolDisplayName(tc.route.originalToolName)}</Text>
-          <Text dimColor> {GLYPH.thinRule}{'>'} </Text>
+          <Text dimColor>
+            {' '}
+            {GLYPH.thinRule}
+            {'>'}{' '}
+          </Text>
           <Text dimColor={borderDim}>{toolName}</Text>
           {tc.route.reason && <Text dimColor> ({tc.route.reason})</Text>}
         </Box>
@@ -96,16 +119,28 @@ export function ToolCallView({ tc, isLast, dimCompleted = false }: {
       {/* ── Safety badge ── */}
       {tc.safety && !tc.safety.allowed && (
         <Box>
-          <Text color={color} dimColor={borderDim}>{borderChar} </Text>
-          <Text color={LANE.error} bold>  {GLYPH.phaseBlocked} BLOCKED </Text>
+          <Text color={color} dimColor={borderDim}>
+            {borderChar}{' '}
+          </Text>
+          <Text color={LANE.error} bold>
+            {' '}
+            {GLYPH.phaseBlocked} BLOCKED{' '}
+          </Text>
           <Text color={LANE.error}>risk:{tc.safety.riskLevel}</Text>
-          {tc.safety.reason && <Text color={LANE.errorMuted}> {GLYPH.thinRule} {tc.safety.reason}</Text>}
+          {tc.safety.reason && (
+            <Text color={LANE.errorMuted}>
+              {' '}
+              {GLYPH.thinRule} {tc.safety.reason}
+            </Text>
+          )}
         </Box>
       )}
       {tc.safety && tc.safety.allowed && tc.safety.riskLevel !== 'safe' && (
         <Box>
-          <Text color={color} dimColor={borderDim}>{borderChar} </Text>
-          <Text color={LANE.control}>  risk:{tc.safety.riskLevel}</Text>
+          <Text color={color} dimColor={borderDim}>
+            {borderChar}{' '}
+          </Text>
+          <Text color={LANE.control}> risk:{tc.safety.riskLevel}</Text>
         </Box>
       )}
 
@@ -114,23 +149,33 @@ export function ToolCallView({ tc, isLast, dimCompleted = false }: {
         <>
           {headLines.map((line, i) => (
             <Box key={`h-${i}`}>
-              <Text color={color} dimColor={borderDim}>{borderChar} </Text>
+              <Text color={color} dimColor={borderDim}>
+                {borderChar}{' '}
+              </Text>
               <Text dimColor={contentDim}>{i === 0 && isActive ? GLYPH.live : ' '} </Text>
-              <Text color={tc.isError ? LANE.error : undefined} dimColor={contentDim}>{line || ' '}</Text>
+              <Text color={tc.isError ? LANE.error : undefined} dimColor={contentDim}>
+                {line || ' '}
+              </Text>
             </Box>
           ))}
           {hiddenLineCount > 0 && (
             <Box>
-              <Text color={color} dimColor={borderDim}>{borderChar} </Text>
-              <Text dimColor>  </Text>
+              <Text color={color} dimColor={borderDim}>
+                {borderChar}{' '}
+              </Text>
+              <Text dimColor> </Text>
               <Text color={META_COLOR}>+{hiddenLineCount} lines</Text>
             </Box>
           )}
           {tailLines.map((line, i) => (
             <Box key={`t-${i}`}>
-              <Text color={color} dimColor={borderDim}>{borderChar} </Text>
-              <Text dimColor={contentDim}>  </Text>
-              <Text color={tc.isError ? LANE.error : undefined} dimColor={contentDim}>{line || ' '}</Text>
+              <Text color={color} dimColor={borderDim}>
+                {borderChar}{' '}
+              </Text>
+              <Text dimColor={contentDim}> </Text>
+              <Text color={tc.isError ? LANE.error : undefined} dimColor={contentDim}>
+                {line || ' '}
+              </Text>
             </Box>
           ))}
         </>
@@ -139,7 +184,9 @@ export function ToolCallView({ tc, isLast, dimCompleted = false }: {
       {/* ── Stderr (separate, highlighted) ── */}
       {hasStderr && !tc.stdout?.includes(tc.stderr) && (
         <Box>
-          <Text color={color} dimColor={borderDim}>{borderChar} </Text>
+          <Text color={color} dimColor={borderDim}>
+            {borderChar}{' '}
+          </Text>
           <Text color={LANE.errorMuted}>{GLYPH.live} stderr: </Text>
           <Text color={LANE.errorMuted}>{tc.stderr.split('\n')[0]}</Text>
         </Box>
@@ -148,13 +195,13 @@ export function ToolCallView({ tc, isLast, dimCompleted = false }: {
       {/* ── Completion footer ── */}
       {tc.completedAt && (
         <Box>
-          <Text color={color} dimColor={borderDim}>{borderChar} </Text>
+          <Text color={color} dimColor={borderDim}>
+            {borderChar}{' '}
+          </Text>
           <Text color={tc.isError ? LANE.error : 'green'} dimColor={!tc.isError}>
             {tc.isError ? `${GLYPH.phaseFail} failed` : `${GLYPH.phaseDone} done`}
           </Text>
-          {tc.executionStartedAt && (
-            <Text dimColor> {formatDuration(tc.completedAt - tc.executionStartedAt)}</Text>
-          )}
+          {tc.executionStartedAt && <Text dimColor> {formatDuration(tc.completedAt - tc.executionStartedAt)}</Text>}
         </Box>
       )}
     </Box>
@@ -167,9 +214,7 @@ export function ToolCallView({ tc, isLast, dimCompleted = false }: {
 
 function classifyToolCallCategory(tc: ToolCallLifecycle): Exclude<StepCategory, 'text'> {
   if (tc.isError) return 'error'
-  return tc.toolName === 'bash'
-    ? classifyCommand(tc.command)
-    : classifyToolName(tc.toolName)
+  return tc.toolName === 'bash' ? classifyCommand(tc.command) : classifyToolName(tc.toolName)
 }
 
 function getPhaseIcon(tc: ToolCallLifecycle, dimmed: boolean): string {
@@ -182,16 +227,21 @@ function getPhaseIcon(tc: ToolCallLifecycle, dimmed: boolean): string {
 function getPhaseLabel(tc: ToolCallLifecycle): string | null {
   if (tc.completedAt) return null
   switch (tc.phase) {
-    case 'generating': return 'building…'
-    case 'routed': return 'routed'
-    case 'checked': return 'checked'
+    case 'generating':
+      return 'building…'
+    case 'routed':
+      return 'routed'
+    case 'checked':
+      return 'checked'
     case 'executing': {
       if (tc.stdout || tc.stderr) return null
       // Derive tool-specific feedback for built-in tools without output yet
       return derivePhaseFeedback(tc.toolName, tc.phase, tc.args) ?? 'executing…'
     }
-    case 'blocked': return 'blocked'
-    default: return null
+    case 'blocked':
+      return 'blocked'
+    default:
+      return null
   }
 }
 

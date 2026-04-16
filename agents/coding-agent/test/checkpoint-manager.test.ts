@@ -108,11 +108,14 @@ describe('CheckpointManager', () => {
     writeFileSync(filePath, 'original content', 'utf-8')
 
     mgr.beginBurst()
-    await wrapped.get('file_edit')!({
-      file_path: 'existing.txt',
-      old_string: 'original',
-      new_string: 'modified',
-    }, emitCtx)
+    await wrapped.get('file_edit')!(
+      {
+        file_path: 'existing.txt',
+        old_string: 'original',
+        new_string: 'modified',
+      },
+      emitCtx,
+    )
     mgr.endBurst()
 
     // File is now modified
@@ -173,11 +176,14 @@ describe('CheckpointManager', () => {
     writeFileSync(join(cwd, 'a.txt'), 'aaa', 'utf-8')
 
     mgr.beginBurst()
-    await wrapped.get('file_edit')!({
-      file_path: 'a.txt',
-      old_string: 'aaa',
-      new_string: 'bbb',
-    }, emitCtx)
+    await wrapped.get('file_edit')!(
+      {
+        file_path: 'a.txt',
+        old_string: 'aaa',
+        new_string: 'bbb',
+      },
+      emitCtx,
+    )
     mgr.endBurst()
 
     // Serialize the stack
@@ -219,11 +225,14 @@ describe('CheckpointManager', () => {
     writeFileSync(join(cwd, 'x.txt'), 'xxx', 'utf-8')
 
     mgr.beginBurst()
-    await wrapped.get('file_edit')!({
-      file_path: 'x.txt',
-      old_string: 'xxx',
-      new_string: 'yyy',
-    }, emitCtx)
+    await wrapped.get('file_edit')!(
+      {
+        file_path: 'x.txt',
+        old_string: 'xxx',
+        new_string: 'yyy',
+      },
+      emitCtx,
+    )
     await wrapped.get('file_write')!({ file_path: 'y.txt', content: 'new' }, emitCtx)
     mgr.endBurst()
 
@@ -245,20 +254,26 @@ describe('CheckpointManager', () => {
 
     // Burst 1: v1 -> v2
     mgr.beginBurst()
-    await wrapped.get('file_edit')!({
-      file_path: 'f.txt',
-      old_string: 'v1',
-      new_string: 'v2',
-    }, emitCtx)
+    await wrapped.get('file_edit')!(
+      {
+        file_path: 'f.txt',
+        old_string: 'v1',
+        new_string: 'v2',
+      },
+      emitCtx,
+    )
     mgr.endBurst()
 
     // Burst 2: v2 -> v3
     mgr.beginBurst()
-    await wrapped.get('file_edit')!({
-      file_path: 'f.txt',
-      old_string: 'v2',
-      new_string: 'v3',
-    }, emitCtx)
+    await wrapped.get('file_edit')!(
+      {
+        file_path: 'f.txt',
+        old_string: 'v2',
+        new_string: 'v3',
+      },
+      emitCtx,
+    )
     mgr.endBurst()
 
     expect(mgr.undoCount).toBe(2)
@@ -293,16 +308,22 @@ describe('CheckpointManager', () => {
     writeFileSync(join(cwd, 'multi.txt'), 'original', 'utf-8')
 
     mgr.beginBurst()
-    await wrapped.get('file_edit')!({
-      file_path: 'multi.txt',
-      old_string: 'original',
-      new_string: 'first-edit',
-    }, emitCtx)
-    await wrapped.get('file_edit')!({
-      file_path: 'multi.txt',
-      old_string: 'first-edit',
-      new_string: 'second-edit',
-    }, emitCtx)
+    await wrapped.get('file_edit')!(
+      {
+        file_path: 'multi.txt',
+        old_string: 'original',
+        new_string: 'first-edit',
+      },
+      emitCtx,
+    )
+    await wrapped.get('file_edit')!(
+      {
+        file_path: 'multi.txt',
+        old_string: 'first-edit',
+        new_string: 'second-edit',
+      },
+      emitCtx,
+    )
     mgr.endBurst()
 
     // Only one file snapshot, capturing the state before the first edit
@@ -349,10 +370,13 @@ describe('CheckpointManager — shadow git', () => {
 
     const mgr = new CheckpointManager({ cwd, sessionId: 'test' })
     const handlers = new Map<string, ToolHandler>([
-      ['file_write', async (args) => {
-        writeFileSync(join(cwd, args.file_path as string), args.content as string, 'utf-8')
-        return { output: 'OK', isError: false }
-      }],
+      [
+        'file_write',
+        async (args) => {
+          writeFileSync(join(cwd, args.file_path as string), args.content as string, 'utf-8')
+          return { output: 'OK', isError: false }
+        },
+      ],
     ])
     const wrapped = mgr.wrapHandlers(handlers)
 
@@ -402,10 +426,13 @@ describe('CheckpointManager — shadow git', () => {
 
     const mgr = new CheckpointManager({ cwd, sessionId: 'test' })
     const handlers = new Map<string, ToolHandler>([
-      ['file_write', async (args) => {
-        writeFileSync(join(cwd, args.file_path as string), args.content as string, 'utf-8')
-        return { output: 'OK', isError: false }
-      }],
+      [
+        'file_write',
+        async (args) => {
+          writeFileSync(join(cwd, args.file_path as string), args.content as string, 'utf-8')
+          return { output: 'OK', isError: false }
+        },
+      ],
     ])
     const wrapped = mgr.wrapHandlers(handlers)
 

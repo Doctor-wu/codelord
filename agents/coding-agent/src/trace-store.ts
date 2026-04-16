@@ -20,7 +20,9 @@ const TRACES_DIR = join(homedir(), '.codelord', 'traces')
 // ---------------------------------------------------------------------------
 
 export function workspaceSlug(cwd: string): string {
-  return basename(cwd).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 40)
+  return basename(cwd)
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .slice(0, 40)
 }
 
 export function workspaceId(cwd: string): string {
@@ -108,7 +110,7 @@ export class TraceStore {
         const wsSlug = dashIdx > 0 ? ws.name.slice(0, dashIdx) : ws.name
         const wsId = dashIdx > 0 ? ws.name.slice(dashIdx + 1) : ''
 
-        const files = readdirSync(wsPath).filter(f => f.endsWith('.json'))
+        const files = readdirSync(wsPath).filter((f) => f.endsWith('.json'))
         for (const f of files) {
           const fRunId = f.slice(0, -5) // strip .json
           if (fRunId === prefix) {
@@ -121,7 +123,9 @@ export class TraceStore {
           }
         }
       }
-    } catch { return { type: 'not_found' } }
+    } catch {
+      return { type: 'not_found' }
+    }
 
     if (candidates.length === 0) return { type: 'not_found' }
     if (candidates.length === 1) {
@@ -130,10 +134,16 @@ export class TraceStore {
       return { type: 'unique', trace }
     }
     // Ambiguous — return lightweight candidates
-    const ambiguous: PrefixCandidate[] = candidates.map(c => {
+    const ambiguous: PrefixCandidate[] = candidates.map((c) => {
       try {
         const trace = JSON.parse(readFileSync(join(c.wsPath, c.file), 'utf-8')) as TraceRunV2
-        return { runId: c.runId, workspaceSlug: c.wsSlug, workspaceId: c.wsId, startedAt: trace.startedAt, outcome: trace.outcome.type }
+        return {
+          runId: c.runId,
+          workspaceSlug: c.wsSlug,
+          workspaceId: c.wsId,
+          startedAt: trace.startedAt,
+          outcome: trace.outcome.type,
+        }
       } catch {
         return { runId: c.runId, workspaceSlug: c.wsSlug, workspaceId: c.wsId, startedAt: 0, outcome: 'unknown' }
       }
@@ -155,7 +165,7 @@ export class TraceStore {
         if (filterWsId && !ws.name.endsWith(`-${filterWsId}`)) continue
 
         const wsPath = join(this.baseDir, ws.name)
-        const files = readdirSync(wsPath).filter(f => f.endsWith('.json'))
+        const files = readdirSync(wsPath).filter((f) => f.endsWith('.json'))
         for (const file of files) {
           try {
             const trace = JSON.parse(readFileSync(join(wsPath, file), 'utf-8')) as TraceRunV2
@@ -177,10 +187,14 @@ export class TraceStore {
               promptPreview: extractPromptPreview(trace),
               segmentCount: trace.segments?.length,
             })
-          } catch { /* skip corrupt files */ }
+          } catch {
+            /* skip corrupt files */
+          }
         }
       }
-    } catch { /* best effort */ }
+    } catch {
+      /* best effort */
+    }
 
     // Sort by startedAt descending, then limit
     summaries.sort((a, b) => b.startedAt - a.startedAt)
@@ -213,7 +227,9 @@ export function formatTraceList(summaries: TraceSummary[]): string {
     const cost = s.totalCost > 0 ? `$${s.totalCost.toFixed(4)}` : '$0'
     const prompt = s.promptPreview ? `  "${s.promptPreview}"` : ''
     const seg = s.segmentCount && s.segmentCount > 1 ? `  ${s.segmentCount}seg` : ''
-    lines.push(`  ${s.runId.slice(0, 8)}  ${time}  ${s.outcome.padEnd(7)}  ${s.stepCount}steps  ${s.llmCalls}llm  ${s.totalTokens}tok  ${cost}  ${dur}s${seg}${prompt}`)
+    lines.push(
+      `  ${s.runId.slice(0, 8)}  ${time}  ${s.outcome.padEnd(7)}  ${s.stepCount}steps  ${s.llmCalls}llm  ${s.totalTokens}tok  ${cost}  ${dur}s${seg}${prompt}`,
+    )
     lines.push(`    ${s.cwd}  ${s.provider}/${s.model}`)
     lines.push('')
   }
@@ -233,13 +249,21 @@ export function formatTraceShow(rawTrace: TraceRunV2, mode: TraceShowMode = 'sum
   L.push(`CWD: ${trace.cwd}`)
   L.push(`Provider: ${trace.provider}  Model: ${trace.model}`)
   L.push(`System prompt: ${trace.systemPromptHash}`)
-  L.push(`Time: ${new Date(trace.startedAt).toLocaleString()} → ${new Date(trace.endedAt).toLocaleString()} (${Math.round((trace.endedAt - trace.startedAt) / 1000)}s)`)
-  L.push(`Outcome: ${trace.outcome.type}${trace.outcome.error ? ` — ${trace.outcome.error}` : ''}${trace.outcome.reason ? ` — ${trace.outcome.reason}` : ''}`)
-  L.push(`Usage: ${trace.usageSummary.totalTokens} tok  ${trace.usageSummary.llmCalls} LLM calls  $${trace.usageSummary.cost.total.toFixed(4)}`)
-  L.push(`  input: ${trace.usageSummary.input}  output: ${trace.usageSummary.output}  cacheRead: ${trace.usageSummary.cacheRead}  cacheWrite: ${trace.usageSummary.cacheWrite}`)
+  L.push(
+    `Time: ${new Date(trace.startedAt).toLocaleString()} → ${new Date(trace.endedAt).toLocaleString()} (${Math.round((trace.endedAt - trace.startedAt) / 1000)}s)`,
+  )
+  L.push(
+    `Outcome: ${trace.outcome.type}${trace.outcome.error ? ` — ${trace.outcome.error}` : ''}${trace.outcome.reason ? ` — ${trace.outcome.reason}` : ''}`,
+  )
+  L.push(
+    `Usage: ${trace.usageSummary.totalTokens} tok  ${trace.usageSummary.llmCalls} LLM calls  $${trace.usageSummary.cost.total.toFixed(4)}`,
+  )
+  L.push(
+    `  input: ${trace.usageSummary.input}  output: ${trace.usageSummary.output}  cacheRead: ${trace.usageSummary.cacheRead}  cacheWrite: ${trace.usageSummary.cacheWrite}`,
+  )
   L.push(`Events: ${trace.eventCounts.providerStream} provider  ${trace.eventCounts.lifecycleEvents} lifecycle`)
   if (trace.redactionSummary.length > 0) {
-    L.push(`Redactions: ${trace.redactionSummary.map(r => `${r.type}×${r.count}`).join(', ')}`)
+    L.push(`Redactions: ${trace.redactionSummary.map((r) => `${r.type}×${r.count}`).join(', ')}`)
   }
   L.push('')
 
@@ -277,7 +301,7 @@ function formatSummaryBody(trace: TraceRunV2, L: string[]): void {
 
   // Collect step lifecycle events, injecting a synthetic "step_header" marker
   for (const step of trace.steps) {
-    const sorted = [...step.events].sort((a, b) => a.seq - b.seq)
+    const sorted = [...step.events].toSorted((a, b) => a.seq - b.seq)
 
     // Create a synthetic header event at the step's start seq (use first event's seq - 0.5, or step.startedAt for timestamp sort)
     const firstSeq = sorted.length > 0 ? sorted[0].seq : 0
@@ -286,7 +310,7 @@ function formatSummaryBody(trace: TraceRunV2, L: string[]): void {
     // Segment separator
     let segHeader: string | null = null
     if (trace.segments && trace.segments.length > 1) {
-      const seg = trace.segments.find(s => step.step >= s.stepRange[0] && step.step <= s.stepRange[1])
+      const seg = trace.segments.find((s) => step.step >= s.stepRange[0] && step.step <= s.stepRange[1])
       if (seg && step.step === seg.stepRange[0]) {
         segHeader = `── Segment ${seg.segmentIndex} (${seg.outcome.type})  ${new Date(seg.startedAt).toLocaleTimeString()} ──`
       }
@@ -295,17 +319,37 @@ function formatSummaryBody(trace: TraceRunV2, L: string[]): void {
     // Inject step header as a synthetic lifecycle event (using a special type marker)
     allLifecycle.push({
       event: {
-        eventId: -1, seq: firstSeq - 0.5, type: '__step_header__',
-        timestamp: step.startedAt, step: step.step, turnId: null,
+        eventId: -1,
+        seq: firstSeq - 0.5,
+        type: '__step_header__',
+        timestamp: step.startedAt,
+        step: step.step,
+        turnId: null,
         source: 'lifecycle_event',
-        toolCallId: null, toolName: null, phase: null,
+        toolCallId: null,
+        toolName: null,
+        phase: null,
         reason: segHeader, // piggyback segment header
         question: `══ Step ${step.step}  ${new Date(step.startedAt).toLocaleTimeString()}  ${dur} ══`,
-        usageSnapshot: null, count: null, messageCount: null,
-        interruptSource: null, requestedAt: null, observedAt: null, latencyMs: null,
-        droppedCount: null, droppedTokens: null, checkpointId: null, fileCount: null,
-        textPreview: null, thinkingPreview: null, stopReason: null,
-        reasoningIntent: null, reasoningWhy: null, argsPreview: null, resultPreview: null, isError: null,
+        usageSnapshot: null,
+        count: null,
+        messageCount: null,
+        interruptSource: null,
+        requestedAt: null,
+        observedAt: null,
+        latencyMs: null,
+        droppedCount: null,
+        droppedTokens: null,
+        checkpointId: null,
+        fileCount: null,
+        textPreview: null,
+        thinkingPreview: null,
+        stopReason: null,
+        reasoningIntent: null,
+        reasoningWhy: null,
+        argsPreview: null,
+        resultPreview: null,
+        isError: null,
       } as LifecycleTraceEvent,
     })
 
@@ -368,7 +412,9 @@ function formatTrajectoryEvent(le: LifecycleTraceEvent, L: string[], siblingEven
       }
       // Usage summary for this turn (look in sibling events if available)
       if (siblingEvents) {
-        const usageEvt = siblingEvents.find(x => x.source === 'lifecycle_event' && x.type === 'usage_updated') as LifecycleTraceEvent | undefined
+        const usageEvt = siblingEvents.find((x) => x.source === 'lifecycle_event' && x.type === 'usage_updated') as
+          | LifecycleTraceEvent
+          | undefined
         if (usageEvt?.usageSnapshot) {
           const u = usageEvt.usageSnapshot
           L.push(`  [usage] ${fmtNum(u.input)} in / ${fmtNum(u.output)} out  $${u.cost.total.toFixed(4)}`)
@@ -434,10 +480,12 @@ function fmtNum(n: number): string {
 function formatDetailBody(trace: TraceRunV2, L: string[]): void {
   for (const step of trace.steps) {
     const dur = step.endedAt ? `${step.endedAt - step.startedAt}ms` : 'in-flight'
-    const sorted = [...step.events].sort((a, b) => a.seq - b.seq)
-    const pCount = sorted.filter(e => e.source === 'provider_stream').length
-    const lCount = sorted.filter(e => e.source === 'lifecycle_event').length
-    L.push(`══ Step ${step.step} (${step.turnId?.slice(0, 12) ?? '?'})  ${new Date(step.startedAt).toLocaleTimeString()}  ${dur} ══`)
+    const sorted = [...step.events].toSorted((a, b) => a.seq - b.seq)
+    const pCount = sorted.filter((e) => e.source === 'provider_stream').length
+    const lCount = sorted.filter((e) => e.source === 'lifecycle_event').length
+    L.push(
+      `══ Step ${step.step} (${step.turnId?.slice(0, 12) ?? '?'})  ${new Date(step.startedAt).toLocaleTimeString()}  ${dur} ══`,
+    )
     L.push(`   provider: ${pCount}  lifecycle: ${lCount}`)
     L.push('')
     formatMergedTimeline(sorted, L, trace.startedAt)
@@ -446,7 +494,7 @@ function formatDetailBody(trace: TraceRunV2, L: string[]): void {
 
   const runEvts = trace.runEvents ?? []
   if (runEvts.length > 0) {
-    const sorted = [...runEvts].sort((a, b) => a.seq - b.seq)
+    const sorted = [...runEvts].toSorted((a, b) => a.seq - b.seq)
     L.push('══ Run-level Events ══')
     formatRawTimeline(sorted, L, trace.startedAt)
     L.push('')
@@ -472,7 +520,9 @@ function formatMergedTimeline(events: TraceEventEntry[], L: string[], base: numb
         const ci = getContentIndex(e)
         const tc = getToolCallId(e)
         const tn = getToolName(e)
-        L.push(`   │ ${tag} ${seqLabel(e.seq)}  ${tOff(e.timestamp, base)}  ${e.type} ×${count} (~${totalLen} chars)${ci}${tc}${tn}`)
+        L.push(
+          `   │ ${tag} ${seqLabel(e.seq)}  ${tOff(e.timestamp, base)}  ${e.type} ×${count} (~${totalLen} chars)${ci}${tc}${tn}`,
+        )
         i += count
         continue
       }
@@ -491,10 +541,12 @@ function formatMergedTimeline(events: TraceEventEntry[], L: string[], base: numb
 function formatRawBody(trace: TraceRunV2, L: string[]): void {
   for (const step of trace.steps) {
     const dur = step.endedAt ? `${step.endedAt - step.startedAt}ms` : 'in-flight'
-    const sorted = [...step.events].sort((a, b) => a.seq - b.seq)
-    const pCount = sorted.filter(e => e.source === 'provider_stream').length
-    const lCount = sorted.filter(e => e.source === 'lifecycle_event').length
-    L.push(`══ Step ${step.step} (${step.turnId?.slice(0, 12) ?? '?'})  ${new Date(step.startedAt).toLocaleTimeString()}  ${dur} ══`)
+    const sorted = [...step.events].toSorted((a, b) => a.seq - b.seq)
+    const pCount = sorted.filter((e) => e.source === 'provider_stream').length
+    const lCount = sorted.filter((e) => e.source === 'lifecycle_event').length
+    L.push(
+      `══ Step ${step.step} (${step.turnId?.slice(0, 12) ?? '?'})  ${new Date(step.startedAt).toLocaleTimeString()}  ${dur} ══`,
+    )
     L.push(`   provider: ${pCount}  lifecycle: ${lCount}`)
     L.push('')
     formatRawTimeline(sorted, L, trace.startedAt)
@@ -503,7 +555,7 @@ function formatRawBody(trace: TraceRunV2, L: string[]): void {
 
   const runEvts = trace.runEvents ?? []
   if (runEvts.length > 0) {
-    const sorted = [...runEvts].sort((a, b) => a.seq - b.seq)
+    const sorted = [...runEvts].toSorted((a, b) => a.seq - b.seq)
     L.push('══ Run-level Events ══')
     formatRawTimeline(sorted, L, trace.startedAt)
     L.push('')
@@ -528,7 +580,9 @@ function formatRawTimeline(events: TraceEventEntry[], L: string[], base: number)
         const ci = getContentIndex(e)
         const tc = getToolCallId(e)
         const tn = getToolName(e)
-        L.push(`   │ ${tag} ${seqLabel(e.seq)}  ${tOff(e.timestamp, base)}  ${e.type} ×${count} (~${totalLen} chars)${ci}${tc}${tn}`)
+        L.push(
+          `   │ ${tag} ${seqLabel(e.seq)}  ${tOff(e.timestamp, base)}  ${e.type} ×${count} (~${totalLen} chars)${ci}${tc}${tn}`,
+        )
         i += count
         continue
       }
@@ -545,9 +599,12 @@ function formatRawTimeline(events: TraceEventEntry[], L: string[], base: number)
 
 function sourceTag(source: string): string {
   switch (source) {
-    case 'provider_stream': return '[P]'
-    case 'lifecycle_event': return '[L]'
-    default: return '[?]'
+    case 'provider_stream':
+      return '[P]'
+    case 'lifecycle_event':
+      return '[L]'
+    default:
+      return '[?]'
   }
 }
 
@@ -563,7 +620,12 @@ function formatSingleEvent(e: TraceEventEntry, tag: string, L: string[], base: n
 }
 
 function isDeltaType(e: TraceEventEntry): boolean {
-  return e.type === 'text_delta' || e.type === 'thinking_delta' || e.type === 'toolcall_delta' || e.type === 'tool_output_delta'
+  return (
+    e.type === 'text_delta' ||
+    e.type === 'thinking_delta' ||
+    e.type === 'toolcall_delta' ||
+    e.type === 'tool_output_delta'
+  )
 }
 
 function getDeltaLen(e: TraceEventEntry): number {
@@ -622,4 +684,3 @@ function tOff(ts: number, base: number): string {
   const diff = ts - base
   return !Number.isNaN(diff) ? `t+${diff}ms` : ''
 }
-

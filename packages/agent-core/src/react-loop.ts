@@ -1,10 +1,4 @@
-import type {
-  Api,
-  Message,
-  Model,
-  SimpleStreamOptions,
-  Tool,
-} from '@mariozechner/pi-ai'
+import type { Api, Message, Model, SimpleStreamOptions, Tool } from '@mariozechner/pi-ai'
 import { AgentRuntime } from './runtime.js'
 import type { ToolRouter } from './tool-router.js'
 import type { ToolSafetyPolicy } from './tool-safety.js'
@@ -25,10 +19,7 @@ export interface ToolExecutionResult {
   errorCode?: string
 }
 
-export type ToolHandler = (
-  args: Record<string, unknown>,
-  context: ToolExecutionContext,
-) => Promise<ToolExecutionResult>
+export type ToolHandler = (args: Record<string, unknown>, context: ToolExecutionContext) => Promise<ToolExecutionResult>
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -73,9 +64,7 @@ export interface RunAgentOptions<TApi extends Api = Api> {
 // runAgent — single-shot façade over AgentRuntime
 // ---------------------------------------------------------------------------
 
-export async function runAgent<TApi extends Api = Api>(
-  options: RunAgentOptions<TApi>,
-): Promise<AgentResult> {
+export async function runAgent<TApi extends Api = Api>(options: RunAgentOptions<TApi>): Promise<AgentResult> {
   const {
     userMessage,
     model,

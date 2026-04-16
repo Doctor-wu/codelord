@@ -7,14 +7,43 @@ import type { StepCategory } from './theme.js'
 type ToolStepCategory = Exclude<StepCategory, 'text'>
 
 const READ_TOKENS = new Set([
-  'ls', 'cat', 'head', 'tail', 'find', 'grep', 'rg', 'wc',
-  'file', 'tree', 'pwd', 'which', 'echo', 'less', 'more',
-  'stat', 'du', 'df', 'env', 'printenv', 'type', 'realpath',
+  'ls',
+  'cat',
+  'head',
+  'tail',
+  'find',
+  'grep',
+  'rg',
+  'wc',
+  'file',
+  'tree',
+  'pwd',
+  'which',
+  'echo',
+  'less',
+  'more',
+  'stat',
+  'du',
+  'df',
+  'env',
+  'printenv',
+  'type',
+  'realpath',
 ])
 
 const WRITE_TOKENS = new Set([
-  'sed', 'tee', 'cp', 'mv', 'mkdir', 'rm', 'touch',
-  'chmod', 'chown', 'patch', 'install', 'ln',
+  'sed',
+  'tee',
+  'cp',
+  'mv',
+  'mkdir',
+  'rm',
+  'touch',
+  'chmod',
+  'chown',
+  'patch',
+  'install',
+  'ln',
 ])
 
 const VERIFY_PATTERNS = [

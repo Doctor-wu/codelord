@@ -28,9 +28,7 @@ export function estimateTokens(text: string): number {
 
 export function estimateMessageTokens(msg: Message): number {
   const ROLE_OVERHEAD = 4
-  const content = typeof msg.content === 'string'
-    ? msg.content
-    : JSON.stringify(msg.content)
+  const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
   return ROLE_OVERHEAD + estimateTokens(content)
 }
 

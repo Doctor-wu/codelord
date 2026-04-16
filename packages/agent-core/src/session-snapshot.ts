@@ -120,7 +120,7 @@ export function toSessionMeta(snapshot: SessionSnapshot): SessionMeta {
 
 /** Extract title from first user message, truncated to 60 chars */
 function extractTitle(messages: Message[]): string | null {
-  const first = messages.find(m => m.role === 'user')
+  const first = messages.find((m) => m.role === 'user')
   if (!first) return null
   const text = typeof first.content === 'string' ? first.content : ''
   if (!text) return null

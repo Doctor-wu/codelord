@@ -4,6 +4,7 @@
 
 The runtime module owns session-scoped execution semantics.
 It is the authoritative control plane for:
+
 - multi-turn execution
 - burst boundaries
 - queue injection
@@ -34,13 +35,13 @@ It is the authoritative control plane for:
 
 ## Key Files
 
-| Path | Role |
-| --- | --- |
-| `packages/agent-core/src/runtime.ts` | canonical runtime implementation |
-| `packages/agent-core/src/react-loop.ts` | compatibility facade around runtime behavior |
+| Path                                          | Role                                                  |
+| --------------------------------------------- | ----------------------------------------------------- |
+| `packages/agent-core/src/runtime.ts`          | canonical runtime implementation                      |
+| `packages/agent-core/src/react-loop.ts`       | compatibility facade around runtime behavior          |
 | `packages/agent-core/src/session-snapshot.ts` | snapshot shape, session meta, resume-state resolution |
-| `packages/agent-core/src/checkpoint.ts` | checkpoint record types used by undo/persistence |
-| `packages/agent-core/src/index.ts` | public exports |
+| `packages/agent-core/src/checkpoint.ts`       | checkpoint record types used by undo/persistence      |
+| `packages/agent-core/src/index.ts`            | public exports                                        |
 
 ## Invariants
 
@@ -61,6 +62,7 @@ It is the authoritative control plane for:
 ## High-Risk Changes
 
 These need extra care and usually require doc updates:
+
 - adding a new runtime state
 - changing safe-boundary injection rules
 - changing interrupt semantics

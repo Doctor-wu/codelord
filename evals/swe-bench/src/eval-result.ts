@@ -24,7 +24,7 @@ export function registerSWEBenchRenderer(): void {
       '| --- | --- | --- | --- |',
     ]
 
-    for (const [repo, stats] of [...byRepo.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+    for (const [repo, stats] of [...byRepo.entries()].toSorted(([left], [right]) => left.localeCompare(right))) {
       const patchRate = stats.total > 0 ? stats.patched / stats.total : 0
       lines.push(`| ${repo} | ${stats.total} | ${stats.patched} | ${patchRate.toFixed(3)} |`)
     }

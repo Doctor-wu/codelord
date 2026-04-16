@@ -90,7 +90,8 @@ async function main() {
   const dataDir = opts.dataDir
   const resultsDir = path.join(dataDir, 'results')
   await fs.mkdir(resultsDir, { recursive: true })
-  const outputPath = opts.output ?? path.join(resultsDir, `browsecomp-${new Date().toISOString().replace(/[:.]/g, '-')}.json`)
+  const outputPath =
+    opts.output ?? path.join(resultsDir, `browsecomp-${new Date().toISOString().replace(/[:.]/g, '-')}.json`)
 
   let modelId: string | undefined
   let providerId: string | undefined

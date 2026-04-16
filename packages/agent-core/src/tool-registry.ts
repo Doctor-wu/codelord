@@ -1,11 +1,7 @@
 import type { Tool } from '@mariozechner/pi-ai'
 import type { ToolContract } from './tools/tool-contract.js'
 
-function assertUniqueNames(
-  names: readonly string[],
-  label: string,
-  scope: string,
-): void {
+function assertUniqueNames(names: readonly string[], label: string, scope: string): void {
   const seen = new Set<string>()
 
   for (const name of names) {
@@ -16,16 +12,21 @@ function assertUniqueNames(
   }
 }
 
-export function assertUniqueToolNames(
-  tools: readonly Pick<Tool, 'name'>[],
-  scope: string,
-): void {
-  assertUniqueNames(tools.map((tool) => tool.name), 'tool name', scope)
+export function assertUniqueToolNames(tools: readonly Pick<Tool, 'name'>[], scope: string): void {
+  assertUniqueNames(
+    tools.map((tool) => tool.name),
+    'tool name',
+    scope,
+  )
 }
 
 export function assertUniqueContractToolNames(
   contracts: readonly Pick<ToolContract, 'toolName'>[],
   scope: string,
 ): void {
-  assertUniqueNames(contracts.map((contract) => contract.toolName), 'tool contract', scope)
+  assertUniqueNames(
+    contracts.map((contract) => contract.toolName),
+    'tool contract',
+    scope,
+  )
 }

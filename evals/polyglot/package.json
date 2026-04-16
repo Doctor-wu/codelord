@@ -11,9 +11,9 @@
   },
   "dependencies": {
     "@codelord/coding-agent": "workspace:*",
-    "@codelord/evals-shared": "workspace:*",
     "@codelord/config": "workspace:*",
     "@codelord/core": "workspace:*",
+    "@codelord/evals-shared": "workspace:*",
     "@mariozechner/pi-ai": "^0.64.0"
   }
 }

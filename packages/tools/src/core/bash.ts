@@ -31,13 +31,14 @@ const tool: Tool = {
 // ---------------------------------------------------------------------------
 
 function createBashHandler(cwd: string, timeout: number, maxOutput: number): ToolHandler {
-  return async (
-    args: Record<string, unknown>,
-    context: ToolExecutionContext,
-  ): Promise<ToolExecutionResult> => {
+  return async (args: Record<string, unknown>, context: ToolExecutionContext): Promise<ToolExecutionResult> => {
     const command = args.command as string
     if (!command || typeof command !== 'string') {
-      return { output: 'ERROR [INVALID_ARGS]: bash tool requires a "command" string argument', isError: true, errorCode: 'INVALID_ARGS' }
+      return {
+        output: 'ERROR [INVALID_ARGS]: bash tool requires a "command" string argument',
+        isError: true,
+        errorCode: 'INVALID_ARGS',
+      }
     }
 
     return new Promise<ToolExecutionResult>((resolve, reject) => {
@@ -55,9 +56,7 @@ function createBashHandler(cwd: string, timeout: number, maxOutput: number): Too
       const appendChunk = (stream: 'stdout' | 'stderr', chunk: string) => {
         if (!chunk) return
 
-        const nextChunk = remainingOutput > 0
-          ? chunk.slice(0, remainingOutput)
-          : ''
+        const nextChunk = remainingOutput > 0 ? chunk.slice(0, remainingOutput) : ''
 
         if (nextChunk) {
           context.emitOutput(stream, nextChunk)
@@ -87,7 +86,7 @@ function createBashHandler(cwd: string, timeout: number, maxOutput: number): Too
 
       child.on('close', (code) => {
         clearTimeout(timeoutId)
-        const exitCode = didTimeout ? null : code ?? 1
+        const exitCode = didTimeout ? null : (code ?? 1)
         const output = formatOutput(exitCode, stdout, stderr, undefined, wasTruncated)
         const isError = didTimeout || (exitCode !== null && exitCode !== 0)
         resolve({ output, isError })
@@ -149,9 +148,7 @@ const contract: ToolContract = {
     'Do not use bash grep/rg for code search — use search.',
     'Do not use bash curl/wget for web access when web_search and web_fetch tools are available — prefer those dedicated tools for better results and lower token usage.',
   ],
-  preconditions: [
-    'The command must be a valid shell command.',
-  ],
+  preconditions: ['The command must be a valid shell command.'],
   failureSemantics: [
     'Non-zero exit code means the command failed (isError=true).',
     'Timeout means the command ran too long (isError=true).',
@@ -172,11 +169,12 @@ const DEFAULT_MAX_OUTPUT = 10_000
 export const bashPlugin: ToolPlugin = {
   id: 'bash',
   tool,
-  createHandler: (ctx) => createBashHandler(
-    ctx.cwd,
-    (ctx.config.timeout as number | undefined) ?? DEFAULT_TIMEOUT,
-    (ctx.config.maxOutput as number | undefined) ?? DEFAULT_MAX_OUTPUT,
-  ),
+  createHandler: (ctx) =>
+    createBashHandler(
+      ctx.cwd,
+      (ctx.config.timeout as number | undefined) ?? DEFAULT_TIMEOUT,
+      (ctx.config.maxOutput as number | undefined) ?? DEFAULT_MAX_OUTPUT,
+    ),
   contract,
   riskLevel: 'dangerous',
   category: 'core',

@@ -103,10 +103,16 @@ export interface AgentLifecycleCallbacks {
 export function mergeLifecycleCallbacks(...sources: AgentLifecycleCallbacks[]): AgentLifecycleCallbacks {
   const merged: AgentLifecycleCallbacks = {}
   const keys: (keyof AgentLifecycleCallbacks)[] = [
-    'onStart', 'onText', 'onThinking', 'onToolCall', 'onError', 'onAbort', 'onDone',
+    'onStart',
+    'onText',
+    'onThinking',
+    'onToolCall',
+    'onError',
+    'onAbort',
+    'onDone',
   ]
   for (const key of keys) {
-    const handlers = sources.map(s => s[key]).filter(Boolean) as ((event: any) => void)[]
+    const handlers = sources.map((s) => s[key]).filter(Boolean) as ((event: any) => void)[]
     if (handlers.length > 0) {
       ;(merged as any)[key] = (event: any) => {
         for (const h of handlers) h(event)

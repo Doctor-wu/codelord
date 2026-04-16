@@ -9,11 +9,11 @@
 
 ## 仓库层级
 
-| 层 | 路径 | 职责 | 不应拥有 |
-| --- | --- | --- | --- |
-| Config | `packages/config` | config schema、默认值、校验、分层加载 | auth 流程、runtime 状态、UI |
-| Core engine | `packages/agent-core` | runtime 语义、tool primitives、router、safety、event spine、trace schema | CLI UX、renderer 布局、persistence 文件路径 |
-| Product shell | `agents/coding-agent` | 命令面、REPL 流程、system prompt 组装、Ink UI、auth、本地 stores、checkpoints | 可复用的 engine 不变量 |
+| 层            | 路径                  | 职责                                                                          | 不应拥有                                    |
+| ------------- | --------------------- | ----------------------------------------------------------------------------- | ------------------------------------------- |
+| Config        | `packages/config`     | config schema、默认值、校验、分层加载                                         | auth 流程、runtime 状态、UI                 |
+| Core engine   | `packages/agent-core` | runtime 语义、tool primitives、router、safety、event spine、trace schema      | CLI UX、renderer 布局、persistence 文件路径 |
+| Product shell | `agents/coding-agent` | 命令面、REPL 流程、system prompt 组装、Ink UI、auth、本地 stores、checkpoints | 可复用的 engine 不变量                      |
 
 ## 依赖方向
 
@@ -29,28 +29,28 @@
 
 ## 系统地图
 
-| 区域 | 关键文件 | 职责 |
-| --- | --- | --- |
-| Config 加载 | `packages/config/src/schema.ts`, `packages/config/src/load.ts`, `packages/config/src/toml.ts` | config 形状、默认值、校验、加载优先级 |
-| Runtime | `packages/agent-core/src/runtime.ts`, `packages/agent-core/src/react-loop.ts`, `packages/agent-core/src/session-snapshot.ts` | session 状态、bursts、queue、blocking、resume 语义 |
-| Tool platform | `packages/agent-core/src/tools/*`, `packages/agent-core/src/tool-router.ts`, `packages/agent-core/src/tool-safety.ts` | tool handlers、contracts、routing、safety 分类 |
-| Event 与 trace 模型 | `packages/agent-core/src/events.ts`, `packages/agent-core/src/trace.ts`, `packages/agent-core/src/trace-check.ts`, `packages/agent-core/src/redact.ts` | lifecycle 语义、trace schema、diagnostics、redaction |
-| CLI 组合 | `agents/coding-agent/src/cli/index.ts`, `agents/coding-agent/src/cli/repl.ts`, `agents/coding-agent/src/cli/system-prompt.ts`, `agents/coding-agent/src/cli/tool-kernel.ts` | 命令面、REPL 接线、prompt 组装、tool 组装 |
-| Renderer | `agents/coding-agent/src/renderer/index.ts`, `agents/coding-agent/src/renderer/ink-renderer.tsx`, `agents/coding-agent/src/renderer/ink/timeline-projection.ts` | timeline projection、Ink UI、input bridge |
-| Persistence | `agents/coding-agent/src/session-store.ts`, `agents/coding-agent/src/trace-store.ts`, `agents/coding-agent/src/trace-recorder.ts`, `agents/coding-agent/src/checkpoint-manager.ts` | 本地 session/trace persistence、trace 录制、undo checkpoints |
-| Auth | `agents/coding-agent/src/auth/index.ts`, `agents/coding-agent/src/auth/api-key.ts`, `agents/coding-agent/src/auth/oauth.ts` | provider 凭证解析 |
+| 区域                | 关键文件                                                                                                                                                                           | 职责                                                         |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Config 加载         | `packages/config/src/schema.ts`, `packages/config/src/load.ts`, `packages/config/src/toml.ts`                                                                                      | config 形状、默认值、校验、加载优先级                        |
+| Runtime             | `packages/agent-core/src/runtime.ts`, `packages/agent-core/src/react-loop.ts`, `packages/agent-core/src/session-snapshot.ts`                                                       | session 状态、bursts、queue、blocking、resume 语义           |
+| Tool platform       | `packages/agent-core/src/tools/*`, `packages/agent-core/src/tool-router.ts`, `packages/agent-core/src/tool-safety.ts`                                                              | tool handlers、contracts、routing、safety 分类               |
+| Event 与 trace 模型 | `packages/agent-core/src/events.ts`, `packages/agent-core/src/trace.ts`, `packages/agent-core/src/trace-check.ts`, `packages/agent-core/src/redact.ts`                             | lifecycle 语义、trace schema、diagnostics、redaction         |
+| CLI 组合            | `agents/coding-agent/src/cli/index.ts`, `agents/coding-agent/src/cli/repl.ts`, `agents/coding-agent/src/cli/system-prompt.ts`, `agents/coding-agent/src/cli/tool-kernel.ts`        | 命令面、REPL 接线、prompt 组装、tool 组装                    |
+| Renderer            | `agents/coding-agent/src/renderer/index.ts`, `agents/coding-agent/src/renderer/ink-renderer.tsx`, `agents/coding-agent/src/renderer/ink/timeline-projection.ts`                    | timeline projection、Ink UI、input bridge                    |
+| Persistence         | `agents/coding-agent/src/session-store.ts`, `agents/coding-agent/src/trace-store.ts`, `agents/coding-agent/src/trace-recorder.ts`, `agents/coding-agent/src/checkpoint-manager.ts` | 本地 session/trace persistence、trace 录制、undo checkpoints |
+| Auth                | `agents/coding-agent/src/auth/index.ts`, `agents/coding-agent/src/auth/api-key.ts`, `agents/coding-agent/src/auth/oauth.ts`                                                        | provider 凭证解析                                            |
 
 ## Source Of Truth 规则
 
-| 关注点 | Source of truth | 派生 / 次要 |
-| --- | --- | --- |
-| Session 控制状态 | `AgentRuntime` + `SessionSnapshot` | renderer timeline 缓存 |
-| Resume 协调 | `resolveResumeState()` + runtime snapshot | 之前渲染的 timeline |
-| Tool 使用指导 | 由 `buildSystemPrompt()` 渲染的 tool contracts | 其他位置的临时 prompt 措辞 |
-| Tool 执行权限 | router + safety policy | UI 徽章或 trace 格式化 |
-| Lifecycle 语义 | `LifecycleEvent` / `ToolCallLifecycle` / `AssistantReasoningState` | renderer 专用的视图对象 |
-| Trace 事实 | 由 `TraceRecorder` 录制的 `TraceRunV2` | CLI pretty-print 输出 |
-| 本地 persistence 布局 | `SessionStore` / `TraceStore` / `CheckpointManager` | 文档和示例 |
+| 关注点                | Source of truth                                                    | 派生 / 次要                |
+| --------------------- | ------------------------------------------------------------------ | -------------------------- |
+| Session 控制状态      | `AgentRuntime` + `SessionSnapshot`                                 | renderer timeline 缓存     |
+| Resume 协调           | `resolveResumeState()` + runtime snapshot                          | 之前渲染的 timeline        |
+| Tool 使用指导         | 由 `buildSystemPrompt()` 渲染的 tool contracts                     | 其他位置的临时 prompt 措辞 |
+| Tool 执行权限         | router + safety policy                                             | UI 徽章或 trace 格式化     |
+| Lifecycle 语义        | `LifecycleEvent` / `ToolCallLifecycle` / `AssistantReasoningState` | renderer 专用的视图对象    |
+| Trace 事实            | 由 `TraceRecorder` 录制的 `TraceRunV2`                             | CLI pretty-print 输出      |
+| 本地 persistence 布局 | `SessionStore` / `TraceStore` / `CheckpointManager`                | 文档和示例                 |
 
 如果 renderer 视图或格式化字符串与 runtime 或 trace 对象不一致，以 runtime/trace 对象为准。
 

@@ -28,7 +28,15 @@ export interface AppProps {
   reasoningLevel: string
 }
 
-export function App({ store, inputBridge, version, cwd, provider, model, reasoningLevel: initialReasoningLevel }: AppProps) {
+export function App({
+  store,
+  inputBridge,
+  version,
+  cwd,
+  provider,
+  model,
+  reasoningLevel: initialReasoningLevel,
+}: AppProps) {
   const [state, setState] = useState<TimelineState>(store.getState())
   const [inputActive, setInputActive] = useState(inputBridge?.isActive ?? false)
   const [isRunning, setIsRunning] = useState(inputBridge?.isRunning ?? false)

@@ -18,21 +18,13 @@ const tool: Tool = {
     'Supports optional recursion, glob filtering, and type filtering.',
   ].join(' '),
   parameters: Type.Object({
-    path: Type.Optional(
-      Type.String({ description: 'Directory path to list. Defaults to cwd.' }),
-    ),
-    recursive: Type.Optional(
-      Type.Boolean({ description: 'Recursively list subdirectories. Defaults to false.' }),
-    ),
+    path: Type.Optional(Type.String({ description: 'Directory path to list. Defaults to cwd.' })),
+    recursive: Type.Optional(Type.Boolean({ description: 'Recursively list subdirectories. Defaults to false.' })),
     glob: Type.Optional(
       Type.String({ description: 'Glob pattern to filter entries (e.g. "*.ts"). Simple suffix matching only.' }),
     ),
-    type: Type.Optional(
-      Type.String({ description: 'Filter by type: "file" or "dir". Defaults to both.' }),
-    ),
-    max_entries: Type.Optional(
-      Type.Number({ description: 'Maximum entries to return. Defaults to 200.' }),
-    ),
+    type: Type.Optional(Type.String({ description: 'Filter by type: "file" or "dir". Defaults to both.' })),
+    max_entries: Type.Optional(Type.Number({ description: 'Maximum entries to return. Defaults to 200.' })),
     reason: Type.Optional(
       Type.String({ description: 'Brief explanation of why you are calling this tool for this specific step.' }),
     ),
@@ -47,9 +39,8 @@ const DEFAULT_MAX_ENTRIES = 200
 
 function createLsHandler(cwd: string): ToolHandler {
   return async (args) => {
-    const dirPath = typeof args.path === 'string'
-      ? (isAbsolute(args.path) ? resolve(args.path) : resolve(cwd, args.path))
-      : cwd
+    const dirPath =
+      typeof args.path === 'string' ? (isAbsolute(args.path) ? resolve(args.path) : resolve(cwd, args.path)) : cwd
     const recursive = args.recursive === true
     const glob = typeof args.glob === 'string' ? args.glob : undefined
     const typeFilter = typeof args.type === 'string' ? args.type : undefined
@@ -62,18 +53,37 @@ function createLsHandler(cwd: string): ToolHandler {
     const entries: string[] = []
 
     try {
-      await collectEntries(dirPath, dirPath, recursive, glob, typeFilter as 'file' | 'dir' | undefined, entries, maxEntries)
+      await collectEntries(
+        dirPath,
+        dirPath,
+        recursive,
+        glob,
+        typeFilter as 'file' | 'dir' | undefined,
+        entries,
+        maxEntries,
+      )
     } catch (err: unknown) {
       if (isNodeError(err) && err.code === 'ENOENT') {
         return { output: `ERROR [NOT_FOUND]: Directory not found: ${dirPath}`, isError: true, errorCode: 'NOT_FOUND' }
       }
       if (isNodeError(err) && err.code === 'EACCES') {
-        return { output: `ERROR [PERMISSION_DENIED]: Permission denied: ${dirPath}`, isError: true, errorCode: 'PERMISSION_DENIED' }
+        return {
+          output: `ERROR [PERMISSION_DENIED]: Permission denied: ${dirPath}`,
+          isError: true,
+          errorCode: 'PERMISSION_DENIED',
+        }
       }
       if (isNodeError(err) && err.code === 'ENOTDIR') {
-        return { output: `ERROR [INVALID_ARGS]: Path is not a directory: ${dirPath}`, isError: true, errorCode: 'INVALID_ARGS' }
+        return {
+          output: `ERROR [INVALID_ARGS]: Path is not a directory: ${dirPath}`,
+          isError: true,
+          errorCode: 'INVALID_ARGS',
+        }
       }
-      return { output: `ERROR: Failed to list directory: ${err instanceof Error ? err.message : String(err)}`, isError: true }
+      return {
+        output: `ERROR: Failed to list directory: ${err instanceof Error ? err.message : String(err)}`,
+        isError: true,
+      }
     }
 
     const truncated = entries.length >= maxEntries

@@ -49,9 +49,7 @@ export function renderSummaryMarkdown(result: EvalResult): string {
     lines.push('| type | message | caseId |')
     lines.push('| --- | --- | --- |')
     for (const error of result.errors) {
-      lines.push(
-        `| ${escapeCell(error.type)} | ${escapeCell(error.message)} | ${escapeCell(error.caseId ?? '')} |`,
-      )
+      lines.push(`| ${escapeCell(error.type)} | ${escapeCell(error.message)} | ${escapeCell(error.caseId ?? '')} |`)
     }
   }
 

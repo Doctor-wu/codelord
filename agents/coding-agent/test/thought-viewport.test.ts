@@ -19,9 +19,7 @@ describe('extractThoughtViewport', () => {
   it('returns last 5 lines when more than 5', () => {
     const lines = Array.from({ length: 10 }, (_, i) => `line ${i + 1}`)
     const thought = lines.join('\n')
-    expect(extractThoughtViewport(thought, 5)).toEqual([
-      'line 6', 'line 7', 'line 8', 'line 9', 'line 10',
-    ])
+    expect(extractThoughtViewport(thought, 5)).toEqual(['line 6', 'line 7', 'line 8', 'line 9', 'line 10'])
   })
 
   it('trims trailing empty lines', () => {

@@ -87,11 +87,18 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   const wsSlug = workspaceSlug(cwd)
   const wsId = workspaceId(cwd)
 
-  const newRecorder = () => new TraceRecorder({
-    sessionId, cwd, workspaceRoot: cwd, workspaceSlug: wsSlug, workspaceId: wsId,
-    provider: config.provider, model: config.model, systemPrompt,
-    rawMode: options.rawTrace,
-  })
+  const newRecorder = () =>
+    new TraceRecorder({
+      sessionId,
+      cwd,
+      workspaceRoot: cwd,
+      workspaceSlug: wsSlug,
+      workspaceId: wsId,
+      provider: config.provider,
+      model: config.model,
+      systemPrompt,
+      rawMode: options.rawTrace,
+    })
 
   // Session-level recorder: one trace per session, not per burst
   const sessionRecorder = newRecorder()
@@ -105,7 +112,9 @@ export async function startRepl(options: ReplOptions): Promise<void> {
       const outcome = finalOutcome ?? { type: 'success' as const, text: '' }
       const trace = sessionRecorder.finalize(outcome, { toolStats: runtime.toolStats.exportSnapshot() })
       traceStore.save(trace)
-    } catch { /* best effort */ }
+    } catch {
+      /* best effort */
+    }
   }
 
   // Fan-out lifecycle events to renderer + active trace recorder
@@ -277,7 +286,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
       timestamp: Date.now(),
     })
 
-    const fileList = result.restoredFiles.map(f => `  - ${f}`).join('\n')
+    const fileList = result.restoredFiles.map((f) => `  - ${f}`).join('\n')
     const undoMessage = `[UNDO] Reverted ${result.restoredFiles.length} file(s) from checkpoint ${result.record.checkpointId.slice(0, 8)}:\n${fileList}\n\nThe file changes from the previous agent turn have been undone. The files listed above have been restored to their state before that turn.`
 
     // Push directly into message history (not queue) so the agent sees it
@@ -417,7 +426,6 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     }
 
     saveSession()
-
   }
 
   saveSession()

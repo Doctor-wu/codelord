@@ -36,13 +36,25 @@ function createFileEditHandler(cwd: string): ToolHandler {
   return async (args) => {
     const filePath = args.file_path as string | undefined
     if (!filePath || typeof filePath !== 'string') {
-      return { output: 'ERROR [INVALID_ARGS]: file_path is required and must be a string.', isError: true, errorCode: 'INVALID_ARGS' }
+      return {
+        output: 'ERROR [INVALID_ARGS]: file_path is required and must be a string.',
+        isError: true,
+        errorCode: 'INVALID_ARGS',
+      }
     }
     if (typeof args.old_string !== 'string') {
-      return { output: 'ERROR [INVALID_ARGS]: old_string is required and must be a string.', isError: true, errorCode: 'INVALID_ARGS' }
+      return {
+        output: 'ERROR [INVALID_ARGS]: old_string is required and must be a string.',
+        isError: true,
+        errorCode: 'INVALID_ARGS',
+      }
     }
     if (typeof args.new_string !== 'string') {
-      return { output: 'ERROR [INVALID_ARGS]: new_string is required and must be a string.', isError: true, errorCode: 'INVALID_ARGS' }
+      return {
+        output: 'ERROR [INVALID_ARGS]: new_string is required and must be a string.',
+        isError: true,
+        errorCode: 'INVALID_ARGS',
+      }
     }
 
     const resolved = isAbsolute(filePath) ? resolve(filePath) : resolve(cwd, filePath)
@@ -57,18 +69,33 @@ function createFileEditHandler(cwd: string): ToolHandler {
         return { output: `ERROR [NOT_FOUND]: File not found: ${resolved}`, isError: true, errorCode: 'NOT_FOUND' }
       }
       if (isNodeError(err) && err.code === 'EACCES') {
-        return { output: `ERROR [PERMISSION_DENIED]: Permission denied: ${resolved}`, isError: true, errorCode: 'PERMISSION_DENIED' }
+        return {
+          output: `ERROR [PERMISSION_DENIED]: Permission denied: ${resolved}`,
+          isError: true,
+          errorCode: 'PERMISSION_DENIED',
+        }
       }
-      return { output: `ERROR: Failed to read file: ${err instanceof Error ? err.message : String(err)}`, isError: true }
+      return {
+        output: `ERROR: Failed to read file: ${err instanceof Error ? err.message : String(err)}`,
+        isError: true,
+      }
     }
 
     const matchCount = countOccurrences(content, oldString)
 
     if (matchCount === 0) {
-      return { output: `ERROR [NO_MATCH]: old_string not found in ${resolved}. No changes made.`, isError: true, errorCode: 'NO_MATCH' }
+      return {
+        output: `ERROR [NO_MATCH]: old_string not found in ${resolved}. No changes made.`,
+        isError: true,
+        errorCode: 'NO_MATCH',
+      }
     }
     if (matchCount > 1) {
-      return { output: `ERROR [MULTI_MATCH]: old_string found ${matchCount} times in ${resolved}. Provide more context to match exactly once. No changes made.`, isError: true, errorCode: 'MULTI_MATCH' }
+      return {
+        output: `ERROR [MULTI_MATCH]: old_string found ${matchCount} times in ${resolved}. Provide more context to match exactly once. No changes made.`,
+        isError: true,
+        errorCode: 'MULTI_MATCH',
+      }
     }
 
     const updated = content.replace(oldString, newString)
@@ -77,9 +104,16 @@ function createFileEditHandler(cwd: string): ToolHandler {
       await writeFile(resolved, updated, 'utf-8')
     } catch (err: unknown) {
       if (isNodeError(err) && err.code === 'EACCES') {
-        return { output: `ERROR [PERMISSION_DENIED]: Permission denied writing to: ${resolved}`, isError: true, errorCode: 'PERMISSION_DENIED' }
+        return {
+          output: `ERROR [PERMISSION_DENIED]: Permission denied writing to: ${resolved}`,
+          isError: true,
+          errorCode: 'PERMISSION_DENIED',
+        }
       }
-      return { output: `ERROR: Failed to write file: ${err instanceof Error ? err.message : String(err)}`, isError: true }
+      return {
+        output: `ERROR: Failed to write file: ${err instanceof Error ? err.message : String(err)}`,
+        isError: true,
+      }
     }
 
     return { output: `OK: Replaced 1 occurrence in ${resolved}`, isError: false }
@@ -92,10 +126,7 @@ function createFileEditHandler(cwd: string): ToolHandler {
 
 const contract: ToolContract = {
   toolName: 'file_edit',
-  whenToUse: [
-    'Making a targeted change in an existing file.',
-    'Replacing a specific code block, line, or string.',
-  ],
+  whenToUse: ['Making a targeted change in an existing file.', 'Replacing a specific code block, line, or string.'],
   whenNotToUse: [
     'Do not use if you do not know the exact content to replace.',
     'Do not use for creating new files — use file_write.',

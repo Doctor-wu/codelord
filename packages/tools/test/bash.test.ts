@@ -16,7 +16,11 @@ describe('createBashToolHandler', () => {
     const chunks: Array<{ stream: 'stdout' | 'stderr'; chunk: string }> = []
     const result = await handler(
       { command: "printf 'alpha\\n'; sleep 0.05; printf 'beta\\n'" },
-      { emitOutput: (stream, chunk) => { chunks.push({ stream, chunk }) } },
+      {
+        emitOutput: (stream, chunk) => {
+          chunks.push({ stream, chunk })
+        },
+      },
     )
 
     expect(result.isError).toBe(false)

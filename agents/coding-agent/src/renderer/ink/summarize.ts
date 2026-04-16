@@ -15,18 +15,18 @@ function charDisplayWidth(char: string): number {
   const codePoint = char.codePointAt(0) ?? 0
 
   if (
-    (codePoint >= 0x1100 && codePoint <= 0x115f)
-    || (codePoint >= 0x2329 && codePoint <= 0x232a)
-    || (codePoint >= 0x2e80 && codePoint <= 0xa4cf)
-    || (codePoint >= 0xac00 && codePoint <= 0xd7a3)
-    || (codePoint >= 0xf900 && codePoint <= 0xfaff)
-    || (codePoint >= 0xfe10 && codePoint <= 0xfe19)
-    || (codePoint >= 0xfe30 && codePoint <= 0xfe6f)
-    || (codePoint >= 0xff00 && codePoint <= 0xff60)
-    || (codePoint >= 0xffe0 && codePoint <= 0xffe6)
-    || (codePoint >= 0x1f300 && codePoint <= 0x1f64f)
-    || (codePoint >= 0x1f900 && codePoint <= 0x1f9ff)
-    || (codePoint >= 0x20000 && codePoint <= 0x3fffd)
+    (codePoint >= 0x1100 && codePoint <= 0x115f) ||
+    (codePoint >= 0x2329 && codePoint <= 0x232a) ||
+    (codePoint >= 0x2e80 && codePoint <= 0xa4cf) ||
+    (codePoint >= 0xac00 && codePoint <= 0xd7a3) ||
+    (codePoint >= 0xf900 && codePoint <= 0xfaff) ||
+    (codePoint >= 0xfe10 && codePoint <= 0xfe19) ||
+    (codePoint >= 0xfe30 && codePoint <= 0xfe6f) ||
+    (codePoint >= 0xff00 && codePoint <= 0xff60) ||
+    (codePoint >= 0xffe0 && codePoint <= 0xffe6) ||
+    (codePoint >= 0x1f300 && codePoint <= 0x1f64f) ||
+    (codePoint >= 0x1f900 && codePoint <= 0x1f9ff) ||
+    (codePoint >= 0x20000 && codePoint <= 0x3fffd)
   ) {
     return 2
   }
@@ -98,7 +98,10 @@ export function extractThoughtViewport(thinking: string, maxLines = 5): string[]
  */
 export function sanitizeOperatorHint(text: string, maxLen = 80): string {
   if (!text) return ''
-  const collapsed = text.replace(/[\n\r\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim()
+  const collapsed = text
+    .replace(/[\n\r\t]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
   if (collapsed.length <= maxLen) return collapsed
   return collapsed.slice(0, maxLen - 1) + '\u2026'
 }
@@ -122,11 +125,7 @@ export function normalizeInline(text: string): string {
 /**
  * Wrap text into a small number of lines, truncating the last line with ellipsis.
  */
-export function wrapInlineText(
-  text: string,
-  maxWidth: number,
-  maxLines: number,
-): string[] {
+export function wrapInlineText(text: string, maxWidth: number, maxLines: number): string[] {
   const normalized = normalizeInline(text)
   if (!normalized) return ['']
 

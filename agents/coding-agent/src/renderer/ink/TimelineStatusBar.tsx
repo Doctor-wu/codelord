@@ -56,8 +56,7 @@ export function TimelineStatusBar({ state, maxSteps }: TimelineStatusBarProps) {
     categoryCounts[cat] = (categoryCounts[cat] ?? 0) + 1
   }
 
-  const categoryEntries = (Object.entries(categoryCounts) as [StepCategory, number][])
-    .filter(([, count]) => count > 0)
+  const categoryEntries = (Object.entries(categoryCounts) as [StepCategory, number][]).filter(([, count]) => count > 0)
 
   const usage = state.usage
 
@@ -71,29 +70,26 @@ export function TimelineStatusBar({ state, maxSteps }: TimelineStatusBarProps) {
           <Text dimColor>
             steps {state.stepCount}/{maxSteps}
           </Text>
-          <Text dimColor>
-            tools {allToolCalls.length}
-          </Text>
+          <Text dimColor>tools {allToolCalls.length}</Text>
         </Box>
 
         <Box gap={2}>
           {categoryEntries.map(([cat, count]) => (
             <Text key={cat} color={STEP_COLORS[cat]} dimColor>
-              {count}{cat[0]}
+              {count}
+              {cat[0]}
             </Text>
           ))}
         </Box>
 
         <Box gap={2}>
-          {usage && usage.totalTokens > 0 && (
-            <Text dimColor>tok {formatTokens(usage.totalTokens)}</Text>
-          )}
+          {usage && usage.totalTokens > 0 && <Text dimColor>tok {formatTokens(usage.totalTokens)}</Text>}
           {usage && (usage.cacheRead > 0 || usage.cacheWrite > 0) && (
-            <Text dimColor>cache {formatTokens(usage.cacheRead)}r/{formatTokens(usage.cacheWrite)}w</Text>
+            <Text dimColor>
+              cache {formatTokens(usage.cacheRead)}r/{formatTokens(usage.cacheWrite)}w
+            </Text>
           )}
-          {usage && usage.cost.total > 0 && (
-            <Text dimColor>{formatCost(usage.cost.total)}</Text>
-          )}
+          {usage && usage.cost.total > 0 && <Text dimColor>{formatCost(usage.cost.total)}</Text>}
           <Text dimColor>{formatElapsed(elapsed)}</Text>
         </Box>
       </Box>

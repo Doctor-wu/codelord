@@ -34,10 +34,13 @@ export interface CodelordConfig {
   /** Optional custom base URL for the provider API (for proxies/third-party endpoints). */
   baseUrl?: string
   /** Per-tool configuration for optional tools */
-  tools?: Record<string, {
-    enabled?: boolean
-    [key: string]: unknown
-  }>
+  tools?: Record<
+    string,
+    {
+      enabled?: boolean
+      [key: string]: unknown
+    }
+  >
 }
 
 export const DEFAULT_CONFIG: CodelordConfig = {
@@ -64,8 +67,8 @@ export function validateConfig(config: CodelordConfig): void {
   if (!config.apiKey) {
     throw new Error(
       `Missing API key for provider "${config.provider}". ` +
-      'Please set CODELORD_API_KEY, a provider-specific environment variable supported by pi-ai, ' +
-      'or configure apiKey in ~/.codelord/config.toml.',
+        'Please set CODELORD_API_KEY, a provider-specific environment variable supported by pi-ai, ' +
+        'or configure apiKey in ~/.codelord/config.toml.',
     )
   }
 }

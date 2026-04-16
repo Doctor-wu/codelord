@@ -8,11 +8,7 @@ import { exitWithResult, writeResult } from '@codelord/evals-shared'
 import type { SWEBenchPrediction, SolveResult } from '../types.js'
 import { loadDataset } from '../dataset.js'
 import { prepareRepo, buildPrompt, extractPatch, resetRepo } from '../adapter.js'
-import {
-  buildSWEBenchEvalResult,
-  buildSWEBenchRuntimeErrorResult,
-  registerSWEBenchRenderer,
-} from '../eval-result.js'
+import { buildSWEBenchEvalResult, buildSWEBenchRuntimeErrorResult, registerSWEBenchRenderer } from '../eval-result.js'
 
 // --- CLI argument parsing ---------------------------------------------------
 
@@ -60,9 +56,7 @@ async function main() {
   await fs.mkdir(reposDir, { recursive: true })
   await fs.mkdir(resultsDir, { recursive: true })
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-  const outputPath = opts.output
-    ? path.resolve(opts.output)
-    : path.join(resultsDir, `results-${timestamp}.json`)
+  const outputPath = opts.output ? path.resolve(opts.output) : path.join(resultsDir, `results-${timestamp}.json`)
   const predictionsPath = opts.output
     ? path.join(path.dirname(outputPath), 'predictions.jsonl')
     : path.join(resultsDir, `predictions-${timestamp}.jsonl`)

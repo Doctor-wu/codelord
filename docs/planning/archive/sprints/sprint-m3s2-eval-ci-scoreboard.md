@@ -15,6 +15,7 @@
 ## Before / After
 
 **Before（冲刺开始时）**：
+
 - 四个 eval adapter 是 M3-S1 快速搭建的一次性脚本，只能本地跑
 - 结果 schema 各不相同（Polyglot 的 `BenchmarkSummary`、BrowseComp 的 `BrowseCompSummary`、SWE-bench 自己的 JSON、Terminal-Bench 的 Harbor `result.json`）
 - 没有统一的入口 / 输出格式 / 退出码 / 错误处理
@@ -23,6 +24,7 @@
 - BrowseComp 无 Docker、无 scripts
 
 **After（冲刺关闭时）**：
+
 - 四个 adapter 遵循统一 `EvalResult` schema，退出码 0/1/2，错误结构化
 - 每个 adapter 有标准 `scripts/run.sh`，接受统一环境变量
 - 四个 GitHub Actions workflow（workflow_dispatch），可配置子集/全量模式
@@ -39,6 +41,7 @@
 CORE-R1（Event System Refactor）已关闭。详见 [归档](./archive/sprints/sprint-core-r1-event-refactor.md)。
 
 CORE-R1 遗留项（不在本 sprint 范围）：
+
 - `onLifecycleEvent` 仍保留（非 Pipeable 事件的消费通道），记在 RoadMap CORE-R1 section
 
 ---
@@ -95,6 +98,7 @@ CORE-R1 遗留项（不在本 sprint 范围）：
 **改动文件**：新建 `evals/shared/*`，改 `evals/polyglot/src/runners/run-polyglot.ts`，改 `evals/polyglot/scripts/run.sh`，改 `evals/polyglot/src/types.ts`（保留内部类型，但最终输出走 shared schema）
 
 **验证**：
+
 - `cd evals/polyglot && pnpm polyglot --limit 1` 输出标准 `EvalResult` JSON
 - 退出码正确（有失败 case → 1）
 - `summary-renderer` 对 Polyglot 结果渲染出可读 Markdown
@@ -108,6 +112,7 @@ CORE-R1 遗留项（不在本 sprint 范围）：
 **目标**：SWE-bench adapter 改造为标准 `EvalResult` 输出。
 
 **具体改动**：
+
 1. `evals/swe-bench/src/runners/run-swe-bench.ts`：输出改为标准 `EvalResult`
    - `metrics` 包含：`pass_rate`（pass@1）
    - `cases[].metadata` 包含 SWE-bench 特有字段：`instance_id`, `repo`, `patch_applied`
@@ -127,6 +132,7 @@ CORE-R1 遗留项（不在本 sprint 范围）：
 **目标**：BrowseComp 补齐 Docker 和 scripts，改造为标准输出。
 
 **具体改动**：
+
 1. `evals/browsecomp/src/runners/run-browsecomp.ts`：输出改为标准 `EvalResult`
    - `metrics` 包含：`accuracy`, `avg_confidence`, `avg_duration_ms`
    - `cases[].metadata` 包含：`confidence`, `grade`, `grader_reasoning`
@@ -147,6 +153,7 @@ CORE-R1 遗留项（不在本 sprint 范围）：
 **目标**：Terminal-Bench 的 Harbor 输出转换为标准 `EvalResult`。
 
 **具体改动**：
+
 1. 新建 `evals/terminal-bench/scripts/convert-results.ts`：
    - 读取 Harbor `result.json`（结构：`{ stats.evals.*.metrics, stats.evals.*.exception_stats, trial_results }`) → 转换为标准 `EvalResult`
    - `metrics` 包含：`resolution_rate`, `n_trials`, `n_errors`
@@ -200,36 +207,41 @@ CORE-R1 遗留项（不在本 sprint 范围）：
    - trigger: `workflow_dispatch`
    - inputs: `limit`, `mode`
    - steps: setup-codelord → build codelord bundle → `pip install harbor` → harbor run → convert results → upload artifact → **write Job Summary**
-  - 注意：需要 Docker（GitHub ubuntu-latest 自带）、Python 3.12+（Harbor 当前已不支持 3.11）
+
+- 注意：需要 Docker（GitHub ubuntu-latest 自带）、Python 3.12+（Harbor 当前已不支持 3.11）
 
 6. `docs/ci/SECRETS.md`：Secrets 配置文档，列出每个 workflow 需要的 secrets 及获取方式
 
 **Job Summary 格式（所有 workflow 统一）**：
+
 ```markdown
 ## 🧪 Eval Results: <benchmark>
 
-| Metric | Value |
-|--------|-------|
-| Model | claude-sonnet-4-6 |
-| Mode | subset (limit=5) |
-| Pass Rate | 80.0% (4/5) |
-| Duration | 3m 42s |
+| Metric    | Value                |
+| --------- | -------------------- |
+| Model     | claude-sonnet-4-6    |
+| Mode      | subset (limit=5)     |
+| Pass Rate | 80.0% (4/5)          |
+| Duration  | 3m 42s               |
 | Timestamp | 2026-04-15T10:30:00Z |
 
 ### Cases
-| ID | Passed | Duration | Error |
-|----|--------|----------|-------|
-| exercise-1 | ✅ | 12.3s | |
-| exercise-2 | ❌ | 45.1s | timeout |
-| ... | ... | ... | ... |
+
+| ID         | Passed | Duration | Error   |
+| ---------- | ------ | -------- | ------- |
+| exercise-1 | ✅     | 12.3s    |         |
+| exercise-2 | ❌     | 45.1s    | timeout |
+| ...        | ...    | ...      | ...     |
 
 ### <Benchmark-specific section>
+
 (Polyglot: by-language breakdown; BrowseComp: grade distribution; etc.)
 ```
 
 **改动文件**：新建 `.github/actions/setup-codelord/action.yml`，新建 `.github/workflows/eval-*.yml` × 4，新建 `docs/ci/SECRETS.md`
 
 **验证**：
+
 - 在 GitHub Actions 页面 dispatch `eval-polyglot` with limit=1 → 跑完 → Job Summary 展示结果 → artifact 可下载
 - 四个 workflow 都能成功 dispatch 和运行
 
@@ -267,6 +279,7 @@ CORE-R1 遗留项（不在本 sprint 范围）：
 **改动文件**：新建 `docs/scores.md`，新建 `scripts/update-scores.ts`，新建 `.github/workflows/update-scores.yml`
 
 **验证**：
+
 - 手动运行 `scripts/update-scores.ts` 传入 M3-S1 基线数据 → `docs/scores.md` 生成正确
 - dispatch eval-polyglot full mode → 跑完 → 自动提 PR → PR 内容正确
 

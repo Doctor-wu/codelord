@@ -7,7 +7,13 @@ import { exitWithResult, writeResult } from '@codelord/evals-shared'
 import type { EvalCaseResult, EvalError, EvalResult } from '@codelord/evals-shared'
 
 import type { ExerciseResult, AttemptRecord } from '../types.js'
-import { scanExercises, buildPrompt, buildRetryPrompt, runTest, checkLanguagePrereqs } from '../adapters/polyglot/adapter.js'
+import {
+  scanExercises,
+  buildPrompt,
+  buildRetryPrompt,
+  runTest,
+  checkLanguagePrereqs,
+} from '../adapters/polyglot/adapter.js'
 import { copyExerciseDir } from '../adapters/polyglot/utils.js'
 import { registerPolyglotRenderer } from '../eval-result.js'
 
@@ -75,7 +81,10 @@ function buildEvalResult(
       pass_attempt_2: passAttempt2,
     },
     cases: results.map(mapCaseResult),
-    durationMs: results.reduce((sum, result) => sum + result.attempt1.durationMs + (result.attempt2?.durationMs ?? 0), 0),
+    durationMs: results.reduce(
+      (sum, result) => sum + result.attempt1.durationMs + (result.attempt2?.durationMs ?? 0),
+      0,
+    ),
   }
 }
 

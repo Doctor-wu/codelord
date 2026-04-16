@@ -13,7 +13,7 @@ export function resolveStaticApiKey(config: CodelordConfig): string {
   if (!config.apiKey) {
     throw new Error(
       `No API key configured for provider "${config.provider}". ` +
-      'Set CODELORD_API_KEY or configure apiKey in ~/.codelord/config.toml.',
+        'Set CODELORD_API_KEY or configure apiKey in ~/.codelord/config.toml.',
     )
   }
   return config.apiKey

@@ -22,18 +22,24 @@ export function QuestionCard({ item }: QuestionCardProps) {
         <Text color={LANE.control}>{GLYPH.thickRule.repeat(Math.min(40, width))}</Text>
       </Box>
       <Box>
-        <Text color={LANE.control} bold>{GLYPH.live} AWAITING INPUT</Text>
+        <Text color={LANE.control} bold>
+          {GLYPH.live} AWAITING INPUT
+        </Text>
       </Box>
 
       {/* ── Question ── */}
       <Box paddingLeft={2}>
-        <Text color={LANE.control} bold>{item.question}</Text>
+        <Text color={LANE.control} bold>
+          {item.question}
+        </Text>
       </Box>
 
       {/* ── Why asking ── */}
       {detail?.whyAsk && (
         <Box paddingLeft={2}>
-          <Text dimColor italic>{GLYPH.settled} {detail.whyAsk}</Text>
+          <Text dimColor italic>
+            {GLYPH.settled} {detail.whyAsk}
+          </Text>
         </Box>
       )}
 

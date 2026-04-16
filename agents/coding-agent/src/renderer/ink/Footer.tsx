@@ -60,25 +60,27 @@ export function Footer({ state, provider, model, reasoningLevel, sessionMode, is
 
   return (
     <Box flexDirection="column">
-      <Box><Text dimColor>{GLYPH.thinRule.repeat(cols)}</Text></Box>
+      <Box>
+        <Text dimColor>{GLYPH.thinRule.repeat(cols)}</Text>
+      </Box>
       <Box justifyContent="space-between">
         <Box>
-          <Text color={statusColor}>{statusIcon} {statusLabel}</Text>
+          <Text color={statusColor}>
+            {statusIcon} {statusLabel}
+          </Text>
         </Box>
 
         <Box gap={1}>
-          <Text color={brand.color}>{brand.symbol} {model}</Text>
+          <Text color={brand.color}>
+            {brand.symbol} {model}
+          </Text>
           <Text dimColor>{GLYPH.thinRule}</Text>
           <Text dimColor>reasoning:{reasoningLevel}</Text>
         </Box>
 
         <Box gap={2}>
-          {usage && usage.totalTokens > 0 && (
-            <Text dimColor>{formatTokens(usage.totalTokens)} tok</Text>
-          )}
-          {usage && usage.cost.total > 0 && (
-            <Text dimColor>{formatCost(usage.cost.total)}</Text>
-          )}
+          {usage && usage.totalTokens > 0 && <Text dimColor>{formatTokens(usage.totalTokens)} tok</Text>}
+          {usage && usage.cost.total > 0 && <Text dimColor>{formatCost(usage.cost.total)}</Text>}
           <Text dimColor>{formatElapsed(elapsed)}</Text>
         </Box>
       </Box>

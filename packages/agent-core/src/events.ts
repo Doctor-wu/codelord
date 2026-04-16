@@ -88,12 +88,12 @@ export interface ToolCallSafetyInfo {
 }
 
 export type ToolCallPhase =
-  | 'generating'   // LLM is still streaming the tool call
-  | 'routed'       // router decision made
-  | 'checked'      // safety decision made
-  | 'executing'    // handler running, stdout/stderr may flow
-  | 'completed'    // handler returned result
-  | 'blocked'      // safety blocked before execution
+  | 'generating' // LLM is still streaming the tool call
+  | 'routed' // router decision made
+  | 'checked' // safety decision made
+  | 'executing' // handler running, stdout/stderr may flow
+  | 'completed' // handler returned result
+  | 'blocked' // safety blocked before execution
 
 export interface ToolCallLifecycle {
   /** Stable identity — uses the LLM-assigned toolCallId once available */
@@ -210,7 +210,14 @@ export type LifecycleEvent =
   // --- Question ---
   | { type: 'question_answered'; question: string; whyAsk: string; askedAt: number; answer: string; answeredAt: number }
   // --- Session status ---
-  | { type: 'blocked_enter'; reason: 'waiting_user' | 'interrupted' | 'pending_input'; question?: string; questionDetail?: QuestionDetail; reasoning?: AssistantReasoningState; timestamp: number }
+  | {
+      type: 'blocked_enter'
+      reason: 'waiting_user' | 'interrupted' | 'pending_input'
+      question?: string
+      questionDetail?: QuestionDetail
+      reasoning?: AssistantReasoningState
+      timestamp: number
+    }
   | { type: 'blocked_exit'; timestamp: number }
   | { type: 'session_done'; success: boolean; text?: string; error?: string; timestamp: number }
   // --- Command feedback (slash commands, not LLM output) ---
@@ -219,12 +226,46 @@ export type LifecycleEvent =
   | { type: 'provider_error'; error: string; statusCode: number | null; attempt: number; timestamp: number }
   // --- Interrupt chain ---
   | { type: 'interrupt_requested'; source: 'sigint' | 'api'; timestamp: number }
-  | { type: 'interrupt_observed'; requestedAt: number; observedAt: number; source: 'sigint' | 'api'; latencyMs: number; timestamp: number }
+  | {
+      type: 'interrupt_observed'
+      requestedAt: number
+      observedAt: number
+      source: 'sigint' | 'api'
+      latencyMs: number
+      timestamp: number
+    }
   // --- Context window ---
-  | { type: 'context_truncated'; droppedCount: number; droppedTokens: number; budget: { total: number; systemPrompt: number; tools: number; reserved: number; availableForMessages: number; messagesBeforeTruncation: number; messagesAfterTruncation: number }; timestamp: number }
+  | {
+      type: 'context_truncated'
+      droppedCount: number
+      droppedTokens: number
+      budget: {
+        total: number
+        systemPrompt: number
+        tools: number
+        reserved: number
+        availableForMessages: number
+        messagesBeforeTruncation: number
+        messagesAfterTruncation: number
+      }
+      timestamp: number
+    }
   // --- Checkpoint ---
-  | { type: 'checkpoint_created'; checkpointId: string; strategy: string; fileCount: number; hasGit: boolean; timestamp: number }
-  | { type: 'checkpoint_undone'; checkpointId: string; restoredFileCount: number; gitRestored: boolean; timestamp: number }
+  | {
+      type: 'checkpoint_created'
+      checkpointId: string
+      strategy: string
+      fileCount: number
+      hasGit: boolean
+      timestamp: number
+    }
+  | {
+      type: 'checkpoint_undone'
+      checkpointId: string
+      restoredFileCount: number
+      gitRestored: boolean
+      timestamp: number
+    }
 
 // ---------------------------------------------------------------------------
 // QuestionDetail — full question metadata for UI rendering

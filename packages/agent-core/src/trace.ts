@@ -47,7 +47,14 @@ export interface LifecycleTraceEvent extends LedgerEventBase {
   phase: string | null
   reason: string | null
   question: string | null
-  usageSnapshot: { input: number; output: number; cacheRead: number; cacheWrite: number; totalTokens: number; cost: UsageCostBreakdown } | null
+  usageSnapshot: {
+    input: number
+    output: number
+    cacheRead: number
+    cacheWrite: number
+    totalTokens: number
+    cost: UsageCostBreakdown
+  } | null
   /** For queue_drained: declared count of drained messages */
   count: number | null
   /** For queue_drained: actual number of message entries recorded */
@@ -155,7 +162,10 @@ export interface TraceRunV2 {
   /** Events that occurred outside any step (run-level) */
   runEvents: TraceEventEntry[]
   /** Tool call success/failure stats for this run */
-  toolStats?: { tools: Record<string, { attempts: number; successes: number; failures: number; errorCodes: Record<string, number> }>; routes: Record<string, { hits: number; successes: number; failures: number }> }
+  toolStats?: {
+    tools: Record<string, { attempts: number; successes: number; failures: number; errorCodes: Record<string, number> }>
+    routes: Record<string, { hits: number; successes: number; failures: number }>
+  }
   /** For session-level traces: per-burst segment boundaries */
   segments?: TraceSegment[]
 }
@@ -170,7 +180,14 @@ export interface TraceLLMCall {
   provider: string
   stopReason: string
   latencyMs: number
-  usage: { input: number; output: number; cacheRead: number; cacheWrite: number; totalTokens: number; cost: UsageCostBreakdown }
+  usage: {
+    input: number
+    output: number
+    cacheRead: number
+    cacheWrite: number
+    totalTokens: number
+    cost: UsageCostBreakdown
+  }
   timestamp: number
 }
 
@@ -233,7 +250,15 @@ export interface TraceRun {
   endedAt: number
   outcome: { type: string; text?: string; error?: string; reason?: string }
   systemPromptHash: string
-  usageSummary: { input: number; output: number; cacheRead: number; cacheWrite: number; totalTokens: number; cost: UsageCostBreakdown; llmCalls: number }
+  usageSummary: {
+    input: number
+    output: number
+    cacheRead: number
+    cacheWrite: number
+    totalTokens: number
+    cost: UsageCostBreakdown
+    llmCalls: number
+  }
   redactionSummary: RedactionHit[]
   steps: TraceStep[]
 }
@@ -251,10 +276,29 @@ export function normalizeTrace(trace: TraceRunV2): TraceRunV2 {
   let globalSeq = 0
 
   function backfillLifecycle(e: any): LifecycleTraceEvent {
-    return { ...e, seq: e.seq ?? ++globalSeq, count: e.count ?? null, messageCount: e.messageCount ?? null, interruptSource: e.interruptSource ?? null, requestedAt: e.requestedAt ?? null, observedAt: e.observedAt ?? null, latencyMs: e.latencyMs ?? null, checkpointId: e.checkpointId ?? null, fileCount: e.fileCount ?? null, textPreview: e.textPreview ?? null, thinkingPreview: e.thinkingPreview ?? null, stopReason: e.stopReason ?? null, reasoningIntent: e.reasoningIntent ?? null, reasoningWhy: e.reasoningWhy ?? null, argsPreview: e.argsPreview ?? null, resultPreview: e.resultPreview ?? null, isError: e.isError ?? null }
+    return {
+      ...e,
+      seq: e.seq ?? ++globalSeq,
+      count: e.count ?? null,
+      messageCount: e.messageCount ?? null,
+      interruptSource: e.interruptSource ?? null,
+      requestedAt: e.requestedAt ?? null,
+      observedAt: e.observedAt ?? null,
+      latencyMs: e.latencyMs ?? null,
+      checkpointId: e.checkpointId ?? null,
+      fileCount: e.fileCount ?? null,
+      textPreview: e.textPreview ?? null,
+      thinkingPreview: e.thinkingPreview ?? null,
+      stopReason: e.stopReason ?? null,
+      reasoningIntent: e.reasoningIntent ?? null,
+      reasoningWhy: e.reasoningWhy ?? null,
+      argsPreview: e.argsPreview ?? null,
+      resultPreview: e.resultPreview ?? null,
+      isError: e.isError ?? null,
+    }
   }
 
-  const steps = trace.steps.map(step => {
+  const steps = trace.steps.map((step) => {
     const oldLedgers = (step as any).ledgers
     let events: TraceEventEntry[]
     if (oldLedgers && !step.events) {
@@ -263,9 +307,9 @@ export function normalizeTrace(trace: TraceRunV2): TraceRunV2 {
       for (const e of [...ps, ...le]) {
         if (e.seq > globalSeq) globalSeq = e.seq
       }
-      events = [...ps, ...le].sort((a, b) => a.seq - b.seq)
+      events = [...ps, ...le].toSorted((a, b) => a.seq - b.seq)
     } else {
-      events = (step.events ?? []).map(e => {
+      events = (step.events ?? []).map((e) => {
         const patched = { ...e, seq: e.seq ?? ++globalSeq }
         if (patched.source === 'lifecycle_event') return backfillLifecycle(patched)
         return patched

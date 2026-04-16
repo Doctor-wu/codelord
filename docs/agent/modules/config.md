@@ -5,6 +5,7 @@
 The config module resolves the effective `CodelordConfig` from defaults, TOML, environment variables, and CLI overrides.
 
 It answers:
+
 - what config fields exist
 - what the defaults are
 - how layered precedence works
@@ -29,12 +30,12 @@ It answers:
 
 ## Key Files
 
-| Path | Role |
-| --- | --- |
-| `packages/config/src/schema.ts` | config type, defaults, validation |
-| `packages/config/src/load.ts` | layered loading and merge precedence |
-| `packages/config/src/toml.ts` | TOML file loading |
-| `packages/config/src/index.ts` | package exports |
+| Path                            | Role                                 |
+| ------------------------------- | ------------------------------------ |
+| `packages/config/src/schema.ts` | config type, defaults, validation    |
+| `packages/config/src/load.ts`   | layered loading and merge precedence |
+| `packages/config/src/toml.ts`   | TOML file loading                    |
+| `packages/config/src/index.ts`  | package exports                      |
 
 ## Invariants
 

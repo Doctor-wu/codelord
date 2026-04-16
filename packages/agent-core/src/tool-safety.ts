@@ -51,7 +51,7 @@ const SENSITIVE_PREFIXES: string[] = [
 
 function isSensitivePath(filePath: string, cwd: string): boolean {
   const abs = isAbsolute(filePath) ? resolve(filePath) : resolve(cwd, filePath)
-  return SENSITIVE_PREFIXES.some(prefix => abs === prefix || abs.startsWith(prefix + '/'))
+  return SENSITIVE_PREFIXES.some((prefix) => abs === prefix || abs.startsWith(prefix + '/'))
 }
 
 // ---------------------------------------------------------------------------
@@ -60,18 +60,39 @@ function isSensitivePath(filePath: string, cwd: string): boolean {
 
 /** Commands that are clearly read-only / observational */
 const SAFE_COMMAND_PREFIXES = [
-  'pwd', 'whoami', 'uname', 'date', 'echo ',
-  'cat ', 'head ', 'tail ', 'wc ',
-  'ls', 'tree',
-  'rg ', 'grep ',
-  'git status', 'git diff', 'git log', 'git show',
+  'pwd',
+  'whoami',
+  'uname',
+  'date',
+  'echo ',
+  'cat ',
+  'head ',
+  'tail ',
+  'wc ',
+  'ls',
+  'tree',
+  'rg ',
+  'grep ',
+  'git status',
+  'git diff',
+  'git log',
+  'git show',
 ]
 
 /** Exact safe commands (no args needed) */
 const SAFE_COMMANDS_EXACT = new Set([
-  'pwd', 'whoami', 'uname', 'date', 'ls', 'tree',
-  'git status', 'git diff', 'git log',
-  'git branch', 'git branch --list', 'git branch --show-current',
+  'pwd',
+  'whoami',
+  'uname',
+  'date',
+  'ls',
+  'tree',
+  'git status',
+  'git diff',
+  'git log',
+  'git branch',
+  'git branch --list',
+  'git branch --show-current',
 ])
 
 /** Version check patterns */
@@ -82,7 +103,11 @@ const VERSION_PATTERNS = [
 
 /** Dangerous command patterns */
 const DANGEROUS_PATTERNS: Array<{ pattern: RegExp; ruleId: string; reason: string }> = [
-  { pattern: /\brm\s+(-\w*r|-\w*f|--recursive|--force)\b/, ruleId: 'bash_rm_recursive_or_force', reason: 'rm with -r or -f flags' },
+  {
+    pattern: /\brm\s+(-\w*r|-\w*f|--recursive|--force)\b/,
+    ruleId: 'bash_rm_recursive_or_force',
+    reason: 'rm with -r or -f flags',
+  },
   { pattern: /\bsudo\b/, ruleId: 'bash_sudo', reason: 'sudo escalation' },
   { pattern: /\bchmod\b/, ruleId: 'bash_chmod', reason: 'permission change' },
   { pattern: /\bchown\b/, ruleId: 'bash_chown', reason: 'ownership change' },
@@ -94,19 +119,39 @@ const DANGEROUS_PATTERNS: Array<{ pattern: RegExp; ruleId: string; reason: strin
   // Dangerous git operations
   { pattern: /\bgit\s+reset\s+--hard\b/, ruleId: 'bash_git_reset_hard', reason: 'git reset --hard' },
   { pattern: /\bgit\s+clean\s+(-\w*f)/, ruleId: 'bash_git_clean_force', reason: 'git clean with -f' },
-  { pattern: /\bgit\s+checkout\s+--\s/, ruleId: 'bash_git_checkout_discard', reason: 'git checkout -- (discard changes)' },
-  { pattern: /\bgit\s+branch\s+(-\w*D)/, ruleId: 'bash_git_branch_force_delete', reason: 'git branch -D (force delete)' },
+  {
+    pattern: /\bgit\s+checkout\s+--\s/,
+    ruleId: 'bash_git_checkout_discard',
+    reason: 'git checkout -- (discard changes)',
+  },
+  {
+    pattern: /\bgit\s+branch\s+(-\w*D)/,
+    ruleId: 'bash_git_branch_force_delete',
+    reason: 'git branch -D (force delete)',
+  },
   { pattern: /\bgit\s+push\s+(-\w*f|--force)\b/, ruleId: 'bash_git_push_force', reason: 'git push --force' },
 ]
 
 /** Write-level command prefixes (mutating but not dangerous) */
 const WRITE_COMMAND_PREFIXES = [
-  'mkdir', 'touch', 'cp ', 'mv ', 'ln ',
-  'tee ', 'patch ', 'git apply',
-  'npm install', 'npm i ', 'npm ci',
-  'pnpm install', 'pnpm i ', 'pnpm add',
-  'yarn install', 'yarn add',
-  'bun install', 'bun add',
+  'mkdir',
+  'touch',
+  'cp ',
+  'mv ',
+  'ln ',
+  'tee ',
+  'patch ',
+  'git apply',
+  'npm install',
+  'npm i ',
+  'npm ci',
+  'pnpm install',
+  'pnpm i ',
+  'pnpm add',
+  'yarn install',
+  'yarn add',
+  'bun install',
+  'bun add',
 ]
 
 function hasShellComplexity(cmd: string): boolean {
@@ -185,7 +230,7 @@ function bashTouchesSensitivePath(command: string, cwd: string): { hit: boolean;
     // Skip the command name itself
     if (token === tokens[0]) continue
     const abs = isAbsolute(token) ? resolve(token) : resolve(cwd, token)
-    if (SENSITIVE_PREFIXES.some(prefix => abs === prefix || abs.startsWith(prefix + '/'))) {
+    if (SENSITIVE_PREFIXES.some((prefix) => abs === prefix || abs.startsWith(prefix + '/'))) {
       return { hit: true, path: token }
     }
   }

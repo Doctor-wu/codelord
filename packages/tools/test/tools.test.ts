@@ -106,7 +106,10 @@ describe('file_write', () => {
 
   it('creates parent directories when create_directories is true', async () => {
     const handler = createFileWriteHandler({ cwd: testDir })
-    const result = await handler({ file_path: 'sub/dir/file.txt', content: 'deep', create_directories: true }, noopContext)
+    const result = await handler(
+      { file_path: 'sub/dir/file.txt', content: 'deep', create_directories: true },
+      noopContext,
+    )
     expect(result.isError).toBe(false)
   })
 
@@ -133,7 +136,10 @@ describe('file_edit', () => {
   it('replaces exactly one occurrence with isError=false', async () => {
     writeFileSync(join(testDir, 'code.ts'), 'const x = 1;\nconst y = 2;\n')
     const handler = createFileEditHandler({ cwd: testDir })
-    const result = await handler({ file_path: 'code.ts', old_string: 'const x = 1;', new_string: 'const x = 42;' }, noopContext)
+    const result = await handler(
+      { file_path: 'code.ts', old_string: 'const x = 1;', new_string: 'const x = 42;' },
+      noopContext,
+    )
     expect(result.isError).toBe(false)
     expect(readFileSync(join(testDir, 'code.ts'), 'utf-8')).toBe('const x = 42;\nconst y = 2;\n')
   })
@@ -295,7 +301,14 @@ describe('path resolution with .. and relative paths', () => {
 // ---------------------------------------------------------------------------
 
 describe('Tool schemas include reason parameter', () => {
-  const toolsWithReason = [bashPlugin.tool, fileReadPlugin.tool, fileWritePlugin.tool, fileEditPlugin.tool, searchPlugin.tool, lsPlugin.tool]
+  const toolsWithReason = [
+    bashPlugin.tool,
+    fileReadPlugin.tool,
+    fileWritePlugin.tool,
+    fileEditPlugin.tool,
+    searchPlugin.tool,
+    lsPlugin.tool,
+  ]
 
   for (const tool of toolsWithReason) {
     it(`${tool.name} has optional reason parameter`, () => {
@@ -325,6 +338,6 @@ describe('corePlugins', () => {
   })
 
   it('has stable order', () => {
-    expect(corePlugins.map(p => p.id)).toEqual(['bash', 'file_read', 'file_write', 'file_edit', 'search', 'ls'])
+    expect(corePlugins.map((p) => p.id)).toEqual(['bash', 'file_read', 'file_write', 'file_edit', 'search', 'ls'])
   })
 })

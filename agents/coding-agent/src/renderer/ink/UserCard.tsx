@@ -11,7 +11,9 @@ export function UserCard({ item }: { item: UserItem }) {
     <Box flexDirection="column" marginTop={1}>
       <Box>
         <Text color={LANE.user}>{GLYPH.userMark} </Text>
-        <Text color={LANE.user} bold>YOU</Text>
+        <Text color={LANE.user} bold>
+          YOU
+        </Text>
       </Box>
       <Box>
         <Text color={LANE.userMuted}>{GLYPH.userMark} </Text>

@@ -60,13 +60,13 @@ describe('Event Spine — lifecycle events from runtime', () => {
     rt.enqueueUserMessage('hello')
 
     // user_turn is NOT emitted on enqueue — only when drained during run()
-    expect(lifecycleEvents.filter(e => e.type === 'user_turn')).toHaveLength(0)
+    expect(lifecycleEvents.filter((e) => e.type === 'user_turn')).toHaveLength(0)
 
     const msg = makeAssistantMessage({ content: [{ type: 'text', text: 'hi' }] })
     streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg }], msg))
     await rt.run()
 
-    const userTurns = lifecycleEvents.filter(e => e.type === 'user_turn')
+    const userTurns = lifecycleEvents.filter((e) => e.type === 'user_turn')
     expect(userTurns).toHaveLength(1)
     if (userTurns[0]!.type === 'user_turn') {
       expect(userTurns[0]!.content).toBe('hello')
@@ -100,13 +100,16 @@ describe('Event Spine — lifecycle events from runtime', () => {
     })
 
     streamSimpleMock
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'toolcall_end', toolCall },
-        { type: 'done', message: assistantWithTool },
-      ], assistantWithTool))
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'done', message: finalAssistant },
-      ], finalAssistant))
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall },
+            { type: 'done', message: assistantWithTool },
+          ],
+          assistantWithTool,
+        ),
+      )
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant))
 
     const rt = new AgentRuntime({
       model: { id: 'test' } as never,
@@ -122,7 +125,7 @@ describe('Event Spine — lifecycle events from runtime', () => {
     rt.messages.push({ role: 'user', content: 'read', timestamp: Date.now() })
     await rt.run()
 
-    const types = lifecycleEvents.map(e => e.type)
+    const types = lifecycleEvents.map((e) => e.type)
 
     // Should have: assistant_turn_start, assistant_turn_end, tool_call_created,
     // tool_call_updated (checked), tool_call_updated (executing),
@@ -136,9 +139,7 @@ describe('Event Spine — lifecycle events from runtime', () => {
     expect(types).toContain('session_done')
 
     // The completed tool call should have stdout
-    const completed = lifecycleEvents.find(
-      e => e.type === 'tool_call_completed',
-    )
+    const completed = lifecycleEvents.find((e) => e.type === 'tool_call_completed')
     expect(completed).toBeDefined()
     if (completed?.type === 'tool_call_completed') {
       expect(completed.toolCall.stdout).toBe('output-chunk')
@@ -175,13 +176,16 @@ describe('Event Spine — lifecycle events from runtime', () => {
     })
 
     streamSimpleMock
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'toolcall_end', toolCall },
-        { type: 'done', message: assistantWithTool },
-      ], assistantWithTool))
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'done', message: finalAssistant },
-      ], finalAssistant))
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall },
+            { type: 'done', message: assistantWithTool },
+          ],
+          assistantWithTool,
+        ),
+      )
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant))
 
     const rt = new AgentRuntime({
       model: { id: 'test' } as never,
@@ -197,7 +201,7 @@ describe('Event Spine — lifecycle events from runtime', () => {
     rt.messages.push({ role: 'user', content: 'read', timestamp: Date.now() })
     await rt.run()
 
-    const completed = lifecycleEvents.find(e => e.type === 'tool_call_completed')
+    const completed = lifecycleEvents.find((e) => e.type === 'tool_call_completed')
     expect(completed).toBeDefined()
     if (completed?.type === 'tool_call_completed') {
       expect(completed.toolCall.route?.wasRouted).toBe(true)
@@ -222,10 +226,13 @@ describe('Event Spine — lifecycle events from runtime', () => {
     })
 
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'toolcall_end', toolCall },
-        { type: 'done', message: assistantWithAsk },
-      ], assistantWithAsk),
+      makeEventStream(
+        [
+          { type: 'toolcall_end', toolCall },
+          { type: 'done', message: assistantWithAsk },
+        ],
+        assistantWithAsk,
+      ),
     )
 
     const rt = new AgentRuntime({
@@ -240,7 +247,7 @@ describe('Event Spine — lifecycle events from runtime', () => {
     rt.messages.push({ role: 'user', content: 'help', timestamp: Date.now() })
     await rt.run()
 
-    const blocked = lifecycleEvents.find(e => e.type === 'blocked_enter')
+    const blocked = lifecycleEvents.find((e) => e.type === 'blocked_enter')
     expect(blocked).toBeDefined()
     if (blocked?.type === 'blocked_enter') {
       expect(blocked.reason).toBe('waiting_user')
@@ -255,13 +262,18 @@ describe('Event Spine — lifecycle events from runtime', () => {
       content: [{ type: 'text', text: 'Done' }],
     })
 
-    streamSimpleMock.mockReturnValueOnce(makeEventStream([
-      { type: 'thinking_start', contentIndex: 0 },
-      { type: 'thinking_delta', contentIndex: 0, delta: 'I need to ' },
-      { type: 'thinking_delta', contentIndex: 0, delta: 'check the file.' },
-      { type: 'thinking_end', contentIndex: 0, content: 'I need to check the file.' },
-      { type: 'done', message: finalAssistant },
-    ], finalAssistant))
+    streamSimpleMock.mockReturnValueOnce(
+      makeEventStream(
+        [
+          { type: 'thinking_start', contentIndex: 0 },
+          { type: 'thinking_delta', contentIndex: 0, delta: 'I need to ' },
+          { type: 'thinking_delta', contentIndex: 0, delta: 'check the file.' },
+          { type: 'thinking_end', contentIndex: 0, content: 'I need to check the file.' },
+          { type: 'done', message: finalAssistant },
+        ],
+        finalAssistant,
+      ),
+    )
 
     const rt = new AgentRuntime({
       model: { id: 'test' } as never,
@@ -277,7 +289,7 @@ describe('Event Spine — lifecycle events from runtime', () => {
     await rt.run()
 
     // assistant_turn_start should have reasoning with status 'thinking'
-    const turnStart = lifecycleEvents.find(e => e.type === 'assistant_turn_start')
+    const turnStart = lifecycleEvents.find((e) => e.type === 'assistant_turn_start')
     expect(turnStart).toBeDefined()
     if (turnStart?.type === 'assistant_turn_start') {
       expect(turnStart.reasoning).toBeDefined()
@@ -285,7 +297,7 @@ describe('Event Spine — lifecycle events from runtime', () => {
     }
 
     // assistant_turn_end should have reasoning with accumulated rawThoughtText
-    const turnEnd = lifecycleEvents.find(e => e.type === 'assistant_turn_end')
+    const turnEnd = lifecycleEvents.find((e) => e.type === 'assistant_turn_end')
     expect(turnEnd).toBeDefined()
     if (turnEnd?.type === 'assistant_turn_end') {
       expect(turnEnd.reasoning.rawThoughtText).toBe('I need to check the file.')
@@ -320,16 +332,19 @@ describe('Event Spine — lifecycle events from runtime', () => {
     })
 
     streamSimpleMock
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'thinking_start', contentIndex: 0 },
-        { type: 'thinking_delta', contentIndex: 0, delta: 'I should read foo.ts to understand the structure' },
-        { type: 'thinking_end', contentIndex: 0, content: 'I should read foo.ts to understand the structure' },
-        { type: 'toolcall_end', toolCall },
-        { type: 'done', message: assistantWithTool },
-      ], assistantWithTool))
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'done', message: finalAssistant },
-      ], finalAssistant))
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'thinking_start', contentIndex: 0 },
+            { type: 'thinking_delta', contentIndex: 0, delta: 'I should read foo.ts to understand the structure' },
+            { type: 'thinking_end', contentIndex: 0, content: 'I should read foo.ts to understand the structure' },
+            { type: 'toolcall_end', toolCall },
+            { type: 'done', message: assistantWithTool },
+          ],
+          assistantWithTool,
+        ),
+      )
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant))
 
     const rt = new AgentRuntime({
       model: { id: 'test' } as never,
@@ -347,7 +362,7 @@ describe('Event Spine — lifecycle events from runtime', () => {
     await rt.run()
 
     // displayReason is now projected from extracted intent
-    const completed = lifecycleEvents.find(e => e.type === 'tool_call_completed')
+    const completed = lifecycleEvents.find((e) => e.type === 'tool_call_completed')
     expect(completed).toBeDefined()
     if (completed?.type === 'tool_call_completed') {
       expect(completed.toolCall.displayReason).toBe('I should read foo.')
@@ -370,13 +385,16 @@ describe('Event Spine — lifecycle events from runtime', () => {
     })
 
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'thinking_start', contentIndex: 0 },
-        { type: 'thinking_delta', contentIndex: 0, delta: 'I am unsure about the color preference.' },
-        { type: 'thinking_end', contentIndex: 0, content: 'I am unsure about the color preference.' },
-        { type: 'toolcall_end', toolCall },
-        { type: 'done', message: assistantWithAsk },
-      ], assistantWithAsk),
+      makeEventStream(
+        [
+          { type: 'thinking_start', contentIndex: 0 },
+          { type: 'thinking_delta', contentIndex: 0, delta: 'I am unsure about the color preference.' },
+          { type: 'thinking_end', contentIndex: 0, content: 'I am unsure about the color preference.' },
+          { type: 'toolcall_end', toolCall },
+          { type: 'done', message: assistantWithAsk },
+        ],
+        assistantWithAsk,
+      ),
     )
 
     const rt = new AgentRuntime({
@@ -393,7 +411,7 @@ describe('Event Spine — lifecycle events from runtime', () => {
     await rt.run()
 
     // Find the blocked_enter with waiting_user (from the AskUserQuestion intercept, not finishBurst)
-    const blockedEvents = lifecycleEvents.filter(e => e.type === 'blocked_enter' && e.reason === 'waiting_user')
+    const blockedEvents = lifecycleEvents.filter((e) => e.type === 'blocked_enter' && e.reason === 'waiting_user')
     expect(blockedEvents.length).toBeGreaterThanOrEqual(1)
     const blocked = blockedEvents[0]!
     if (blocked.type === 'blocked_enter') {
@@ -429,16 +447,19 @@ describe('Event Spine — lifecycle events from runtime', () => {
     })
 
     streamSimpleMock
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'thinking_start', contentIndex: 0 },
-        { type: 'thinking_delta', contentIndex: 0, delta: 'I should look at the config' },
-        { type: 'thinking_end', contentIndex: 0, content: 'I should look at the config' },
-        { type: 'toolcall_end', toolCall },
-        { type: 'done', message: assistantWithTool },
-      ], assistantWithTool))
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'done', message: finalAssistant },
-      ], finalAssistant))
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'thinking_start', contentIndex: 0 },
+            { type: 'thinking_delta', contentIndex: 0, delta: 'I should look at the config' },
+            { type: 'thinking_end', contentIndex: 0, content: 'I should look at the config' },
+            { type: 'toolcall_end', toolCall },
+            { type: 'done', message: assistantWithTool },
+          ],
+          assistantWithTool,
+        ),
+      )
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant))
 
     const rt = new AgentRuntime({
       model: { id: 'test' } as never,
@@ -454,7 +475,7 @@ describe('Event Spine — lifecycle events from runtime', () => {
     rt.messages.push({ role: 'user', content: 'read', timestamp: Date.now() })
     await rt.run()
 
-    const completed = lifecycleEvents.find(e => e.type === 'tool_call_completed')
+    const completed = lifecycleEvents.find((e) => e.type === 'tool_call_completed')
     expect(completed).toBeDefined()
     if (completed?.type === 'tool_call_completed') {
       // Model-declared reason takes priority
@@ -464,10 +485,7 @@ describe('Event Spine — lifecycle events from runtime', () => {
     }
 
     // Handler should not receive reason in args
-    expect(handler).toHaveBeenCalledWith(
-      expect.not.objectContaining({ reason: expect.anything() }),
-      expect.anything(),
-    )
+    expect(handler).toHaveBeenCalledWith(expect.not.objectContaining({ reason: expect.anything() }), expect.anything())
   })
 
   it('reason is stripped from args passed to handler', async () => {
@@ -498,13 +516,16 @@ describe('Event Spine — lifecycle events from runtime', () => {
     })
 
     streamSimpleMock
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'toolcall_end', toolCall },
-        { type: 'done', message: assistantWithTool },
-      ], assistantWithTool))
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'done', message: finalAssistant },
-      ], finalAssistant))
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall },
+            { type: 'done', message: assistantWithTool },
+          ],
+          assistantWithTool,
+        ),
+      )
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant))
 
     const rt = new AgentRuntime({
       model: { id: 'test' } as never,
@@ -551,16 +572,19 @@ describe('Event Spine — lifecycle events from runtime', () => {
     })
 
     streamSimpleMock
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'thinking_start', contentIndex: 0 },
-        { type: 'thinking_delta', contentIndex: 0, delta: 'I need to check the implementation details.' },
-        { type: 'thinking_end', contentIndex: 0, content: 'I need to check the implementation details.' },
-        { type: 'toolcall_end', toolCall },
-        { type: 'done', message: assistantWithTool },
-      ], assistantWithTool))
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'done', message: finalAssistant },
-      ], finalAssistant))
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'thinking_start', contentIndex: 0 },
+            { type: 'thinking_delta', contentIndex: 0, delta: 'I need to check the implementation details.' },
+            { type: 'thinking_end', contentIndex: 0, content: 'I need to check the implementation details.' },
+            { type: 'toolcall_end', toolCall },
+            { type: 'done', message: assistantWithTool },
+          ],
+          assistantWithTool,
+        ),
+      )
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant))
 
     const rt = new AgentRuntime({
       model: { id: 'test' } as never,
@@ -577,7 +601,7 @@ describe('Event Spine — lifecycle events from runtime', () => {
     rt.messages.push({ role: 'user', content: 'read', timestamp: Date.now() })
     await rt.run()
 
-    const completed = lifecycleEvents.find(e => e.type === 'tool_call_completed')
+    const completed = lifecycleEvents.find((e) => e.type === 'tool_call_completed')
     expect(completed).toBeDefined()
     if (completed?.type === 'tool_call_completed') {
       // Falls back to reasoning extraction

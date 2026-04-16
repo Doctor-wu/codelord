@@ -4,9 +4,15 @@
 
 import { createHash, randomUUID } from 'node:crypto'
 import type {
-  LifecycleEvent, RunOutcome, UsageAggregate,
-  ProviderStreamTraceEvent, LifecycleTraceEvent,
-  TraceRunV2, TraceStepV2, TraceEventEntry, TraceSegment,
+  LifecycleEvent,
+  RunOutcome,
+  UsageAggregate,
+  ProviderStreamTraceEvent,
+  LifecycleTraceEvent,
+  TraceRunV2,
+  TraceStepV2,
+  TraceEventEntry,
+  TraceSegment,
   AgentLifecycleCallbacks,
 } from '@codelord/core'
 import { safePreview } from '@codelord/core'
@@ -33,7 +39,15 @@ export class TraceRecorder {
   private currentStep: TraceStepV2 | null = null
   private runEvents: TraceEventEntry[] = []
   private allRedactionHits: RedactionHit[] = []
-  private usageSummary = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, llmCalls: 0 }
+  private usageSummary = {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 0,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    llmCalls: 0,
+  }
   private interruptRequestedAt: number | null = null
   private interruptSource: 'sigint' | 'api' = 'sigint'
   private _nextEventId = 0
@@ -59,7 +73,9 @@ export class TraceRecorder {
     this.startedAt = Date.now()
   }
 
-  get traceRunId(): string { return this.runId }
+  get traceRunId(): string {
+    return this.runId
+  }
 
   /** Call before each runtime.run() burst to mark segment start */
   beginSegment(): void {
@@ -284,9 +300,7 @@ export class TraceRecorder {
         le.phase = event.toolCall.phase
         le.isError = event.toolCall.isError
         // Capture args preview (redacted)
-        const argsStr = Object.keys(event.toolCall.args).length > 0
-          ? JSON.stringify(event.toolCall.args)
-          : null
+        const argsStr = Object.keys(event.toolCall.args).length > 0 ? JSON.stringify(event.toolCall.args) : null
         if (argsStr) {
           const { text: ap, hits: ah } = safePreview(argsStr, 300)
           le.argsPreview = ap
@@ -503,7 +517,7 @@ export class TraceRecorder {
 
   private mergeHits(hits: RedactionHit[]): void {
     for (const hit of hits) {
-      const existing = this.allRedactionHits.find(h => h.type === hit.type)
+      const existing = this.allRedactionHits.find((h) => h.type === hit.type)
       if (existing) existing.count += hit.count
       else this.allRedactionHits.push({ ...hit })
     }

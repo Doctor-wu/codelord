@@ -2,6 +2,9 @@
   "name": "@codelord/coding-agent",
   "version": "0.0.1",
   "private": true,
+  "bin": {
+    "codelord": "./dist/bin.js"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,9 +14,6 @@
       "default": "./dist/index.js"
     }
   },
-  "bin": {
-    "codelord": "./dist/bin.js"
-  },
   "scripts": {
     "dev": "tsx --env-file=../../.env src/index.ts",
     "build": "tsc",
@@ -22,10 +22,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@clack/prompts": "^1.1.0",
     "@codelord/config": "workspace:*",
     "@codelord/core": "workspace:*",
     "@codelord/tools": "workspace:*",
-    "@clack/prompts": "^1.1.0",
     "@mariozechner/pi-ai": "^0.64.0",
     "cac": "^7.0.0",
     "ink": "^6.8.0",

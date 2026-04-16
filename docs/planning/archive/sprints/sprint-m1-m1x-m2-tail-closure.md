@@ -82,7 +82,7 @@
 
 **做之前**：AssistantReasoningState 是 phase shell，displayReason 始终 null，provisional tool call 绕过 lifecycle。
 
-**做之后**：liveProxy + Mode A/B、tool schema reason 参数（displayReason 优先链 declared > extracted > null）、tool_call_streaming_* lifecycle events（UI 只消费 lifecycle）。
+**做之后**：liveProxy + Mode A/B、tool schema reason 参数（displayReason 优先链 declared > extracted > null）、tool*call_streaming*\* lifecycle events（UI 只消费 lifecycle）。
 
 ### B2. Reasoning v2
 
@@ -121,10 +121,10 @@
 
 ## 统计
 
-| 指标 | 数值 |
-|------|------|
-| 总任务项 | 46 |
-| 完成 | 46 |
-| 移交 M3 | 4 |
-| 跳过 | 3 |
+| 指标     | 数值             |
+| -------- | ---------------- |
+| 总任务项 | 46               |
+| 完成     | 46               |
+| 移交 M3  | 4                |
+| 跳过     | 3                |
 | 新增测试 | +87（562 → 649） |

@@ -63,19 +63,22 @@ describe('AgentRuntime', () => {
   })
 
   it('throws when runtime is constructed with duplicate final tool names', () => {
-    expect(() => new AgentRuntime({
-      model: { id: 'test-model' } as never,
-      systemPrompt: 'test',
-      tools: [
-        {
-          name: ASK_USER_QUESTION_TOOL_NAME,
-          description: 'duplicate control tool',
-          parameters: { type: 'object', properties: {} },
-        } as never,
-      ],
-      toolHandlers: new Map(),
-      apiKey: 'test-key',
-    })).toThrow(`Duplicate tool name "${ASK_USER_QUESTION_TOOL_NAME}" in runtime tool set.`)
+    expect(
+      () =>
+        new AgentRuntime({
+          model: { id: 'test-model' } as never,
+          systemPrompt: 'test',
+          tools: [
+            {
+              name: ASK_USER_QUESTION_TOOL_NAME,
+              description: 'duplicate control tool',
+              parameters: { type: 'object', properties: {} },
+            } as never,
+          ],
+          toolHandlers: new Map(),
+          apiKey: 'test-key',
+        }),
+    ).toThrow(`Duplicate tool name "${ASK_USER_QUESTION_TOOL_NAME}" in runtime tool set.`)
   })
 
   it('runs a single-turn conversation to success', async () => {
@@ -117,14 +120,15 @@ describe('AgentRuntime', () => {
 
     streamSimpleMock
       .mockReturnValueOnce(
-        makeEventStream([
-          { type: 'toolcall_end', toolCall },
-          { type: 'done', message: assistantWithTool },
-        ], assistantWithTool),
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall },
+            { type: 'done', message: assistantWithTool },
+          ],
+          assistantWithTool,
+        ),
       )
-      .mockReturnValueOnce(
-        makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant),
-      )
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant))
 
     const handler = vi.fn().mockResolvedValue({ output: 'hi\n', isError: false })
 
@@ -150,9 +154,7 @@ describe('AgentRuntime', () => {
       content: [{ type: 'text', text: 'bye' }],
     })
 
-    streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([{ type: 'done', message: msg1 }], msg1),
-    )
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg1 }], msg1))
 
     const rt = createRuntime()
     rt.messages.push({ role: 'user', content: 'Hi', timestamp: Date.now() })
@@ -166,9 +168,7 @@ describe('AgentRuntime', () => {
     const msg2 = makeAssistantMessage({
       content: [{ type: 'text', text: 'still here' }],
     })
-    streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([{ type: 'done', message: msg2 }], msg2),
-    )
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: msg2 }], msg2))
 
     const outcome = await rt.run()
     expect(outcome).toEqual({ type: 'success', text: 'still here' })
@@ -220,13 +220,16 @@ describe('AgentRuntime', () => {
     })
 
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'text_start', contentIndex: 0 },
-        { type: 'text_delta', contentIndex: 0, delta: 'Hello ' },
-        { type: 'text_delta', contentIndex: 0, delta: 'world' },
-        { type: 'text_end', contentIndex: 0, content: 'Hello world' },
-        { type: 'done', message: assistantMessage },
-      ], assistantMessage),
+      makeEventStream(
+        [
+          { type: 'text_start', contentIndex: 0 },
+          { type: 'text_delta', contentIndex: 0, delta: 'Hello ' },
+          { type: 'text_delta', contentIndex: 0, delta: 'world' },
+          { type: 'text_end', contentIndex: 0, content: 'Hello world' },
+          { type: 'done', message: assistantMessage },
+        ],
+        assistantMessage,
+      ),
     )
 
     rt.messages.push({ role: 'user', content: 'Hi', timestamp: Date.now() })
@@ -267,7 +270,9 @@ describe('AgentRuntime interrupt', () => {
         rt.requestInterrupt()
         yield { type: 'error', error: abortedMsg }
       },
-      async result() { return abortedMsg },
+      async result() {
+        return abortedMsg
+      },
     })
 
     const outcome = await rt.run()
@@ -294,7 +299,9 @@ describe('AgentRuntime interrupt', () => {
         // Simulate AbortError thrown by stream
         throw new DOMException('The operation was aborted', 'AbortError')
       },
-      async result() { return makeAssistantMessage() },
+      async result() {
+        return makeAssistantMessage()
+      },
     })
 
     const outcome = await rt.run()
@@ -324,11 +331,14 @@ describe('AgentRuntime interrupt', () => {
     })
 
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'toolcall_end', toolCall },
-        { type: 'toolcall_end', toolCall: toolCall2 },
-        { type: 'done', message: assistantWithTools },
-      ], assistantWithTools),
+      makeEventStream(
+        [
+          { type: 'toolcall_end', toolCall },
+          { type: 'toolcall_end', toolCall: toolCall2 },
+          { type: 'done', message: assistantWithTools },
+        ],
+        assistantWithTools,
+      ),
     )
 
     let toolCallCount = 0
@@ -387,7 +397,9 @@ describe('AgentRuntime interrupt', () => {
         rt.requestInterrupt()
         yield { type: 'error', error: abortedMsg }
       },
-      async result() { return abortedMsg },
+      async result() {
+        return abortedMsg
+      },
     })
 
     const outcome1 = await rt.run()
@@ -397,9 +409,7 @@ describe('AgentRuntime interrupt', () => {
     const resumeAssistant = makeAssistantMessage({
       content: [{ type: 'text', text: 'Resumed!' }],
     })
-    streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([{ type: 'done', message: resumeAssistant }], resumeAssistant),
-    )
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: resumeAssistant }], resumeAssistant))
 
     rt.enqueueUserMessage('continue please')
     const outcome2 = await rt.run()
@@ -495,8 +505,24 @@ describe('AgentRuntime multi-turn session', () => {
     const tc = { type: 'toolCall', id: 'tc', name: 'x', arguments: {} }
 
     streamSimpleMock
-      .mockReturnValueOnce(makeEventStream([{ type: 'toolcall_end', toolCall: tc }, { type: 'done', message: toolMsg }], toolMsg))
-      .mockReturnValueOnce(makeEventStream([{ type: 'toolcall_end', toolCall: tc }, { type: 'done', message: toolMsg }], toolMsg))
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall: tc },
+            { type: 'done', message: toolMsg },
+          ],
+          toolMsg,
+        ),
+      )
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall: tc },
+            { type: 'done', message: toolMsg },
+          ],
+          toolMsg,
+        ),
+      )
 
     rt.enqueueUserMessage('go')
     const outcome1 = await rt.run()
@@ -505,9 +531,7 @@ describe('AgentRuntime multi-turn session', () => {
 
     // Re-arm: enqueue new message and run again
     const recovery = makeAssistantMessage({ content: [{ type: 'text', text: 'Recovered' }] })
-    streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([{ type: 'done', message: recovery }], recovery),
-    )
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: recovery }], recovery))
 
     rt.enqueueUserMessage('try again')
     const outcome2 = await rt.run()
@@ -582,8 +606,24 @@ describe('AgentRuntime per-burst step budget', () => {
     })
 
     streamSimpleMock
-      .mockReturnValueOnce(makeEventStream([{ type: 'toolcall_end', toolCall: tc }, { type: 'done', message: toolMsg }], toolMsg))
-      .mockReturnValueOnce(makeEventStream([{ type: 'toolcall_end', toolCall: askToolCall }, { type: 'done', message: askMsg }], askMsg))
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall: tc },
+            { type: 'done', message: toolMsg },
+          ],
+          toolMsg,
+        ),
+      )
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall: askToolCall },
+            { type: 'done', message: askMsg },
+          ],
+          askMsg,
+        ),
+      )
 
     const rt = new AgentRuntime({
       model: { id: 'test-model' } as never,
@@ -624,7 +664,9 @@ describe('AgentRuntime per-burst step budget', () => {
         rt.requestInterrupt()
         yield { type: 'error', error: abortedMsg }
       },
-      async result() { return abortedMsg },
+      async result() {
+        return abortedMsg
+      },
     })
 
     await rt.run()
@@ -662,7 +704,9 @@ describe('AgentRuntime lastOutcome semantics', () => {
         rt.requestInterrupt()
         yield { type: 'error', error: abortedMsg }
       },
-      async result() { return abortedMsg },
+      async result() {
+        return abortedMsg
+      },
     })
 
     await rt.run()
@@ -682,10 +726,13 @@ describe('AgentRuntime lastOutcome semantics', () => {
     })
 
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'toolcall_end', toolCall: askToolCall },
-        { type: 'done', message: assistantWithAsk },
-      ], assistantWithAsk),
+      makeEventStream(
+        [
+          { type: 'toolcall_end', toolCall: askToolCall },
+          { type: 'done', message: assistantWithAsk },
+        ],
+        assistantWithAsk,
+      ),
     )
 
     const rt = createRuntime()
@@ -750,10 +797,13 @@ describe('AgentRuntime AskUserQuestion', () => {
     })
 
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'toolcall_end', toolCall: askToolCall },
-        { type: 'done', message: assistantWithAsk },
-      ], assistantWithAsk),
+      makeEventStream(
+        [
+          { type: 'toolcall_end', toolCall: askToolCall },
+          { type: 'done', message: assistantWithAsk },
+        ],
+        assistantWithAsk,
+      ),
     )
 
     const rt = createRuntime()
@@ -783,10 +833,13 @@ describe('AgentRuntime AskUserQuestion', () => {
     })
 
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'toolcall_end', toolCall: fullAskToolCall },
-        { type: 'done', message: assistantWithAsk },
-      ], assistantWithAsk),
+      makeEventStream(
+        [
+          { type: 'toolcall_end', toolCall: fullAskToolCall },
+          { type: 'done', message: assistantWithAsk },
+        ],
+        assistantWithAsk,
+      ),
     )
 
     const rt = createRuntime()
@@ -806,10 +859,13 @@ describe('AgentRuntime AskUserQuestion', () => {
     })
 
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'toolcall_end', toolCall: askToolCall },
-        { type: 'done', message: assistantWithAsk },
-      ], assistantWithAsk),
+      makeEventStream(
+        [
+          { type: 'toolcall_end', toolCall: askToolCall },
+          { type: 'done', message: assistantWithAsk },
+        ],
+        assistantWithAsk,
+      ),
     )
 
     const rt = createRuntime()
@@ -842,9 +898,7 @@ describe('AgentRuntime AskUserQuestion', () => {
     const resumeAssistant = makeAssistantMessage({
       content: [{ type: 'text', text: 'Using postgres!' }],
     })
-    streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([{ type: 'done', message: resumeAssistant }], resumeAssistant),
-    )
+    streamSimpleMock.mockReturnValueOnce(makeEventStream([{ type: 'done', message: resumeAssistant }], resumeAssistant))
 
     const outcome2 = await rt.run()
     expect(outcome2).toEqual({ type: 'success', text: 'Using postgres!' })
@@ -858,10 +912,13 @@ describe('AgentRuntime AskUserQuestion', () => {
     })
 
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'toolcall_end', toolCall: askToolCall },
-        { type: 'done', message: assistantWithAsk },
-      ], assistantWithAsk),
+      makeEventStream(
+        [
+          { type: 'toolcall_end', toolCall: askToolCall },
+          { type: 'done', message: assistantWithAsk },
+        ],
+        assistantWithAsk,
+      ),
     )
 
     const rt = createRuntime()
@@ -892,11 +949,14 @@ describe('AgentRuntime AskUserQuestion', () => {
     })
 
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'toolcall_end', toolCall: normalToolCall },
-        { type: 'toolcall_end', toolCall: askToolCall },
-        { type: 'done', message: assistantWithBoth },
-      ], assistantWithBoth),
+      makeEventStream(
+        [
+          { type: 'toolcall_end', toolCall: normalToolCall },
+          { type: 'toolcall_end', toolCall: askToolCall },
+          { type: 'done', message: assistantWithBoth },
+        ],
+        assistantWithBoth,
+      ),
     )
 
     const handler = vi.fn().mockResolvedValue({ output: 'done', isError: false })
@@ -947,14 +1007,15 @@ describe('AgentRuntime ToolExecutionResult semantics', () => {
 
     streamSimpleMock
       .mockReturnValueOnce(
-        makeEventStream([
-          { type: 'toolcall_end', toolCall },
-          { type: 'done', message: assistantWithTool },
-        ], assistantWithTool),
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall },
+            { type: 'done', message: assistantWithTool },
+          ],
+          assistantWithTool,
+        ),
       )
-      .mockReturnValueOnce(
-        makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant),
-      )
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant))
 
     const handler = vi.fn().mockResolvedValue({
       output: 'ERROR [NO_MATCH]: old_string not found',
@@ -995,14 +1056,15 @@ describe('AgentRuntime ToolExecutionResult semantics', () => {
 
     streamSimpleMock
       .mockReturnValueOnce(
-        makeEventStream([
-          { type: 'toolcall_end', toolCall },
-          { type: 'done', message: assistantWithTool },
-        ], assistantWithTool),
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall },
+            { type: 'done', message: assistantWithTool },
+          ],
+          assistantWithTool,
+        ),
       )
-      .mockReturnValueOnce(
-        makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant),
-      )
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant))
 
     // "No matches found" is a successful operation, not an error
     const handler = vi.fn().mockResolvedValue({
@@ -1042,14 +1104,15 @@ describe('AgentRuntime ToolExecutionResult semantics', () => {
 
     streamSimpleMock
       .mockReturnValueOnce(
-        makeEventStream([
-          { type: 'toolcall_end', toolCall },
-          { type: 'done', message: assistantWithTool },
-        ], assistantWithTool),
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall },
+            { type: 'done', message: assistantWithTool },
+          ],
+          assistantWithTool,
+        ),
       )
-      .mockReturnValueOnce(
-        makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant),
-      )
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant))
 
     const handler = vi.fn().mockRejectedValue(new Error('internal crash'))
 
@@ -1102,9 +1165,7 @@ describe('AgentRuntime queue (pendingInbound)', () => {
     const assistantMessage = makeAssistantMessage({
       content: [{ type: 'text', text: 'ok' }],
     })
-    streamSimpleMock.mockReturnValue(makeEventStream([
-      { type: 'done', message: assistantMessage },
-    ], assistantMessage))
+    streamSimpleMock.mockReturnValue(makeEventStream([{ type: 'done', message: assistantMessage }], assistantMessage))
 
     const rt = createRuntime()
     rt.enqueueUserMessage('test')
@@ -1118,9 +1179,7 @@ describe('AgentRuntime queue (pendingInbound)', () => {
     const assistantMessage = makeAssistantMessage({
       content: [{ type: 'text', text: 'ok' }],
     })
-    streamSimpleMock.mockReturnValue(makeEventStream([
-      { type: 'done', message: assistantMessage },
-    ], assistantMessage))
+    streamSimpleMock.mockReturnValue(makeEventStream([{ type: 'done', message: assistantMessage }], assistantMessage))
 
     const rt = createRuntime()
     rt.enqueueUserMessage('first')
@@ -1134,8 +1193,8 @@ describe('AgentRuntime queue (pendingInbound)', () => {
 
     // All drained into messages
     expect(rt.pendingInboundCount).toBe(0)
-    const userMsgs = rt.messages.filter(m => m.role === 'user')
-    expect(userMsgs.map(m => m.content)).toEqual(['first', 'second', 'third'])
+    const userMsgs = rt.messages.filter((m) => m.role === 'user')
+    expect(userMsgs.map((m) => m.content)).toEqual(['first', 'second', 'third'])
   })
 
   it('enqueue during run is preserved (not lost)', async () => {
@@ -1145,9 +1204,7 @@ describe('AgentRuntime queue (pendingInbound)', () => {
     const assistantMessage = makeAssistantMessage({
       content: [{ type: 'text', text: 'ok' }],
     })
-    streamSimpleMock.mockReturnValue(makeEventStream([
-      { type: 'done', message: assistantMessage },
-    ], assistantMessage))
+    streamSimpleMock.mockReturnValue(makeEventStream([{ type: 'done', message: assistantMessage }], assistantMessage))
 
     const rt = createRuntime()
     rt.enqueueUserMessage('initial')
@@ -1394,10 +1451,13 @@ describe('AgentRuntime question_answered lifecycle event', () => {
     })
 
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'toolcall_end', toolCall: askToolCall },
-        { type: 'done', message: assistantWithAsk },
-      ], assistantWithAsk),
+      makeEventStream(
+        [
+          { type: 'toolcall_end', toolCall: askToolCall },
+          { type: 'done', message: assistantWithAsk },
+        ],
+        assistantWithAsk,
+      ),
     )
 
     const lifecycleEvents: unknown[] = []
@@ -1436,10 +1496,13 @@ describe('AgentRuntime question_answered lifecycle event', () => {
     })
 
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'toolcall_end', toolCall: askToolCall },
-        { type: 'done', message: assistantWithAsk },
-      ], assistantWithAsk),
+      makeEventStream(
+        [
+          { type: 'toolcall_end', toolCall: askToolCall },
+          { type: 'done', message: assistantWithAsk },
+        ],
+        assistantWithAsk,
+      ),
     )
 
     const rt = new AgentRuntime({
@@ -1505,7 +1568,9 @@ describe('AgentRuntime lifecycle callbacks', () => {
         onText: (e) => {
           textEvents.push(e)
           e.pipeable.subscribe((d) => deltas.push(d))
-          e.pipeable.done().then((v) => { finalText = v })
+          e.pipeable.done().then((v) => {
+            finalText = v
+          })
         },
       },
     })
@@ -1514,13 +1579,16 @@ describe('AgentRuntime lifecycle callbacks', () => {
       content: [{ type: 'text', text: 'Hello world' }],
     })
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'text_start', contentIndex: 0 },
-        { type: 'text_delta', contentIndex: 0, delta: 'Hello ' },
-        { type: 'text_delta', contentIndex: 0, delta: 'world' },
-        { type: 'text_end', contentIndex: 0, content: 'Hello world' },
-        { type: 'done', message: assistantMessage },
-      ], assistantMessage),
+      makeEventStream(
+        [
+          { type: 'text_start', contentIndex: 0 },
+          { type: 'text_delta', contentIndex: 0, delta: 'Hello ' },
+          { type: 'text_delta', contentIndex: 0, delta: 'world' },
+          { type: 'text_end', contentIndex: 0, content: 'Hello world' },
+          { type: 'done', message: assistantMessage },
+        ],
+        assistantMessage,
+      ),
     )
 
     rt.enqueueUserMessage('hi')
@@ -1529,7 +1597,7 @@ describe('AgentRuntime lifecycle callbacks', () => {
     expect(textEvents).toHaveLength(1)
     expect(deltas).toEqual(['Hello ', 'world'])
     // Allow microtask to resolve
-    await new Promise(r => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
     expect(finalText).toBe('Hello world')
   })
 
@@ -1548,7 +1616,9 @@ describe('AgentRuntime lifecycle callbacks', () => {
         onThinking: (e) => {
           thinkingEvents.push(e)
           e.pipeable.subscribe((d) => deltas.push(d))
-          e.pipeable.done().then((v) => { finalThought = v })
+          e.pipeable.done().then((v) => {
+            finalThought = v
+          })
         },
       },
     })
@@ -1557,13 +1627,16 @@ describe('AgentRuntime lifecycle callbacks', () => {
       content: [{ type: 'text', text: 'ok' }],
     })
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'thinking_start', contentIndex: 0 },
-        { type: 'thinking_delta', contentIndex: 0, delta: 'Let me ' },
-        { type: 'thinking_delta', contentIndex: 0, delta: 'think...' },
-        { type: 'thinking_end', contentIndex: 0, content: 'Let me think...' },
-        { type: 'done', message: assistantMessage },
-      ], assistantMessage),
+      makeEventStream(
+        [
+          { type: 'thinking_start', contentIndex: 0 },
+          { type: 'thinking_delta', contentIndex: 0, delta: 'Let me ' },
+          { type: 'thinking_delta', contentIndex: 0, delta: 'think...' },
+          { type: 'thinking_end', contentIndex: 0, content: 'Let me think...' },
+          { type: 'done', message: assistantMessage },
+        ],
+        assistantMessage,
+      ),
     )
 
     rt.enqueueUserMessage('hi')
@@ -1571,7 +1644,7 @@ describe('AgentRuntime lifecycle callbacks', () => {
 
     expect(thinkingEvents).toHaveLength(1)
     expect(deltas).toEqual(['Let me ', 'think...'])
-    await new Promise(r => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
     expect(finalThought).toBe('Let me think...')
   })
 
@@ -1597,16 +1670,25 @@ describe('AgentRuntime lifecycle callbacks', () => {
 
     streamSimpleMock
       .mockReturnValueOnce(
-        makeEventStream([
-          { type: 'toolcall_start', contentIndex: 0, partial: { content: [{ type: 'toolCall', name: 'bash', arguments: { command: 'echo' } }] } },
-          { type: 'toolcall_delta', contentIndex: 0, partial: { content: [{ type: 'toolCall', name: 'bash', arguments: { command: 'echo hi' } }] } },
-          { type: 'toolcall_end', contentIndex: 0, toolCall },
-          { type: 'done', message: assistantWithTool },
-        ], assistantWithTool),
+        makeEventStream(
+          [
+            {
+              type: 'toolcall_start',
+              contentIndex: 0,
+              partial: { content: [{ type: 'toolCall', name: 'bash', arguments: { command: 'echo' } }] },
+            },
+            {
+              type: 'toolcall_delta',
+              contentIndex: 0,
+              partial: { content: [{ type: 'toolCall', name: 'bash', arguments: { command: 'echo hi' } }] },
+            },
+            { type: 'toolcall_end', contentIndex: 0, toolCall },
+            { type: 'done', message: assistantWithTool },
+          ],
+          assistantWithTool,
+        ),
       )
-      .mockReturnValueOnce(
-        makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant),
-      )
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant))
 
     const handler = vi.fn().mockResolvedValue({ output: 'hi\n', isError: false })
 
@@ -1620,7 +1702,9 @@ describe('AgentRuntime lifecycle callbacks', () => {
         onToolCall: (e) => {
           toolCallEvents.push(e)
           e.pipeable.subscribe((d) => toolDeltas.push(d))
-          e.pipeable.done().then((v) => { finalLifecycle = v })
+          e.pipeable.done().then((v) => {
+            finalLifecycle = v
+          })
         },
       },
     })
@@ -1637,7 +1721,7 @@ describe('AgentRuntime lifecycle callbacks', () => {
     expect(deltaTypes).toContain('id_resolved')
     expect(deltaTypes).toContain('phase_change')
 
-    await new Promise(r => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
     expect(finalLifecycle).not.toBeNull()
     expect((finalLifecycle as any).phase).toBe('completed')
     expect((finalLifecycle as any).result).toBe('hi\n')
@@ -1687,8 +1771,24 @@ describe('AgentRuntime lifecycle callbacks', () => {
     const tc = { type: 'toolCall', id: 'tc', name: 'x', arguments: {} }
 
     streamSimpleMock
-      .mockReturnValueOnce(makeEventStream([{ type: 'toolcall_end', toolCall: tc }, { type: 'done', message: toolMsg }], toolMsg))
-      .mockReturnValueOnce(makeEventStream([{ type: 'toolcall_end', toolCall: tc }, { type: 'done', message: toolMsg }], toolMsg))
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall: tc },
+            { type: 'done', message: toolMsg },
+          ],
+          toolMsg,
+        ),
+      )
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall: tc },
+            { type: 'done', message: toolMsg },
+          ],
+          toolMsg,
+        ),
+      )
 
     rt.enqueueUserMessage('go')
     await rt.run()
@@ -1715,7 +1815,9 @@ describe('AgentRuntime lifecycle callbacks', () => {
       lifecycle: {
         onAbort: (e) => abortEvents.push(e),
         onText: (e) => {
-          e.pipeable.done().catch((err) => { textPipeableError = err })
+          e.pipeable.done().catch((err) => {
+            textPipeableError = err
+          })
         },
       },
     })
@@ -1727,7 +1829,9 @@ describe('AgentRuntime lifecycle callbacks', () => {
         rt.requestInterrupt()
         yield { type: 'error', error: abortedMsg }
       },
-      async result() { return abortedMsg },
+      async result() {
+        return abortedMsg
+      },
     })
 
     rt.enqueueUserMessage('hi')
@@ -1737,7 +1841,7 @@ describe('AgentRuntime lifecycle callbacks', () => {
     expect((abortEvents[0] as any).reason).toBe('interrupted')
 
     // The text pipeable should have been errored
-    await new Promise(r => setTimeout(r, 0))
+    await new Promise((r) => setTimeout(r, 0))
     expect(textPipeableError).not.toBeNull()
     expect(textPipeableError!.message).toContain('interrupted')
   })

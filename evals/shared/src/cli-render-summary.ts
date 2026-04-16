@@ -28,12 +28,7 @@ async function main(): Promise<void> {
 }
 
 async function registerAllRenderers(): Promise<void> {
-  const [
-    polyglotModule,
-    sweBenchModule,
-    browseCompModule,
-    terminalBenchModule,
-  ] = await Promise.all([
+  const [polyglotModule, sweBenchModule, browseCompModule, terminalBenchModule] = await Promise.all([
     import(new URL('../../polyglot/src/eval-result.ts', import.meta.url).href),
     import(new URL('../../swe-bench/src/eval-result.ts', import.meta.url).href),
     import(new URL('../../browsecomp/src/eval-result.ts', import.meta.url).href),

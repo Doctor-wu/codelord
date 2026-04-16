@@ -52,12 +52,7 @@ export type { ReasoningLevel } from './reasoning-manager.js'
  * BLOCKED     – execution paused at a safe boundary, waiting for external input
  * READY       – last burst completed, session alive, ready for next turn
  */
-export type RuntimeState =
-  | 'IDLE'
-  | 'STREAMING'
-  | 'TOOL_EXEC'
-  | 'BLOCKED'
-  | 'READY'
+export type RuntimeState = 'IDLE' | 'STREAMING' | 'TOOL_EXEC' | 'BLOCKED' | 'READY'
 
 const VALID_TRANSITIONS: Record<RuntimeState, readonly RuntimeState[]> = {
   IDLE: ['STREAMING', 'BLOCKED', 'READY'],
@@ -71,10 +66,21 @@ const VALID_TRANSITIONS: Record<RuntimeState, readonly RuntimeState[]> = {
 // Execution outcome — what a single run() burst returns
 // ---------------------------------------------------------------------------
 
-export interface OutcomeSuccess { type: 'success'; text: string }
-export interface OutcomeError { type: 'error'; error: string }
-export interface OutcomeBlocked { type: 'blocked'; reason: 'pending_input' | 'waiting_user' }
-export interface OutcomeInterrupted { type: 'interrupted' }
+export interface OutcomeSuccess {
+  type: 'success'
+  text: string
+}
+export interface OutcomeError {
+  type: 'error'
+  error: string
+}
+export interface OutcomeBlocked {
+  type: 'blocked'
+  reason: 'pending_input' | 'waiting_user'
+}
+export interface OutcomeInterrupted {
+  type: 'interrupted'
+}
 export type RunOutcome = OutcomeSuccess | OutcomeError | OutcomeBlocked | OutcomeInterrupted
 
 // ---------------------------------------------------------------------------
@@ -178,7 +184,9 @@ export class AgentRuntime<TApi extends Api = Api> {
     this._capabilities = resolveModelCapabilities(this.model)
     this.contextWindowConfig = {
       maxTokens: options.contextWindow?.maxTokens ?? this._capabilities.maxContextTokens,
-      reservedOutputTokens: options.contextWindow?.reservedOutputTokens ?? Math.min(this._capabilities.maxOutputTokens, DEFAULT_CONTEXT_WINDOW.reservedOutputTokens),
+      reservedOutputTokens:
+        options.contextWindow?.reservedOutputTokens ??
+        Math.min(this._capabilities.maxOutputTokens, DEFAULT_CONTEXT_WINDOW.reservedOutputTokens),
     }
     this.reasoningMgr = new ReasoningManager(options.reasoningLevel ?? this._capabilities.defaultReasoningLevel)
     this._lifecycle = options.lifecycle ?? {}
@@ -186,30 +194,76 @@ export class AgentRuntime<TApi extends Api = Api> {
 
   // --- Public accessors (unchanged API surface) ---
 
-  get messages(): Message[] { return this.msgMgr.messages }
-  get state(): RuntimeState { return this._state }
-  get burstStepCount(): number { return this._burstStepCount }
-  get sessionStepCount(): number { return this._sessionStepCount }
+  get messages(): Message[] {
+    return this.msgMgr.messages
+  }
+  get state(): RuntimeState {
+    return this._state
+  }
+  get burstStepCount(): number {
+    return this._burstStepCount
+  }
+  get sessionStepCount(): number {
+    return this._sessionStepCount
+  }
   /** @deprecated Use burstStepCount or sessionStepCount */
-  get stepCount(): number { return this._sessionStepCount }
-  get partial(): PartialAssistant | null { return this._partial }
-  get interruptRequested(): boolean { return this.interruptCtrl.isRequested }
-  get pendingQuestion(): PendingQuestion | null { return this._pendingQuestion }
-  get resolvedQuestions(): readonly ResolvedQuestion[] { return this._resolvedQuestions }
-  get lastOutcome(): RunOutcome | null { return this._lastOutcome }
-  get pendingInboundCount(): number { return this.msgMgr.pendingInboundCount }
-  get pendingInboundPreviews(): string[] { return this.msgMgr.pendingInboundPreviews }
-  get routeRecords(): readonly ToolRouteDecision[] { return this._routeRecords }
-  get safetyRecords(): readonly ToolSafetyDecision[] { return this._safetyRecords }
-  get usageAggregate(): UsageAggregate { return this.usageTracker.aggregate }
-  get toolStats(): ToolStatsTracker { return this.toolStatsTracker }
-  get reasoningLevel(): ReasoningLevel { return this.reasoningMgr.level }
-  get modelCapabilities(): ModelCapabilities { return this._capabilities }
-  setReasoningLevel(level: ReasoningLevel): void { this.reasoningMgr.setLevel(level) }
+  get stepCount(): number {
+    return this._sessionStepCount
+  }
+  get partial(): PartialAssistant | null {
+    return this._partial
+  }
+  get interruptRequested(): boolean {
+    return this.interruptCtrl.isRequested
+  }
+  get pendingQuestion(): PendingQuestion | null {
+    return this._pendingQuestion
+  }
+  get resolvedQuestions(): readonly ResolvedQuestion[] {
+    return this._resolvedQuestions
+  }
+  get lastOutcome(): RunOutcome | null {
+    return this._lastOutcome
+  }
+  get pendingInboundCount(): number {
+    return this.msgMgr.pendingInboundCount
+  }
+  get pendingInboundPreviews(): string[] {
+    return this.msgMgr.pendingInboundPreviews
+  }
+  get routeRecords(): readonly ToolRouteDecision[] {
+    return this._routeRecords
+  }
+  get safetyRecords(): readonly ToolSafetyDecision[] {
+    return this._safetyRecords
+  }
+  get usageAggregate(): UsageAggregate {
+    return this.usageTracker.aggregate
+  }
+  get toolStats(): ToolStatsTracker {
+    return this.toolStatsTracker
+  }
+  get reasoningLevel(): ReasoningLevel {
+    return this.reasoningMgr.level
+  }
+  get modelCapabilities(): ModelCapabilities {
+    return this._capabilities
+  }
+  setReasoningLevel(level: ReasoningLevel): void {
+    this.reasoningMgr.setLevel(level)
+  }
 
   // --- Snapshot export / import ---
 
-  exportSnapshot(meta: { sessionId: string; cwd: string; provider: string; model: string; createdAt?: number; checkpoints?: import('./checkpoint.js').CheckpointRecord[]; gitBranch?: string | null }): SessionSnapshot {
+  exportSnapshot(meta: {
+    sessionId: string
+    cwd: string
+    provider: string
+    model: string
+    createdAt?: number
+    checkpoints?: import('./checkpoint.js').CheckpointRecord[]
+    gitBranch?: string | null
+  }): SessionSnapshot {
     const now = Date.now()
     const isInFlight = this._state === 'STREAMING' || this._state === 'TOOL_EXEC'
     return {
@@ -273,7 +327,9 @@ export class AgentRuntime<TApi extends Api = Api> {
 
   // --- Interrupt control (delegates to InterruptController) ---
 
-  requestInterrupt(): void { this.interruptCtrl.requestInterrupt() }
+  requestInterrupt(): void {
+    this.interruptCtrl.requestInterrupt()
+  }
 
   // --- Pending question control ---
 
@@ -318,7 +374,7 @@ export class AgentRuntime<TApi extends Api = Api> {
     this.emitLifecycle({
       type: 'queue_drained',
       count: result.drained.length,
-      messages: result.drained.map(m => ({
+      messages: result.drained.map((m) => ({
         content: typeof m.content === 'string' ? m.content : '[non-text]',
         enqueuedAt: m.timestamp ?? injectedAt,
       })),
@@ -333,7 +389,9 @@ export class AgentRuntime<TApi extends Api = Api> {
     return { type: 'interrupted' }
   }
 
-  private resetBurst(): void { this._burstStepCount = 0 }
+  private resetBurst(): void {
+    this._burstStepCount = 0
+  }
 
   // --- Pipeable tracking helpers ---
 
@@ -422,7 +480,12 @@ export class AgentRuntime<TApi extends Api = Api> {
       this._sessionStepCount++
       this._assistantTurnId = `assistant-${++this._assistantTurnCounter}`
       const reasoning = this.reasoningMgr.beginTurn()
-      this.emitLifecycle({ type: 'assistant_turn_start', id: this._assistantTurnId, reasoning: this.reasoningMgr.snapshot(), timestamp: Date.now() })
+      this.emitLifecycle({
+        type: 'assistant_turn_start',
+        id: this._assistantTurnId,
+        reasoning: this.reasoningMgr.snapshot(),
+        timestamp: Date.now(),
+      })
       this._lifecycle.onStart?.({ turnId: this._assistantTurnId!, timestamp: Date.now() })
 
       if (this._burstStepCount > this.maxSteps) {
@@ -437,12 +500,7 @@ export class AgentRuntime<TApi extends Api = Api> {
       const allTools = [...this.tools, askUserQuestionTool]
       const systemPromptTokens = estimateTokens(this.systemPrompt)
       const toolsTokens = estimateTokens(JSON.stringify(allTools))
-      const truncation = truncateMessages(
-        this.messages,
-        systemPromptTokens,
-        toolsTokens,
-        this.contextWindowConfig,
-      )
+      const truncation = truncateMessages(this.messages, systemPromptTokens, toolsTokens, this.contextWindowConfig)
       if (truncation.wasTruncated) {
         this.emitLifecycle({
           type: 'context_truncated',
@@ -460,16 +518,21 @@ export class AgentRuntime<TApi extends Api = Api> {
       }
 
       const streamStartTime = Date.now()
-      const reasoningOpt = this._capabilities.supportsReasoning && this.reasoningMgr.level !== 'off'
-        ? { reasoning: this.reasoningMgr.level }
-        : {}
+      const reasoningOpt =
+        this._capabilities.supportsReasoning && this.reasoningMgr.level !== 'off'
+          ? { reasoning: this.reasoningMgr.level }
+          : {}
       const eventStream = streamSimple(this.model, context, {
         ...this.streamOptions,
         ...reasoningOpt,
         apiKey: this.apiKey,
         signal,
         ...(this._sessionId ? { sessionId: this._sessionId } : {}),
-        ...(this._cacheRetention ? { cacheRetention: this._cacheRetention } : this._sessionId ? { cacheRetention: 'short' as CacheRetention } : {}),
+        ...(this._cacheRetention
+          ? { cacheRetention: this._cacheRetention }
+          : this._sessionId
+            ? { cacheRetention: 'short' as CacheRetention }
+            : {}),
       })
 
       let assistantMsg: AssistantMessage | undefined
@@ -564,7 +627,9 @@ export class AgentRuntime<TApi extends Api = Api> {
               const pc = event.partial.content[event.contentIndex]
               if (pc?.type === 'toolCall') {
                 toolCallPipeables.get(event.contentIndex)?.push({
-                  type: 'streaming_args', toolName: pc.name, args: pc.arguments ?? {},
+                  type: 'streaming_args',
+                  toolName: pc.name,
+                  args: pc.arguments ?? {},
                 })
               }
               break
@@ -648,7 +713,12 @@ export class AgentRuntime<TApi extends Api = Api> {
       }
       if (this._assistantTurnId) {
         this.reasoningMgr.endTurn()
-        this.emitLifecycle({ type: 'assistant_turn_end', id: this._assistantTurnId, reasoning: this.reasoningMgr.snapshot(), timestamp: Date.now() })
+        this.emitLifecycle({
+          type: 'assistant_turn_end',
+          id: this._assistantTurnId,
+          reasoning: this.reasoningMgr.snapshot(),
+          timestamp: Date.now(),
+        })
       }
 
       // Decide next state
@@ -701,7 +771,9 @@ export class AgentRuntime<TApi extends Api = Api> {
           delete cleanArgs.reason
 
           const lifecycle = createToolCallLifecycle({
-            id: tc.id, toolName: tc.name, args: cleanArgs,
+            id: tc.id,
+            toolName: tc.name,
+            args: cleanArgs,
             command: extractCommandForDisplay(tc.name, cleanArgs),
           })
           this.emitLifecycle({ type: 'tool_call_created', toolCall: { ...lifecycle } })
@@ -712,12 +784,20 @@ export class AgentRuntime<TApi extends Api = Api> {
           // Priority: model-declared reason > reasoning manager extraction > null
           lifecycle.displayReason = declaredReason
             ? sanitizeDisplayReason(declaredReason)
-            : (this.reasoningMgr.current?.intent ? sanitizeDisplayReason(this.reasoningMgr.current.intent) : null)
+            : this.reasoningMgr.current?.intent
+              ? sanitizeDisplayReason(this.reasoningMgr.current.intent)
+              : null
 
           const decision = this.router.route(tc.name, cleanArgs)
           if (decision.wasRouted) {
             this._routeRecords.push(decision)
-            lifecycle.route = { wasRouted: true, ruleId: decision.ruleId, originalToolName: decision.originalToolName, originalArgs: decision.originalArgs, reason: decision.reason }
+            lifecycle.route = {
+              wasRouted: true,
+              ruleId: decision.ruleId,
+              originalToolName: decision.originalToolName,
+              originalArgs: decision.originalArgs,
+              reason: decision.reason,
+            }
             lifecycle.toolName = decision.resolvedToolName
             lifecycle.args = decision.resolvedArgs
             lifecycle.command = extractCommandForDisplay(decision.resolvedToolName, decision.resolvedArgs)
@@ -733,7 +813,12 @@ export class AgentRuntime<TApi extends Api = Api> {
           // Safety gate
           const safetyDecision = this.safetyPolicy.assess(execToolName, execArgs)
           this._safetyRecords.push(safetyDecision)
-          lifecycle.safety = { riskLevel: safetyDecision.riskLevel, allowed: safetyDecision.allowed, ruleId: safetyDecision.ruleId, reason: safetyDecision.reason }
+          lifecycle.safety = {
+            riskLevel: safetyDecision.riskLevel,
+            allowed: safetyDecision.allowed,
+            ruleId: safetyDecision.ruleId,
+            reason: safetyDecision.reason,
+          }
           lifecycle.phase = 'checked'
           this.emitLifecycle({ type: 'tool_call_updated', toolCall: { ...lifecycle } })
           toolPipeable?.push({ type: 'safety', safety: lifecycle.safety! })
@@ -800,8 +885,12 @@ export class AgentRuntime<TApi extends Api = Api> {
           }
 
           const toolResultMsg: ToolResultMessage = {
-            role: 'toolResult', toolCallId: tc.id, toolName: execToolName,
-            content: [{ type: 'text', text: resultText }], isError, timestamp: Date.now(),
+            role: 'toolResult',
+            toolCallId: tc.id,
+            toolName: execToolName,
+            content: [{ type: 'text', text: resultText }],
+            isError,
+            timestamp: Date.now(),
           }
           this.messages.push(toolResultMsg)
 
@@ -842,10 +931,20 @@ export class AgentRuntime<TApi extends Api = Api> {
     if (skipLifecycle) return outcome
     if (outcome.type === 'interrupted') {
       this._terminateAllPipeables('Execution interrupted')
-      this.emitLifecycle({ type: 'blocked_enter', reason: 'interrupted', reasoning: this.reasoningMgr.current ? this.reasoningMgr.snapshot() : undefined, timestamp: Date.now() })
+      this.emitLifecycle({
+        type: 'blocked_enter',
+        reason: 'interrupted',
+        reasoning: this.reasoningMgr.current ? this.reasoningMgr.snapshot() : undefined,
+        timestamp: Date.now(),
+      })
       this._lifecycle.onAbort?.({ reason: 'interrupted', timestamp: Date.now() })
     } else if (outcome.type === 'blocked') {
-      this.emitLifecycle({ type: 'blocked_enter', reason: outcome.reason, reasoning: this.reasoningMgr.current ? this.reasoningMgr.snapshot() : undefined, timestamp: Date.now() })
+      this.emitLifecycle({
+        type: 'blocked_enter',
+        reason: outcome.reason,
+        reasoning: this.reasoningMgr.current ? this.reasoningMgr.snapshot() : undefined,
+        timestamp: Date.now(),
+      })
     } else if (outcome.type === 'success') {
       this.emitLifecycle({ type: 'session_done', success: true, text: outcome.text, timestamp: Date.now() })
       this._lifecycle.onDone?.({ text: outcome.text, timestamp: Date.now() })
@@ -873,55 +972,76 @@ export class AgentRuntime<TApi extends Api = Api> {
   }
 
   private extractFinalText(): string {
-    const lastMsg = this.messages.findLast(
-      (m): m is AssistantMessage => m.role === 'assistant',
+    const lastMsg = this.messages.findLast((m): m is AssistantMessage => m.role === 'assistant')
+    return (
+      lastMsg?.content
+        .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+        .map((c) => c.text)
+        .join('') ?? ''
     )
-    return lastMsg?.content
-      .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
-      .map((c) => c.text)
-      .join('') ?? ''
   }
 
   /** Emit a provider stream trace event (extracted to reduce run() noise). */
   private emitProviderStreamEvent(event: any, seq: number): void {
     const base = {
-      eventId: seq, seq: 0, type: event.type, timestamp: Date.now(),
-      step: this._burstStepCount, turnId: this._assistantTurnId, source: 'provider_stream' as const,
-      contentIndex: null as number | null, toolCallId: null as string | null,
-      toolName: null as string | null, deltaPreview: null as string | null,
-      contentPreview: null as string | null, argsPreview: null as string | null,
+      eventId: seq,
+      seq: 0,
+      type: event.type,
+      timestamp: Date.now(),
+      step: this._burstStepCount,
+      turnId: this._assistantTurnId,
+      source: 'provider_stream' as const,
+      contentIndex: null as number | null,
+      toolCallId: null as string | null,
+      toolName: null as string | null,
+      deltaPreview: null as string | null,
+      contentPreview: null as string | null,
+      argsPreview: null as string | null,
       stopReason: null as string | null,
     }
     switch (event.type) {
-      case 'thinking_start': case 'text_start':
-        base.contentIndex = event.contentIndex; break
+      case 'thinking_start':
+      case 'text_start':
+        base.contentIndex = event.contentIndex
+        break
       case 'thinking_delta':
         base.contentIndex = event.contentIndex
-        base.deltaPreview = event.delta.slice(0, 300); break
+        base.deltaPreview = event.delta.slice(0, 300)
+        break
       case 'thinking_end':
         base.contentIndex = event.contentIndex
-        base.contentPreview = event.content.slice(0, 300); break
+        base.contentPreview = event.content.slice(0, 300)
+        break
       case 'text_delta':
         base.contentIndex = event.contentIndex
-        base.deltaPreview = event.delta.slice(0, 300); break
+        base.deltaPreview = event.delta.slice(0, 300)
+        break
       case 'text_end':
         base.contentIndex = event.contentIndex
-        base.contentPreview = event.content.slice(0, 300); break
-      case 'toolcall_start': case 'toolcall_delta': {
+        base.contentPreview = event.content.slice(0, 300)
+        break
+      case 'toolcall_start':
+      case 'toolcall_delta': {
         base.contentIndex = event.contentIndex
         const pc = event.partial.content[event.contentIndex]
-        if (pc?.type === 'toolCall') { base.toolName = pc.name; base.argsPreview = JSON.stringify(pc.arguments ?? {}).slice(0, 300) }
+        if (pc?.type === 'toolCall') {
+          base.toolName = pc.name
+          base.argsPreview = JSON.stringify(pc.arguments ?? {}).slice(0, 300)
+        }
         break
       }
       case 'toolcall_end':
         base.contentIndex = event.contentIndex
         base.toolCallId = event.toolCall.id
         base.toolName = event.toolCall.name
-        base.argsPreview = JSON.stringify(event.toolCall.arguments).slice(0, 300); break
+        base.argsPreview = JSON.stringify(event.toolCall.arguments).slice(0, 300)
+        break
       case 'done':
-        base.stopReason = event.reason; break
+        base.stopReason = event.reason
+        break
       case 'error':
-        base.stopReason = event.reason; break
+        base.stopReason = event.reason
+        break
     }
     this.emitProviderStream!(base)
   }

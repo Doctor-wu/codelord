@@ -17,7 +17,9 @@ interface CallUsage {
 export class UsageTracker {
   private _aggregate: UsageAggregate = createUsageAggregate()
 
-  get aggregate(): UsageAggregate { return this._aggregate }
+  get aggregate(): UsageAggregate {
+    return this._aggregate
+  }
 
   /**
    * Record usage from a completed LLM call.
@@ -36,10 +38,16 @@ export class UsageTracker {
     this._aggregate.cost.total += usage.cost.total
     this._aggregate.llmCalls++
     this._aggregate.lastCall = {
-      model, provider, stopReason, latencyMs,
-      input: usage.input, output: usage.output,
-      cacheRead: usage.cacheRead, cacheWrite: usage.cacheWrite,
-      totalTokens: usage.totalTokens, cost: { ...usage.cost },
+      model,
+      provider,
+      stopReason,
+      latencyMs,
+      input: usage.input,
+      output: usage.output,
+      cacheRead: usage.cacheRead,
+      cacheWrite: usage.cacheWrite,
+      totalTokens: usage.totalTokens,
+      cost: { ...usage.cost },
     }
     return this._aggregate
   }
@@ -60,9 +68,7 @@ export class UsageTracker {
     this._aggregate = {
       ...snapshot,
       cost: { ...snapshot.cost },
-      lastCall: snapshot.lastCall
-        ? { ...snapshot.lastCall, cost: { ...snapshot.lastCall.cost } }
-        : null,
+      lastCall: snapshot.lastCall ? { ...snapshot.lastCall, cost: { ...snapshot.lastCall.cost } } : null,
     }
   }
 }

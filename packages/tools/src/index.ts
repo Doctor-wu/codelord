@@ -28,7 +28,4 @@ export const corePlugins: ToolPlugin[] = [
 ]
 
 /** All optional tool plugins (require config/env to enable) */
-export const optionalPlugins: ToolPlugin[] = [
-  webFetchPlugin,
-  webSearchPlugin,
-]
+export const optionalPlugins: ToolPlugin[] = [webFetchPlugin, webSearchPlugin]

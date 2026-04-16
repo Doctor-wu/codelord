@@ -31,11 +31,13 @@
 ### B. 代码组织重构
 
 **B3. Runtime Manager 提取** ✅
+
 - `message-manager.ts` (56行)、`usage-tracker.ts` (68行)、`interrupt-controller.ts` (34行)、`reasoning-manager.ts` (66行)
 - runtime.ts: 997→756 行
 - 同时修复 D13：`ReasoningManager.beginTurn()` 在 `level=off` 时返回 null
 
 **B4. Renderer 架构清理** ✅
+
 - `TimelineStore` → `timeline-store.ts` (121行)
 - `InputBridge` → `input-bridge.ts` (65行)，简化为单个 `setOnChange` 回调
 - Bridge 组件合并进 App
@@ -67,6 +69,7 @@
 **E14. 统一时间线** ✅ — `TraceStepV2.events: TraceEventEntry[]` 替代三个分桶数组。`TraceRunV2.runEvents` 替代 `runLifecycleEvents`。TraceRecorder 所有层事件 push 到同一个数组。`normalizeTrace` 支持旧格式自动转换。
 
 **trace show 展示优化**（bonus）✅ — 三层展示策略：
+
 - 默认 summary：每 step 压缩到 2-3 行（activity digest + token/cost）
 - `--detail`：合并 P/A 同类型事件对为 `[P+A]`，消除 1:1 镜像冗余
 - `--raw`：完整输出作为 debug escape hatch
@@ -76,6 +79,7 @@
 **F15. 混合渲染** ⏸ 延期
 
 尝试了两种方案均失败：
+
 1. stdout flush — Ink 覆盖 stdout 内容
 2. Ink `<Static>` — 渲染效果差
 

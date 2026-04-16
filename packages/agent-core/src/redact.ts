@@ -27,7 +27,11 @@ interface RedactionPattern {
 }
 
 const PATTERNS: RedactionPattern[] = [
-  { type: 'PRIVATE_KEY', label: 'REDACTED:PRIVATE_KEY', regex: /-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----/g },
+  {
+    type: 'PRIVATE_KEY',
+    label: 'REDACTED:PRIVATE_KEY',
+    regex: /-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----/g,
+  },
   { type: 'BEARER_TOKEN', label: 'REDACTED:BEARER_TOKEN', regex: /Bearer\s+[A-Za-z0-9_.~+/=-]{20,}/gi },
   { type: 'COOKIE', label: 'REDACTED:COOKIE', regex: /(?:Cookie|Set-Cookie):\s*[^\r\n]+/gi },
   { type: 'AUTH_HEADER', label: 'REDACTED:AUTH_HEADER', regex: /Authorization:\s*\S+/gi },

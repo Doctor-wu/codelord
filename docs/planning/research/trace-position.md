@@ -32,12 +32,14 @@ Codelord 的执行链路有三层：provider → agent core → user。
 这一层的职责是忠实记录 LLM provider 的响应，不做任何解释或组装。
 
 一等事实：
+
 - 每次 LLM call 的完整元数据：model、input tokens、output tokens、cached tokens、latency、stop reason
 - provider 返回的 tool call 意图（tool name、arguments、call id）
 - provider 返回的 thinking/reasoning 内容（如有）
 - provider 返回的 text content
 
 设计原则：
+
 - 这一层记录的是"provider 吐出了什么"，不是"agent 理解成了什么"
 - 如果 provider 吐出了 3 个 tool call，这里就应该有 3 条记录，即使 agent core 最终只处理了 2 个
 - 缺失本身就是诊断信号：如果这一层没有 tool call 记录，说明 provider 根本没生成
@@ -49,6 +51,7 @@ Codelord 的执行链路有三层：provider → agent core → user。
 这是 codelord 独有的 trace 层——其他系统（Claude Code 生态、LangSmith 等）几乎都不记录这一层。
 
 一等事实：
+
 - Tool lifecycle：从 provider 意图 → route decision → safety check → execution → result 的完整链路
 - State transition：runtime FSM 的每一次状态变化（READY → STREAMING → TOOL_EXEC → BLOCKED → ...），包括 blocked reason
 - Safety decision：哪些操作被放行、哪些被拦截、理由是什么
@@ -57,6 +60,7 @@ Codelord 的执行链路有三层：provider → agent core → user。
 - Cost fact：per-turn token usage + estimated cost
 
 设计原则：
+
 - 每个 tool call 必须有稳定 identity，从 provider 意图到最终结果用同一个 id 串联
 - route / safety / execution 是同一个 tool call 的不同阶段，不是独立事件
 - state transition 是理解"agent 为什么停住了"的关键信号
@@ -66,6 +70,7 @@ Codelord 的执行链路有三层：provider → agent core → user。
 **记录 operator 做了什么、这些动作如何改变了执行轨迹。**
 
 一等事实：
+
 - User input：用户输入的内容和时间
 - Interrupt：用户中断了正在运行的 burst
 - Answer question：用户回答了 agent 的 blocking question
@@ -73,6 +78,7 @@ Codelord 的执行链路有三层：provider → agent core → user。
 - Queue injection：运行中注入的消息
 
 设计原则：
+
 - user action 不是附属信息，而是一等 trace 事实
 - 没有 user 层，trace 只能解释模型行为，不能解释产品行为
 - 每个 user action 应该能被关联到它影响了哪个 agent core 状态变化
@@ -84,11 +90,13 @@ Codelord 的执行链路有三层：provider → agent core → user。
 三层分开记录不够，必须能对得上。
 
 **稳定 Identity 规则：**
+
 - 每个 tool call 从 provider 生成到 execution 完成，使用同一个 id
 - 每个 turn（一次 LLM call + 后续 tool executions）有一个 turn id
 - 每个 user action 关联到它影响的 turn 或 state transition
 
 **跨层对比是 trace 的核心诊断模式：**
+
 - provider 层有 3 个 tool call，agent core 层只有 2 个 → 组装问题
 - provider 层有 tool call，agent core 层 safety 拦截了 → 安全策略触发
 - agent core 层进入 BLOCKED，user 层有 interrupt 记录 → 用户主动中断

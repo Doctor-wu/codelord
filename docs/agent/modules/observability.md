@@ -4,6 +4,7 @@
 
 This module owns the stable vocabulary for seeing what the agent did.
 It covers:
+
 - lifecycle events
 - reasoning and tool-call semantic objects
 - structured trace schema
@@ -34,29 +35,29 @@ Use this module when the question is "what happened?" or "why did the operator s
 
 ## Key Files
 
-| Path | Role |
-| --- | --- |
-| `packages/agent-core/src/events.ts` | lifecycle objects and event shapes |
-| `packages/agent-core/src/trace.ts` | trace schema |
-| `packages/agent-core/src/trace-check.ts` | structural and behavioral diagnostics |
-| `packages/agent-core/src/redact.ts` | preview and redaction pipeline |
-| `agents/coding-agent/src/trace-recorder.ts` | 3-layer ledger recorder |
-| `agents/coding-agent/src/trace-store.ts` | local trace persistence and CLI formatting |
+| Path                                        | Role                                       |
+| ------------------------------------------- | ------------------------------------------ |
+| `packages/agent-core/src/events.ts`         | lifecycle objects and event shapes         |
+| `packages/agent-core/src/trace.ts`          | trace schema                               |
+| `packages/agent-core/src/trace-check.ts`    | structural and behavioral diagnostics      |
+| `packages/agent-core/src/redact.ts`         | preview and redaction pipeline             |
+| `agents/coding-agent/src/trace-recorder.ts` | 3-layer ledger recorder                    |
+| `agents/coding-agent/src/trace-store.ts`    | local trace persistence and CLI formatting |
 
 ## Trajectory Fields
 
 `LifecycleTraceEvent` carries trajectory-grade data so the default trace mode shows a useful agent narrative without requiring `rawMode`:
 
-| Field | Populated on | Source |
-| --- | --- | --- |
-| `textPreview` | `assistant_turn_end` | Accumulated from provider stream `text_delta` events (always, regardless of rawMode) |
-| `thinkingPreview` | `assistant_turn_end` | Accumulated from provider stream `thinking_delta` events |
-| `stopReason` | `assistant_turn_end` | From provider stream `done` event |
-| `reasoningIntent` | `assistant_turn_start`, `assistant_turn_end` | From `AssistantReasoningState.intent` |
-| `reasoningWhy` | `assistant_turn_start`, `assistant_turn_end` | From `AssistantReasoningState.why` |
-| `argsPreview` | `tool_call_completed` | From `ToolCallLifecycle.args` (JSON, redacted) |
-| `resultPreview` | `tool_call_completed` | From `ToolCallLifecycle.result` (redacted) |
-| `isError` | `tool_call_completed` | From `ToolCallLifecycle.isError` |
+| Field             | Populated on                                 | Source                                                                               |
+| ----------------- | -------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `textPreview`     | `assistant_turn_end`                         | Accumulated from provider stream `text_delta` events (always, regardless of rawMode) |
+| `thinkingPreview` | `assistant_turn_end`                         | Accumulated from provider stream `thinking_delta` events                             |
+| `stopReason`      | `assistant_turn_end`                         | From provider stream `done` event                                                    |
+| `reasoningIntent` | `assistant_turn_start`, `assistant_turn_end` | From `AssistantReasoningState.intent`                                                |
+| `reasoningWhy`    | `assistant_turn_start`, `assistant_turn_end` | From `AssistantReasoningState.why`                                                   |
+| `argsPreview`     | `tool_call_completed`                        | From `ToolCallLifecycle.args` (JSON, redacted)                                       |
+| `resultPreview`   | `tool_call_completed`                        | From `ToolCallLifecycle.result` (redacted)                                           |
+| `isError`         | `tool_call_completed`                        | From `ToolCallLifecycle.isError`                                                     |
 
 The recorder accumulates text/thinking from provider stream events into per-turn buffers. These buffers are flushed (via `safePreview` for redaction + truncation) into the lifecycle trace event when `assistant_turn_end` fires. This decouples trajectory visibility from `rawMode`, which controls whether individual provider stream delta events are also recorded.
 

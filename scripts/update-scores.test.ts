@@ -43,9 +43,15 @@ describe('update-scores', () => {
     const markdown = renderScoresMarkdown(state)
 
     expect(markdown).toContain('# Codelord Eval Scores')
-    expect(markdown).toContain('| Polyglot | claude-sonnet-4-6 | pass_rate_1 | 100.0% | 20 | subset | 2026-04-12 | M3-S1 manual |')
-    expect(markdown).toContain('| Polyglot (Rust) | claude-sonnet-4-6 | pass_rate_1 | 93.3% | 30 | subset | 2026-04-12 | M3-S1 manual |')
-    expect(markdown).toContain('| Terminal-Bench | claude-sonnet-4-6 | resolution_rate | 33.3% | 3 | subset | 2026-04-12 | M3-S1 manual |')
+    expect(markdown).toContain(
+      '| Polyglot | claude-sonnet-4-6 | pass_rate_1 | 100.0% | 20 | subset | 2026-04-12 | M3-S1 manual |',
+    )
+    expect(markdown).toContain(
+      '| Polyglot (Rust) | claude-sonnet-4-6 | pass_rate_1 | 93.3% | 30 | subset | 2026-04-12 | M3-S1 manual |',
+    )
+    expect(markdown).toContain(
+      '| Terminal-Bench | claude-sonnet-4-6 | resolution_rate | 33.3% | 3 | subset | 2026-04-12 | M3-S1 manual |',
+    )
 
     // No longer embeds state in markdown
     expect(markdown).not.toContain('SCORES_STATE_V1')
@@ -77,9 +83,15 @@ describe('update-scores', () => {
     expect(terminalBenchHistory[1]?.date).toBe('2026-04-13')
     expect(terminalBenchHistory[2]?.date).toBe('2026-04-12')
 
-    expect(markdown).toContain('| Terminal-Bench | claude-sonnet-4-6 | resolution_rate | 66.7% | 3 | subset | 2026-04-14 | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/23456) |')
-    expect(markdown).toContain('| 2026-04-14 | claude-sonnet-4-6 | 66.7% | 3 | subset | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/23456) |')
-    expect(markdown).toContain('| 2026-04-13 | claude-sonnet-4-6 | 0.0% | 3 | subset | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/12345) |')
+    expect(markdown).toContain(
+      '| Terminal-Bench | claude-sonnet-4-6 | resolution_rate | 66.7% | 3 | subset | 2026-04-14 | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/23456) |',
+    )
+    expect(markdown).toContain(
+      '| 2026-04-14 | claude-sonnet-4-6 | 66.7% | 3 | subset | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/23456) |',
+    )
+    expect(markdown).toContain(
+      '| 2026-04-13 | claude-sonnet-4-6 | 0.0% | 3 | subset | [CI run](https://github.com/Doctor-wu/codelord/actions/runs/12345) |',
+    )
   })
 
   it('updateBenchmarkEntries works on isolated entry arrays', () => {

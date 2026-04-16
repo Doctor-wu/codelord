@@ -86,8 +86,8 @@ describe('CLI: runCli trace routing', () => {
     await runCli(['node', 'codelord', 'trace', 'list'])
 
     const allOutput = [
-      ...consoleLogSpy.mock.calls.map(c => c.join(' ')),
-      ...consoleErrorSpy.mock.calls.map(c => c.join(' ')),
+      ...consoleLogSpy.mock.calls.map((c) => c.join(' ')),
+      ...consoleErrorSpy.mock.calls.map((c) => c.join(' ')),
     ].join('\n')
     expect(allOutput).not.toContain('Single-shot mode has been removed')
   })
@@ -100,8 +100,8 @@ describe('CLI: runCli trace routing', () => {
     await runCli(['node', 'codelord', 'trace', 'show', 'fake-id'])
 
     const allOutput = [
-      ...consoleLogSpy.mock.calls.map(c => c.join(' ')),
-      ...consoleErrorSpy.mock.calls.map(c => c.join(' ')),
+      ...consoleLogSpy.mock.calls.map((c) => c.join(' ')),
+      ...consoleErrorSpy.mock.calls.map((c) => c.join(' ')),
     ].join('\n')
     expect(allOutput).not.toContain('Single-shot mode has been removed')
     expect(allOutput).toContain('Trace not found')

@@ -17,11 +17,7 @@ export interface SystemPromptOptions {
 export function buildSystemPrompt(options: SystemPromptOptions): string {
   const { cwd, contracts } = options
 
-  const sections: string[] = [
-    buildRoleSection(),
-    buildContextSection(cwd),
-    buildToolGuidanceSection(contracts),
-  ]
+  const sections: string[] = [buildRoleSection(), buildContextSection(cwd), buildToolGuidanceSection(contracts)]
 
   return sections.join('\n\n')
 }

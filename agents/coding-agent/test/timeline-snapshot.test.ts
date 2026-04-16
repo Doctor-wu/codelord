@@ -40,7 +40,7 @@ describe('Timeline snapshot: capture and hydrate', () => {
     expect(snapshot.items).toHaveLength(2)
 
     // Streaming flag should be cleared in snapshot
-    const assistantItem = snapshot.items.find(i => i.type === 'assistant') as any
+    const assistantItem = snapshot.items.find((i) => i.type === 'assistant') as any
     expect(assistantItem.isStreaming).toBe(false)
 
     // Hydrate into fresh state
@@ -78,7 +78,7 @@ describe('Timeline snapshot: capture and hydrate', () => {
     const hydrated = hydrateTimelineState(snapshot)
 
     // Question item should be preserved
-    const questionItem = hydrated.items.find(i => i.type === 'question') as any
+    const questionItem = hydrated.items.find((i) => i.type === 'question') as any
     expect(questionItem).toBeDefined()
     expect(questionItem.question).toBe('Which DB?')
     expect(questionItem.detail?.options).toEqual(['pg', 'mysql'])

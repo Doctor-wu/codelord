@@ -6,6 +6,7 @@ The tool platform turns raw tool calls into stable execution primitives.
 It is not just a list of functions.
 
 It owns four layers:
+
 - tool handlers
 - tool contracts
 - deterministic router
@@ -32,20 +33,20 @@ The product shell then assembles these into a `ToolKernel`.
 
 ## Key Files
 
-| Path | Role |
-| --- | --- |
-| `packages/agent-core/src/tools/bash.ts` | bash tool |
-| `packages/agent-core/src/tools/file-read.ts` | file read tool |
-| `packages/agent-core/src/tools/file-write.ts` | file write tool |
-| `packages/agent-core/src/tools/file-edit.ts` | precise edit tool |
-| `packages/agent-core/src/tools/search.ts` | code/document search tool |
-| `packages/agent-core/src/tools/ls.ts` | directory listing tool |
-| `packages/agent-core/src/tools/ask-user.ts` | blocking question primitive |
-| `packages/agent-core/src/tools/contracts.ts` | colocated contract export surface |
-| `packages/agent-core/src/tool-registry.ts` | tool name uniqueness guards |
-| `packages/agent-core/src/tool-router.ts` | deterministic routing rules |
-| `packages/agent-core/src/tool-safety.ts` | risk classification and blocking |
-| `agents/coding-agent/src/cli/tool-kernel.ts` | app-shell assembly of tool kernel |
+| Path                                           | Role                                  |
+| ---------------------------------------------- | ------------------------------------- |
+| `packages/agent-core/src/tools/bash.ts`        | bash tool                             |
+| `packages/agent-core/src/tools/file-read.ts`   | file read tool                        |
+| `packages/agent-core/src/tools/file-write.ts`  | file write tool                       |
+| `packages/agent-core/src/tools/file-edit.ts`   | precise edit tool                     |
+| `packages/agent-core/src/tools/search.ts`      | code/document search tool             |
+| `packages/agent-core/src/tools/ls.ts`          | directory listing tool                |
+| `packages/agent-core/src/tools/ask-user.ts`    | blocking question primitive           |
+| `packages/agent-core/src/tools/contracts.ts`   | colocated contract export surface     |
+| `packages/agent-core/src/tool-registry.ts`     | tool name uniqueness guards           |
+| `packages/agent-core/src/tool-router.ts`       | deterministic routing rules           |
+| `packages/agent-core/src/tool-safety.ts`       | risk classification and blocking      |
+| `agents/coding-agent/src/cli/tool-kernel.ts`   | app-shell assembly of tool kernel     |
 | `agents/coding-agent/src/cli/system-prompt.ts` | contract rendering into system prompt |
 
 ## Invariants

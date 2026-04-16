@@ -25,7 +25,7 @@ describe('redact', () => {
     // Standalone Bearer token (not inside Authorization header)
     const { text, hits } = redact('token: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature')
     expect(text).toContain('[REDACTED:BEARER_TOKEN]')
-    expect(hits.some(h => h.type === 'BEARER_TOKEN')).toBe(true)
+    expect(hits.some((h) => h.type === 'BEARER_TOKEN')).toBe(true)
   })
 
   it('redacts Authorization header with Bearer token', () => {

@@ -4,6 +4,7 @@
 
 This module owns local disk persistence for sessions, traces, and undo checkpoints.
 It answers:
+
 - what gets written to disk
 - where it is stored
 - what is needed to resume a session
@@ -27,20 +28,21 @@ It answers:
 
 ## Key Files
 
-| Path | Role |
-| --- | --- |
-| `agents/coding-agent/src/session-store.ts` | session snapshot + timeline persistence |
-| `agents/coding-agent/src/trace-store.ts` | trace persistence and lookup |
-| `agents/coding-agent/src/trace-recorder.ts` | live trace capture into persisted trace shape |
-| `agents/coding-agent/src/checkpoint-manager.ts` | lazy checkpointing and undo restore |
-| `packages/agent-core/src/session-snapshot.ts` | snapshot shape and resume-state logic |
-| `packages/agent-core/src/checkpoint.ts` | checkpoint record types |
+| Path                                            | Role                                          |
+| ----------------------------------------------- | --------------------------------------------- |
+| `agents/coding-agent/src/session-store.ts`      | session snapshot + timeline persistence       |
+| `agents/coding-agent/src/trace-store.ts`        | trace persistence and lookup                  |
+| `agents/coding-agent/src/trace-recorder.ts`     | live trace capture into persisted trace shape |
+| `agents/coding-agent/src/checkpoint-manager.ts` | lazy checkpointing and undo restore           |
+| `packages/agent-core/src/session-snapshot.ts`   | snapshot shape and resume-state logic         |
+| `packages/agent-core/src/checkpoint.ts`         | checkpoint record types                       |
 
 ## Storage Layout
 
 ### Sessions
 
 `~/.codelord/sessions/{sessionId}/`
+
 - `meta.json`
 - `snapshot.json`
 - `timeline.json`

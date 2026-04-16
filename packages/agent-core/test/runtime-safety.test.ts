@@ -72,13 +72,16 @@ describe('Runtime + ToolSafetyPolicy integration', () => {
     })
 
     streamSimpleMock
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'toolcall_end', toolCall },
-        { type: 'done', message: assistantWithTool },
-      ], assistantWithTool))
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'done', message: finalAssistant },
-      ], finalAssistant))
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall },
+            { type: 'done', message: assistantWithTool },
+          ],
+          assistantWithTool,
+        ),
+      )
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant))
 
     const rt = new AgentRuntime({
       model: { id: 'test' } as never,
@@ -97,7 +100,7 @@ describe('Runtime + ToolSafetyPolicy integration', () => {
     expect(bashHandler).not.toHaveBeenCalled()
 
     // History: toolResult has isError=true
-    const toolResultMsg = rt.messages.find(m => m.role === 'toolResult')
+    const toolResultMsg = rt.messages.find((m) => m.role === 'toolResult')
     expect((toolResultMsg as any).isError).toBe(true)
     expect((toolResultMsg as any).content[0].text).toContain('RISK_BLOCKED')
 
@@ -133,13 +136,16 @@ describe('Runtime + ToolSafetyPolicy integration', () => {
     })
 
     streamSimpleMock
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'toolcall_end', toolCall },
-        { type: 'done', message: assistantWithTool },
-      ], assistantWithTool))
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'done', message: finalAssistant },
-      ], finalAssistant))
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall },
+            { type: 'done', message: assistantWithTool },
+          ],
+          assistantWithTool,
+        ),
+      )
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant))
 
     const rt = new AgentRuntime({
       model: { id: 'test' } as never,
@@ -189,13 +195,16 @@ describe('Runtime + ToolSafetyPolicy integration', () => {
     })
 
     streamSimpleMock
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'toolcall_end', toolCall },
-        { type: 'done', message: assistantWithTool },
-      ], assistantWithTool))
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'done', message: finalAssistant },
-      ], finalAssistant))
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall },
+            { type: 'done', message: assistantWithTool },
+          ],
+          assistantWithTool,
+        ),
+      )
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant))
 
     const rt = new AgentRuntime({
       model: { id: 'test' } as never,
@@ -232,10 +241,13 @@ describe('Runtime + ToolSafetyPolicy integration', () => {
     })
 
     streamSimpleMock.mockReturnValueOnce(
-      makeEventStream([
-        { type: 'toolcall_end', toolCall },
-        { type: 'done', message: assistantWithAsk },
-      ], assistantWithAsk),
+      makeEventStream(
+        [
+          { type: 'toolcall_end', toolCall },
+          { type: 'done', message: assistantWithAsk },
+        ],
+        assistantWithAsk,
+      ),
     )
 
     const rt = new AgentRuntime({
@@ -281,13 +293,16 @@ describe('Runtime + ToolSafetyPolicy integration', () => {
     })
 
     streamSimpleMock
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'toolcall_end', toolCall },
-        { type: 'done', message: assistantWithTool },
-      ], assistantWithTool))
-      .mockReturnValueOnce(makeEventStream([
-        { type: 'done', message: finalAssistant },
-      ], finalAssistant))
+      .mockReturnValueOnce(
+        makeEventStream(
+          [
+            { type: 'toolcall_end', toolCall },
+            { type: 'done', message: assistantWithTool },
+          ],
+          assistantWithTool,
+        ),
+      )
+      .mockReturnValueOnce(makeEventStream([{ type: 'done', message: finalAssistant }], finalAssistant))
 
     const rt = new AgentRuntime({
       model: { id: 'test' } as never,

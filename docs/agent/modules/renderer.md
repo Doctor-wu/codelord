@@ -26,18 +26,18 @@ Its job is to make control-plane truth visible, not to become the truth.
 
 ## Key Files
 
-| Path | Role |
-| --- | --- |
-| `agents/coding-agent/src/renderer/index.ts` | renderer surface |
-| `agents/coding-agent/src/renderer/ink-renderer.tsx` | Ink bridge |
-| `agents/coding-agent/src/renderer/types.ts` | renderer-facing types |
+| Path                                                          | Role                         |
+| ------------------------------------------------------------- | ---------------------------- |
+| `agents/coding-agent/src/renderer/index.ts`                   | renderer surface             |
+| `agents/coding-agent/src/renderer/ink-renderer.tsx`           | Ink bridge                   |
+| `agents/coding-agent/src/renderer/types.ts`                   | renderer-facing types        |
 | `agents/coding-agent/src/renderer/ink/timeline-projection.ts` | lifecycle → timeline reducer |
-| `agents/coding-agent/src/renderer/ink/App.tsx` | top-level layout |
-| `agents/coding-agent/src/renderer/ink/InputComposer.tsx` | input UX |
-| `agents/coding-agent/src/renderer/ink/ToolCallCard.tsx` | individual tool rendering |
-| `agents/coding-agent/src/renderer/ink/ToolBatchCard.tsx` | batch rendering |
-| `agents/coding-agent/src/renderer/ink/QuestionCard.tsx` | question rendering |
-| `agents/coding-agent/src/renderer/ink/TimelineStatusBar.tsx` | status bar |
+| `agents/coding-agent/src/renderer/ink/App.tsx`                | top-level layout             |
+| `agents/coding-agent/src/renderer/ink/InputComposer.tsx`      | input UX                     |
+| `agents/coding-agent/src/renderer/ink/ToolCallCard.tsx`       | individual tool rendering    |
+| `agents/coding-agent/src/renderer/ink/ToolBatchCard.tsx`      | batch rendering              |
+| `agents/coding-agent/src/renderer/ink/QuestionCard.tsx`       | question rendering           |
+| `agents/coding-agent/src/renderer/ink/TimelineStatusBar.tsx`  | status bar                   |
 
 ## Invariants
 

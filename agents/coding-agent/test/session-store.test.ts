@@ -34,16 +34,23 @@ function makeSnapshot(overrides: Partial<SessionSnapshot> = {}): SessionSnapshot
     safetyRecords: [],
     sessionStepCount: 1,
     checkpoints: [],
-    usageAggregate: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, llmCalls: 0, lastCall: null },
+    usageAggregate: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      llmCalls: 0,
+      lastCall: null,
+    },
     ...overrides,
   }
 }
 
 function makeTimeline(): TimelineSnapshot {
   return {
-    items: [
-      { type: 'user', id: 'u-1', content: 'hello', timestamp: Date.now() },
-    ],
+    items: [{ type: 'user', id: 'u-1', content: 'hello', timestamp: Date.now() }],
     startTime: Date.now(),
     _nextId: 1,
   }
