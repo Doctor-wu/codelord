@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import { createReasoningState, projectDisplayReason } from '../src/events.js'
 import type { AssistantReasoningState } from '../src/events.js'
 import { ReasoningManager, resolveReasoningVisibility, sanitizeDisplayReason } from '../src/reasoning-manager.js'

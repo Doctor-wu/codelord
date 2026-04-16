@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, afterAll, describe, expect, it } from 'vite-plus/test'
 import { mkdirSync, rmSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -6,6 +6,33 @@ import { randomUUID } from 'node:crypto'
 import { SessionStore } from '../src/session-store.js'
 import type { SessionSnapshot } from '@codelord/core'
 import type { TimelineSnapshot } from '../src/renderer/ink/timeline-projection.js'
+
+// ---------------------------------------------------------------------------
+// Test isolation: override CODELORD_HOME so nothing leaks to ~/.codelord/
+// ---------------------------------------------------------------------------
+
+let savedCodelordHome: string | undefined
+const testCodelordHome = join(tmpdir(), `codelord-test-home-${randomUUID()}`)
+
+beforeAll(() => {
+  savedCodelordHome = process.env.CODELORD_HOME
+  process.env.CODELORD_HOME = testCodelordHome
+})
+
+afterAll(() => {
+  if (savedCodelordHome === undefined) {
+    delete process.env.CODELORD_HOME
+  } else {
+    process.env.CODELORD_HOME = savedCodelordHome
+  }
+  if (existsSync(testCodelordHome)) {
+    rmSync(testCodelordHome, { recursive: true, force: true })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function makeTmpDir(): string {
   const dir = join(tmpdir(), `codelord-test-${randomUUID()}`)
@@ -67,9 +94,9 @@ describe('SessionStore', () => {
   })
 
   function createStore(): SessionStore {
-    const dir = makeTmpDir()
-    dirs.push(dir)
-    return new SessionStore(dir)
+    const wsDir = makeTmpDir()
+    dirs.push(wsDir)
+    return new SessionStore({ workspaceDir: wsDir })
   }
 
   // --- Basic save/load ---
@@ -143,9 +170,9 @@ describe('SessionStore', () => {
     expect(store.findResumable('/tmp/project')).toBeNull()
   })
 
-  // --- findLatest (cross-cwd) ---
+  // --- findLatest (within workspace) ---
 
-  it('findLatest returns the most recent session regardless of cwd', () => {
+  it('findLatest returns the most recent session within the workspace', () => {
     const store = createStore()
     const s1 = makeSnapshot({ cwd: '/tmp/a', updatedAt: 1000 })
     const s2 = makeSnapshot({ cwd: '/tmp/b', updatedAt: 3000 })
@@ -173,14 +200,13 @@ describe('SessionStore', () => {
     expect(store.findLatest()).toBeNull()
   })
 
-  // --- Default new session (no auto-resume) ---
+  // --- Default new session ---
 
-  it('default startup creates new session — store has sessions but caller does not auto-resume', () => {
+  it('default startup creates new session -- store has sessions but caller does not auto-resume', () => {
     const store = createStore()
     const existing = makeSnapshot({ cwd: '/tmp/project' })
     store.save(existing)
 
-    // Default behavior: always create new session ID
     const newId = store.newSessionId()
     expect(newId).not.toBe(existing.sessionId)
   })
@@ -216,11 +242,9 @@ describe('SessionStore', () => {
 
     const all = store.listAll()
     expect(all).toHaveLength(3)
-    // Sorted by updatedAt descending
     expect(all[0].sessionId).toBe(s2.sessionId)
     expect(all[1].sessionId).toBe(s3.sessionId)
     expect(all[2].sessionId).toBe(s1.sessionId)
-    // Meta includes wasInFlight info
     expect(all[0].wasInFlight).toBe(true)
     expect(all[0].runtimeState).toBe('STREAMING')
   })

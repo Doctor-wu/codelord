@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 
 import { registerBenchmarkRenderer, renderSummaryMarkdown } from '../src/index.js'
 import type { EvalResult } from '../src/index.js'

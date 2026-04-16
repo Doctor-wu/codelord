@@ -18,6 +18,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@codelord/config": "workspace:*",
     "@mariozechner/pi-ai": "^0.64.0"
   }
 }

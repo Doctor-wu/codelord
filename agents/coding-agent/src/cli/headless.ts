@@ -8,11 +8,12 @@ import type { LifecycleEvent, RunOutcome, ToolCallStats, RouteHitStats, AgentLif
 import type { TraceRunV2 } from '@codelord/core'
 import { estimateTokens, DEFAULT_CONTEXT_WINDOW } from '@codelord/core'
 import type { ContextWindowConfig } from '@codelord/core'
+import { resolveCodelordHome, workspaceDir as workspaceDirOf, workspaceSlug, workspaceId } from '@codelord/config'
 import type { CodelordConfig } from '@codelord/config'
 import { createToolKernel } from './tool-kernel.js'
 import { buildSystemPrompt } from './system-prompt.js'
 import { TraceRecorder } from '../trace-recorder.js'
-import { TraceStore, workspaceSlug, workspaceId } from '../trace-store.js'
+import { TraceStore } from '../trace-store.js'
 import { withProviderAuthEnv } from '../auth/provider-env.js'
 
 // ---------------------------------------------------------------------------
@@ -60,6 +61,8 @@ export async function runHeadless(options: HeadlessRunOptions): Promise<Headless
   const { model, apiKey, config, prompt, onProgress, streaming = false } = options
   const cwd = options.cwd ?? process.cwd()
   const startTime = Date.now()
+  const codelordHome = resolveCodelordHome()
+  const wsDir = workspaceDirOf(codelordHome, cwd)
 
   const { tools, toolHandlers, contracts, router, safetyPolicy } = createToolKernel({ cwd, config })
   const systemPrompt = buildSystemPrompt({ cwd, contracts })
@@ -148,7 +151,7 @@ export async function runHeadless(options: HeadlessRunOptions): Promise<Headless
 
   // Persist trace (best effort)
   try {
-    new TraceStore().save(trace)
+    new TraceStore({ workspaceDir: wsDir }).save(trace)
   } catch {
     /* best effort */
   }

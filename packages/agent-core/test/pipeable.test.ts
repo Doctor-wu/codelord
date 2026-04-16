@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vite-plus/test'
 import { PipeableImpl } from '../src/pipeable.js'
 import type { Pipeable } from '../src/pipeable.js'
 

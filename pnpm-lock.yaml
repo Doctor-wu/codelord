@@ -129,6 +129,9 @@ importers:
 
   packages/agent-core:
     dependencies:
+      '@codelord/config':
+        specifier: workspace:*
+        version: link:../config
       '@mariozechner/pi-ai':
         specifier: ^0.64.0
         version: 0.64.0(ws@8.20.0)(zod@4.3.6)

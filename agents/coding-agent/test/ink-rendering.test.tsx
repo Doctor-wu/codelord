@@ -1,6 +1,6 @@
 import React from 'react'
 import { renderToString } from 'ink'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { App } from '../src/renderer/ink/App.js'
 import { classifyCommand, classifyToolName } from '../src/renderer/ink/classify.js'
 import { createInitialTimelineState, captureTimelineSnapshot } from '../src/renderer/ink/timeline-projection.js'

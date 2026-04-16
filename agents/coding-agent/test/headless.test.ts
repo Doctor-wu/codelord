@@ -1,4 +1,28 @@
-import { describe, expect, it, vi, afterEach } from 'vitest'
+import { describe, expect, it, vi, afterEach, beforeAll, afterAll } from 'vite-plus/test'
+import { existsSync, mkdirSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { randomUUID } from 'node:crypto'
+
+// Test isolation: override CODELORD_HOME so nothing leaks to ~/.codelord/
+let savedCodelordHome: string | undefined
+const testCodelordHome = join(tmpdir(), `codelord-test-home-${randomUUID()}`)
+
+beforeAll(() => {
+  savedCodelordHome = process.env.CODELORD_HOME
+  process.env.CODELORD_HOME = testCodelordHome
+})
+
+afterAll(() => {
+  if (savedCodelordHome === undefined) {
+    delete process.env.CODELORD_HOME
+  } else {
+    process.env.CODELORD_HOME = savedCodelordHome
+  }
+  if (existsSync(testCodelordHome)) {
+    rmSync(testCodelordHome, { recursive: true, force: true })
+  }
+})
 
 const { streamSimpleMock } = vi.hoisted(() => ({
   streamSimpleMock: vi.fn(),

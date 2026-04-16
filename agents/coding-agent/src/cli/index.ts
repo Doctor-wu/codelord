@@ -1,4 +1,4 @@
-import { loadConfig } from '@codelord/config'
+import { loadConfig, resolveCodelordHome, workspaceDir as workspaceDirOf, workspaceId } from '@codelord/config'
 import type { CodelordConfig } from '@codelord/config'
 import { readFileSync } from 'node:fs'
 import { cac } from 'cac'
@@ -6,8 +6,8 @@ import { runInit } from './init.js'
 import { resolveModel } from './run.js'
 import { startRepl } from './repl.js'
 import { resolveApiKey } from '../auth/index.js'
-import { SessionStore } from '../session-store.js'
-import { TraceStore, workspaceId, formatTraceList, formatTraceShow } from '../trace-store.js'
+import { SessionStore, listAllSessions, findSessionById, findLatestSession } from '../session-store.js'
+import { listAllTraces, findTraceByPrefix, formatTraceList, formatTraceShow } from '../trace-store.js'
 import { runHeadless } from './headless.js'
 import type { HeadlessProgressEvent } from './headless.js'
 
@@ -60,8 +60,8 @@ function relativeTime(ms: number): string {
   return `${days}d ago`
 }
 
-function formatSessionList(store: SessionStore): string {
-  const metas = store.listAll()
+function formatSessionList(): string {
+  const metas = listAllSessions()
   if (metas.length === 0) return 'No sessions found.'
 
   const lines: string[] = ['Sessions (most recent first):', '']
@@ -87,9 +87,9 @@ function formatSessionList(store: SessionStore): string {
   return lines.join('\n')
 }
 
-function formatSessionShow(store: SessionStore, sessionId: string): string {
-  // Prefix match
-  const metas = store.listAll()
+function formatSessionShow(sessionId: string): string {
+  // Prefix match across all workspaces
+  const metas = listAllSessions()
   const matches = metas.filter((m) => m.sessionId.startsWith(sessionId))
   if (matches.length === 0) return `Session not found: ${sessionId}`
   if (matches.length > 1) {
@@ -99,7 +99,9 @@ function formatSessionShow(store: SessionStore, sessionId: string): string {
   }
 
   const meta = matches[0]!
-  const snapshot = store.loadSnapshot(meta.sessionId)
+  // Find the workspace containing this session and load via SessionStore
+  const found = findSessionById(meta.sessionId)
+  const snapshot = found ? new SessionStore({ workspaceDir: found.workspaceDir }).loadSnapshot(meta.sessionId) : null
   const state = meta.wasInFlight ? `${meta.runtimeState} (interrupted)` : meta.runtimeState
   const branch = meta.gitBranch ? ` · ${meta.gitBranch}` : ''
 
@@ -360,12 +362,11 @@ function handleTraceCommand(args: string[]): void {
   const sub = positional[0] ?? 'list'
 
   if (sub === 'list') {
-    const store = new TraceStore()
     const all = flags.has('--all')
     const limitIdx = args.indexOf('--limit')
     const limit = limitIdx >= 0 && args[limitIdx + 1] ? Number(args[limitIdx + 1]) : 20
     const wsId = all ? undefined : workspaceId(process.cwd())
-    console.log(formatTraceList(store.list({ workspaceId: wsId, limit })))
+    console.log(formatTraceList(listAllTraces({ workspaceId: wsId, limit })))
   } else if (sub === 'show') {
     const runId = positional[1]
     if (!runId) {
@@ -373,8 +374,7 @@ function handleTraceCommand(args: string[]): void {
       process.exitCode = 1
       return
     }
-    const store = new TraceStore()
-    const result = store.findByPrefix(runId)
+    const result = findTraceByPrefix(runId)
     switch (result.type) {
       case 'exact':
       case 'unique': {
@@ -411,10 +411,9 @@ function handleSessionsCommand(args: string[]): void {
   const positional = args.filter((a) => !a.startsWith('-'))
   const flags = new Set(args.filter((a) => a.startsWith('-')))
   const sub = positional[0] ?? 'list'
-  const store = new SessionStore()
 
   if (sub === 'list' || (!positional[0] && args.length === 0)) {
-    console.log(formatSessionList(store))
+    console.log(formatSessionList())
   } else if (sub === 'show') {
     const id = positional[1]
     if (!id) {
@@ -422,14 +421,14 @@ function handleSessionsCommand(args: string[]): void {
       process.exitCode = 1
       return
     }
-    console.log(formatSessionShow(store, id))
+    console.log(formatSessionShow(id))
   } else if (sub === 'prune') {
     const daysIdx = args.indexOf('--days')
     const days = daysIdx >= 0 && args[daysIdx + 1] ? Number(args[daysIdx + 1]) : 7
     const all = flags.has('--all')
     const force = flags.has('--force')
 
-    const metas = store.listAll()
+    const metas = listAllSessions()
     const cutoff = all ? Infinity : Date.now() - days * 24 * 60 * 60 * 1000
     const toDelete = all ? metas : metas.filter((m) => m.updatedAt < cutoff)
 
@@ -454,7 +453,13 @@ function handleSessionsCommand(args: string[]): void {
       }
     }
 
-    for (const m of toDelete) store.delete(m.sessionId)
+    // Delete each session from its respective workspace
+    for (const m of toDelete) {
+      const found = findSessionById(m.sessionId)
+      if (found) {
+        new SessionStore({ workspaceDir: found.workspaceDir }).delete(m.sessionId)
+      }
+    }
     console.log(`Deleted ${toDelete.length} session(s).`)
   } else {
     console.error(
@@ -548,9 +553,8 @@ export async function runCli(argv = process.argv): Promise<void> {
   // Resolve resume target (if any)
   let resumeSessionId: string | undefined
   if (flags.resume) {
-    const store = new SessionStore()
     if (flags.resume === 'latest') {
-      const latest = store.findLatest()
+      const latest = findLatestSession()
       if (!latest) {
         console.error('No sessions found to resume.')
         process.exitCode = 1
@@ -558,9 +562,9 @@ export async function runCli(argv = process.argv): Promise<void> {
       }
       resumeSessionId = latest.sessionId
     } else {
-      // Treat as session ID
-      const meta = store.loadMeta(flags.resume)
-      if (!meta) {
+      // Treat as session ID — search across all workspaces
+      const found = findSessionById(flags.resume)
+      if (!found) {
         console.error(`Session not found: ${flags.resume}`)
         process.exitCode = 1
         return

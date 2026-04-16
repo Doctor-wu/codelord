@@ -1,6 +1,6 @@
 import React from 'react'
 import { renderToString } from 'ink'
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vite-plus/test'
 import { App } from '../src/renderer/ink/App.js'
 import {
   createInitialTimelineState,

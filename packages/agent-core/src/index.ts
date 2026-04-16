@@ -71,6 +71,9 @@ export type { SessionSnapshot, SessionMeta } from './session-snapshot.js'
 
 export type { CheckpointRecord, FileSnapshot, ShadowGitCheckpoint } from './checkpoint.js'
 
+export { CheckpointManager } from './checkpoint-manager.js'
+export type { CheckpointManagerOptions } from './checkpoint-manager.js'
+
 export { redact, previewText, safePreview } from './redact.js'
 export type { RedactionHit, RedactionResult } from './redact.js'
 

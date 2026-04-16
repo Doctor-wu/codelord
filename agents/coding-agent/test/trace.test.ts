@@ -1,10 +1,40 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, afterAll, describe, expect, it } from 'vite-plus/test'
 import { mkdirSync, rmSync, existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
+
+// ---------------------------------------------------------------------------
+// Test isolation: override CODELORD_HOME so nothing leaks to ~/.codelord/
+// ---------------------------------------------------------------------------
+
+let savedCodelordHome: string | undefined
+const testCodelordHome = join(tmpdir(), `codelord-test-home-${randomUUID()}`)
+
+beforeAll(() => {
+  savedCodelordHome = process.env.CODELORD_HOME
+  process.env.CODELORD_HOME = testCodelordHome
+})
+
+afterAll(() => {
+  if (savedCodelordHome === undefined) {
+    delete process.env.CODELORD_HOME
+  } else {
+    process.env.CODELORD_HOME = savedCodelordHome
+  }
+  if (existsSync(testCodelordHome)) {
+    rmSync(testCodelordHome, { recursive: true, force: true })
+  }
+})
 import { TraceRecorder } from '../src/trace-recorder.js'
-import { TraceStore, workspaceSlug, workspaceId, workspaceDirName, formatTraceShow } from '../src/trace-store.js'
+import {
+  TraceStore,
+  workspaceSlug,
+  workspaceId,
+  listAllTraces,
+  findTraceByPrefix,
+  formatTraceShow,
+} from '../src/trace-store.js'
 import type { LifecycleEvent, ProviderStreamTraceEvent } from '@codelord/core'
 import { createReasoningState, createToolCallLifecycle, createUsageAggregate } from '@codelord/core'
 import type { UsageAggregate } from '@codelord/core'
@@ -339,6 +369,12 @@ describe('TraceStore v2', () => {
     dirs.length = 0
   })
 
+  function makeWsDir(): string {
+    const dir = join(tmpdir(), `codelord-ws-test-${randomUUID()}`)
+    mkdirSync(dir, { recursive: true })
+    return dir
+  }
+
   function makeTrace(overrides: Partial<Record<string, unknown>> = {}) {
     const rec = new TraceRecorder({ ...recorderOpts, ...(overrides as any) })
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
@@ -347,26 +383,23 @@ describe('TraceStore v2', () => {
     return rec.finalize({ type: 'success', text: 'ok' })
   }
 
-  it('writes to workspace subdirectory', () => {
-    const dir = makeTmpDir()
-    dirs.push(dir)
-    const store = new TraceStore(dir)
+  it('writes trace to workspace traces directory', () => {
+    const wsDir = makeWsDir()
+    dirs.push(wsDir)
+    const store = new TraceStore({ workspaceDir: wsDir })
     const trace = makeTrace()
     store.save(trace)
 
-    const wsDirs = readdirSync(dir)
-    expect(wsDirs).toHaveLength(1)
-    expect(wsDirs[0]).toBe(`${trace.workspaceSlug}-${trace.workspaceId}`)
-
-    const files = readdirSync(join(dir, wsDirs[0]))
+    const tracesPath = join(wsDir, 'traces')
+    const files = readdirSync(tracesPath)
     expect(files).toHaveLength(1)
     expect(files[0]).toBe(`${trace.runId}.json`)
   })
 
-  it('load finds trace across workspaces', () => {
-    const dir = makeTmpDir()
-    dirs.push(dir)
-    const store = new TraceStore(dir)
+  it('load finds trace by runId', () => {
+    const wsDir = makeWsDir()
+    dirs.push(wsDir)
+    const store = new TraceStore({ workspaceDir: wsDir })
     const trace = makeTrace()
     store.save(trace)
 
@@ -376,39 +409,52 @@ describe('TraceStore v2', () => {
     expect(loaded!.version).toBe(2)
   })
 
-  it('list filters by workspace', () => {
-    const dir = makeTmpDir()
-    dirs.push(dir)
-    const store = new TraceStore(dir)
+  it('listAllTraces filters by workspace id', () => {
+    // Set up a fake codelordHome with two workspace dirs
+    const home = makeTmpDir()
+    dirs.push(home)
+
+    const ws1 = join(home, 'workspaces', 'project-abc12345')
+    const ws2 = join(home, 'workspaces', 'other-def67890')
+    mkdirSync(ws1, { recursive: true })
+    mkdirSync(ws2, { recursive: true })
+
+    const store1 = new TraceStore({ workspaceDir: ws1 })
+    const store2 = new TraceStore({ workspaceDir: ws2 })
 
     const t1 = makeTrace()
-    const t2 = makeTrace({ workspaceSlug: 'other', workspaceId: 'other123other' })
-    store.save(t1)
-    store.save(t2)
+    const t2 = makeTrace({ workspaceSlug: 'other', workspaceId: 'def67890' })
+    store1.save(t1)
+    store2.save(t2)
 
-    const filtered = store.list({ workspaceId: 'abc123def456' })
+    const filtered = listAllTraces({ codelordHome: home, workspaceId: 'abc12345' })
     expect(filtered).toHaveLength(1)
     expect(filtered[0].runId).toBe(t1.runId)
   })
 
-  it('list --all returns cross-workspace', () => {
-    const dir = makeTmpDir()
-    dirs.push(dir)
-    const store = new TraceStore(dir)
+  it('listAllTraces returns cross-workspace', () => {
+    const home = makeTmpDir()
+    dirs.push(home)
 
-    const t1 = makeTrace()
-    const t2 = makeTrace({ workspaceSlug: 'other', workspaceId: 'other123other' })
-    store.save(t1)
-    store.save(t2)
+    const ws1 = join(home, 'workspaces', 'project-abc12345')
+    const ws2 = join(home, 'workspaces', 'other-def67890')
+    mkdirSync(ws1, { recursive: true })
+    mkdirSync(ws2, { recursive: true })
 
-    const all = store.list()
+    const store1 = new TraceStore({ workspaceDir: ws1 })
+    const store2 = new TraceStore({ workspaceDir: ws2 })
+
+    store1.save(makeTrace())
+    store2.save(makeTrace({ workspaceSlug: 'other', workspaceId: 'def67890' }))
+
+    const all = listAllTraces({ codelordHome: home })
     expect(all).toHaveLength(2)
   })
 
   it('trace on disk is redacted', () => {
-    const dir = makeTmpDir()
-    dirs.push(dir)
-    const store = new TraceStore(dir)
+    const wsDir = makeWsDir()
+    dirs.push(wsDir)
+    const store = new TraceStore({ workspaceDir: wsDir })
 
     const rec = new TraceRecorder({ ...recorderOpts, rawMode: true })
     rec.onLifecycleEvent({ type: 'assistant_turn_start', id: 'a1', reasoning: createReasoningState(), timestamp: 1000 })
@@ -424,7 +470,7 @@ describe('TraceStore v2', () => {
     const trace = rec.finalize({ type: 'success', text: '' })
     store.save(trace)
 
-    const raw = readFileSync(join(dir, `${trace.workspaceSlug}-${trace.workspaceId}`, `${trace.runId}.json`), 'utf-8')
+    const raw = readFileSync(join(wsDir, 'traces', `${trace.runId}.json`), 'utf-8')
     expect(raw).not.toContain('sk-aaaa')
     expect(raw).toContain('[REDACTED:API_KEY]')
   })
@@ -435,15 +481,16 @@ describe('TraceStore v2', () => {
 // ---------------------------------------------------------------------------
 
 describe('workspace utilities', () => {
-  it('workspaceSlug returns basename', () => {
-    expect(workspaceSlug('/home/user/my-project')).toBe('my-project')
+  it('workspaceSlug returns basename-hash', () => {
+    const slug = workspaceSlug('/home/user/my-project')
+    expect(slug).toMatch(/^my-project-[0-9a-f]{8}$/)
   })
 
-  it('workspaceId is stable hash', () => {
+  it('workspaceId is stable 8-char hash', () => {
     const id1 = workspaceId('/home/user/project')
     const id2 = workspaceId('/home/user/project')
     expect(id1).toBe(id2)
-    expect(id1).toHaveLength(12)
+    expect(id1).toHaveLength(8)
   })
 
   it('different paths produce different ids', () => {
@@ -455,7 +502,7 @@ describe('workspace utilities', () => {
 // Prefix matching
 // ---------------------------------------------------------------------------
 
-describe('TraceStore prefix matching', () => {
+describe('Cross-workspace prefix matching', () => {
   const dirs: string[] = []
 
   afterEach(() => {
@@ -473,25 +520,31 @@ describe('TraceStore prefix matching', () => {
     return rec.finalize({ type: 'success', text: 'ok' })
   }
 
+  function makeHome(): { home: string; wsDir: string } {
+    const home = makeTmpDir()
+    const wsDir = join(home, 'workspaces', 'project-abc12345')
+    mkdirSync(wsDir, { recursive: true })
+    dirs.push(home)
+    return { home, wsDir }
+  }
+
   it('exact id match works', () => {
-    const dir = makeTmpDir()
-    dirs.push(dir)
-    const store = new TraceStore(dir)
+    const { home, wsDir } = makeHome()
+    const store = new TraceStore({ workspaceDir: wsDir })
     const trace = makeTrace()
     store.save(trace)
 
-    const result = store.findByPrefix(trace.runId)
+    const result = findTraceByPrefix(trace.runId, home)
     expect(result.type).toBe('exact')
   })
 
   it('unique prefix match works', () => {
-    const dir = makeTmpDir()
-    dirs.push(dir)
-    const store = new TraceStore(dir)
+    const { home, wsDir } = makeHome()
+    const store = new TraceStore({ workspaceDir: wsDir })
     const trace = makeTrace()
     store.save(trace)
 
-    const result = store.findByPrefix(trace.runId.slice(0, 8))
+    const result = findTraceByPrefix(trace.runId.slice(0, 8), home)
     expect(result.type).toBe('unique')
     if (result.type === 'unique') {
       expect(result.trace.runId).toBe(trace.runId)
@@ -499,49 +552,38 @@ describe('TraceStore prefix matching', () => {
   })
 
   it('ambiguous prefix returns candidates', () => {
-    const dir = makeTmpDir()
-    dirs.push(dir)
-    const store = new TraceStore(dir)
+    const { home, wsDir } = makeHome()
+    const store = new TraceStore({ workspaceDir: wsDir })
     const t1 = makeTrace()
     const t2 = makeTrace()
     store.save(t1)
     store.save(t2)
 
-    // Use empty-ish prefix that matches both (first 4 chars might differ, but '' won't work)
-    // Instead, save with known prefix by checking both runIds
-    const result = store.findByPrefix(t1.runId.slice(0, 4))
-    // Could be unique or ambiguous depending on UUID randomness
-    // Just verify it doesn't crash and returns a valid type
+    const result = findTraceByPrefix(t1.runId.slice(0, 4), home)
     expect(['exact', 'unique', 'ambiguous', 'not_found']).toContain(result.type)
   })
 
   it('non-existent prefix returns not_found', () => {
-    const dir = makeTmpDir()
-    dirs.push(dir)
-    const store = new TraceStore(dir)
+    const { home } = makeHome()
 
-    const result = store.findByPrefix('zzzzzzzzz')
+    const result = findTraceByPrefix('zzzzzzzzz', home)
     expect(result.type).toBe('not_found')
   })
 
   it('load() still works with full id', () => {
-    const dir = makeTmpDir()
-    dirs.push(dir)
-    const store = new TraceStore(dir)
+    const { wsDir } = makeHome()
+    const store = new TraceStore({ workspaceDir: wsDir })
     const trace = makeTrace()
     store.save(trace)
 
     expect(store.load(trace.runId)).not.toBeNull()
   })
 
-  it('load() works with unique prefix', () => {
-    const dir = makeTmpDir()
-    dirs.push(dir)
-    const store = new TraceStore(dir)
-    const trace = makeTrace()
-    store.save(trace)
+  it('load() returns null for non-existent id', () => {
+    const { wsDir } = makeHome()
+    const store = new TraceStore({ workspaceDir: wsDir })
 
-    expect(store.load(trace.runId.slice(0, 8))).not.toBeNull()
+    expect(store.load('nonexistent')).toBeNull()
   })
 })
 

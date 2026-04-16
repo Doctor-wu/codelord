@@ -1,16 +1,18 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { homedir } from 'node:os'
 import * as readline from 'node:readline/promises'
 import { getOAuthApiKey, getOAuthProvider, type OAuthCredentials } from '@mariozechner/pi-ai/oauth'
+import { resolveCodelordHome } from '@codelord/config'
 
-const CREDENTIALS_PATH = join(homedir(), '.codelord', 'credentials.json')
+function credentialsPath(): string {
+  return join(resolveCodelordHome(), 'credentials.json')
+}
 
 type StoredOAuthCredentials = Record<string, OAuthCredentials>
 
 function loadCredentials(): StoredOAuthCredentials {
   try {
-    const raw = readFileSync(CREDENTIALS_PATH, 'utf-8')
+    const raw = readFileSync(credentialsPath(), 'utf-8')
     return JSON.parse(raw) as StoredOAuthCredentials
   } catch {
     return {}
@@ -18,8 +20,8 @@ function loadCredentials(): StoredOAuthCredentials {
 }
 
 function saveCredentials(credentials: StoredOAuthCredentials): void {
-  mkdirSync(dirname(CREDENTIALS_PATH), { recursive: true })
-  writeFileSync(CREDENTIALS_PATH, JSON.stringify(credentials, null, 2))
+  mkdirSync(dirname(credentialsPath()), { recursive: true })
+  writeFileSync(credentialsPath(), JSON.stringify(credentials, null, 2))
 }
 
 export function isOAuthProvider(provider: string): boolean {

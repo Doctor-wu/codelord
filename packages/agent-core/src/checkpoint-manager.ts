@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// CheckpointManager — lazy file-scoped checkpoint for undo support
+// CheckpointManager -- lazy file-scoped checkpoint for undo support
 // ---------------------------------------------------------------------------
 //
 // The manager wraps mutating tool handlers (file_write, file_edit) so that
@@ -13,9 +13,9 @@ import { readFileSync, writeFileSync, existsSync, unlinkSync, mkdirSync } from '
 import { resolve, isAbsolute } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { execSync } from 'node:child_process'
-import { homedir } from 'node:os'
-import type { ToolHandler } from '@codelord/core'
-import type { CheckpointRecord, FileSnapshot, ShadowGitCheckpoint } from '@codelord/core'
+import type { ToolHandler } from './react-loop.js'
+import type { CheckpointRecord, FileSnapshot, ShadowGitCheckpoint } from './checkpoint.js'
+import { resolveCodelordHome, workspaceDir as workspaceDirOf, shadowGitDir as shadowGitDirOf } from '@codelord/config'
 
 // ---------------------------------------------------------------------------
 // Mutating tool names that trigger checkpoint creation
@@ -27,6 +27,17 @@ const MUTATING_TOOLS = new Set(['file_write', 'file_edit'])
 // CheckpointManager
 // ---------------------------------------------------------------------------
 
+export interface CheckpointManagerOptions {
+  cwd: string
+  sessionId: string
+  stack?: CheckpointRecord[]
+  /**
+   * Absolute path to `~/.codelord/workspaces/<slug>/`.
+   * If omitted, derived from cwd via `resolveCodelordHome()` + `workspaceDir(cwd)`.
+   */
+  workspaceDir?: string
+}
+
 export class CheckpointManager {
   private readonly cwd: string
   private readonly sessionId: string
@@ -35,11 +46,15 @@ export class CheckpointManager {
   private _burstCounter = 0
   private _shadowCheckpoint: ShadowGitCheckpoint | null = null
   private _shadowReady = false
+  private readonly _shadowGitDir: string
 
-  constructor(opts: { cwd: string; sessionId: string; stack?: CheckpointRecord[] }) {
+  constructor(opts: CheckpointManagerOptions) {
     this.cwd = opts.cwd
     this.sessionId = opts.sessionId
     this._stack = opts.stack ? [...opts.stack] : []
+
+    const wsDir = opts.workspaceDir ?? workspaceDirOf(resolveCodelordHome(), opts.cwd)
+    this._shadowGitDir = shadowGitDirOf(wsDir)
   }
 
   get stack(): readonly CheckpointRecord[] {
@@ -53,7 +68,7 @@ export class CheckpointManager {
     this._shadowCheckpoint = this.createShadowCheckpoint()
   }
 
-  /** Call at the end of each runtime burst — finalizes the checkpoint if one was created. Returns the record if created. */
+  /** Call at the end of each runtime burst -- finalizes the checkpoint if one was created. Returns the record if created. */
   endBurst(): CheckpointRecord | null {
     const hasFiles = this._currentBurst && this._currentBurst.files.length > 0
 
@@ -64,7 +79,7 @@ export class CheckpointManager {
         const status = this.shadowGit('status --porcelain')
         hasShadowDirty = status.length > 0
       } catch {
-        /* shadow repo unavailable — treat as no change */
+        /* shadow repo unavailable -- treat as no change */
       }
     }
 
@@ -110,7 +125,7 @@ export class CheckpointManager {
 
   /**
    * Wrap a tool handler map so that mutating tools lazily create checkpoints.
-   * Returns a new Map — does not mutate the original.
+   * Returns a new Map -- does not mutate the original.
    */
   wrapHandlers(handlers: Map<string, ToolHandler>): Map<string, ToolHandler> {
     const wrapped = new Map(handlers)
@@ -131,7 +146,7 @@ export class CheckpointManager {
     if (!record) return null
 
     if (!record.canUndo) {
-      // Push it back — can't undo
+      // Push it back -- can't undo
       this._stack.push(record)
       return null
     }
@@ -154,7 +169,7 @@ export class CheckpointManager {
         sg('clean -fd')
         gitRestored = true
       } catch {
-        record.limitations.push('shadow git restore failed — manual recovery may be needed')
+        record.limitations.push('shadow git restore failed -- manual recovery may be needed')
       }
     }
 
@@ -172,7 +187,7 @@ export class CheckpointManager {
           }
         }
       } catch {
-        // Best effort — file may have been moved/deleted externally
+        // Best effort -- file may have been moved/deleted externally
       }
     }
 
@@ -200,7 +215,7 @@ export class CheckpointManager {
     }
   }
 
-  private snapshotFile(filePath: string, toolName: string): void {
+  private snapshotFile(filePath: string, _toolName: string): void {
     const resolved = isAbsolute(filePath) ? resolve(filePath) : resolve(this.cwd, filePath)
 
     // Lazy: create checkpoint record on first mutation in this burst
@@ -228,18 +243,16 @@ export class CheckpointManager {
       originalContent = readFileSync(resolved, 'utf-8')
       existed = true
     } catch {
-      // File doesn't exist — that's fine, we record it as non-existent
+      // File doesn't exist -- that's fine, we record it as non-existent
     }
 
     this._currentBurst.files.push({ path: resolved, existed, originalContent })
     this._currentBurst.summary = `${this._currentBurst.files.length} file(s) protected`
   }
 
-  /** Get the shadow git-dir path under ~/.codelord/shadow-git/<workspace>/ */
+  /** Get the shadow git-dir path */
   private get shadowGitDir(): string {
-    // Flatten absolute path into a single directory name: /a/b/c → a-b-c
-    const dirName = this.cwd.replace(/^\//, '').replaceAll('/', '-')
-    return resolve(homedir(), '.codelord', 'shadow-git', dirName)
+    return this._shadowGitDir
   }
 
   /** Execute a git command against the shadow repo */
@@ -287,7 +300,7 @@ export class CheckpointManager {
       // Check if there's anything to commit
       const status = this.shadowGit('status --porcelain')
       if (status.length === 0) {
-        // Working tree identical to last shadow commit — return current HEAD
+        // Working tree identical to last shadow commit -- return current HEAD
         const hash = this.shadowGit('rev-parse HEAD')
         return { shadowGitDir: this.shadowGitDir, commitHash: hash }
       }

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import { resolveModelCapabilities } from '../src/model-capabilities.js'
 import type { Model, Api } from '@mariozechner/pi-ai'
 

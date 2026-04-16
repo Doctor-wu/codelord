@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vite-plus/test'
 import { createToolKernel } from '../src/cli/tool-kernel.js'
 import { corePlugins } from '@codelord/tools'
 import type { ToolPlugin } from '@codelord/core'

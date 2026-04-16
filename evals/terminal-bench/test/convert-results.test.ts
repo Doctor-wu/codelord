@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 
 import { renderSummaryMarkdown } from '@codelord/evals-shared'
 

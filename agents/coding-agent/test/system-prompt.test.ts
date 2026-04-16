@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { buildSystemPrompt } from '../src/cli/system-prompt.js'
 import { askUserQuestionContract } from '@codelord/core'
 import type { ToolContract } from '@codelord/core'

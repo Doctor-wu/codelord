@@ -1,6 +1,7 @@
 import type { Api, Model } from '@mariozechner/pi-ai'
-import { AgentRuntime, mergeLifecycleCallbacks } from '@codelord/core'
+import { AgentRuntime, mergeLifecycleCallbacks, CheckpointManager } from '@codelord/core'
 import type { LifecycleEvent, ReasoningLevel } from '@codelord/core'
+import { resolveCodelordHome, workspaceDir as workspaceDirOf, workspaceSlug, workspaceId } from '@codelord/config'
 import type { CodelordConfig } from '@codelord/config'
 import { estimateTokens, DEFAULT_CONTEXT_WINDOW } from '@codelord/core'
 import type { ContextWindowConfig } from '@codelord/core'
@@ -9,9 +10,8 @@ import { buildSystemPrompt } from './system-prompt.js'
 import { createRenderer } from './run.js'
 import { isRegisteredCommand, formatHelpText } from './commands.js'
 import { SessionStore } from '../session-store.js'
-import { CheckpointManager } from '../checkpoint-manager.js'
 import { TraceRecorder } from '../trace-recorder.js'
-import { TraceStore, workspaceSlug, workspaceId } from '../trace-store.js'
+import { TraceStore } from '../trace-store.js'
 import { reconcileTimelineForResume } from '../renderer/ink/timeline-projection.js'
 import { getGitBranch } from './git-utils.js'
 import { withProviderAuthEnv } from '../auth/provider-env.js'
@@ -34,6 +34,8 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   const { model, apiKey, config, resumeSessionId } = options
 
   const cwd = process.cwd()
+  const codelordHome = resolveCodelordHome()
+  const wsDir = workspaceDirOf(codelordHome, cwd)
   const { tools, toolHandlers, contracts, router, safetyPolicy } = createToolKernel({ cwd, config })
   const systemPrompt = buildSystemPrompt({ cwd, contracts })
 
@@ -49,7 +51,7 @@ export async function startRepl(options: ReplOptions): Promise<void> {
   process.stderr.write(`System prompt: ~${spTokens} tokens (${spPct}% of ${contextWindowConfig.maxTokens})\n`)
 
   const renderer = createRenderer(config)
-  const store = new SessionStore()
+  const store = new SessionStore({ workspaceDir: wsDir })
 
   // --- Session identity ---
   let sessionId: string
@@ -67,23 +69,24 @@ export async function startRepl(options: ReplOptions): Promise<void> {
         cwd,
         sessionId,
         stack: snapshot.checkpoints,
+        workspaceDir: wsDir,
       })
     } else {
       sessionId = store.newSessionId()
       sessionCreatedAt = Date.now()
-      checkpointManager = new CheckpointManager({ cwd, sessionId })
+      checkpointManager = new CheckpointManager({ cwd, sessionId, workspaceDir: wsDir })
     }
   } else {
     sessionId = store.newSessionId()
     sessionCreatedAt = Date.now()
-    checkpointManager = new CheckpointManager({ cwd, sessionId })
+    checkpointManager = new CheckpointManager({ cwd, sessionId, workspaceDir: wsDir })
   }
 
   // Wrap mutating handlers with checkpoint protection
   const wrappedHandlers = checkpointManager.wrapHandlers(toolHandlers)
 
   // --- Trace infrastructure ---
-  const traceStore = new TraceStore()
+  const traceStore = new TraceStore({ workspaceDir: wsDir })
   const wsSlug = workspaceSlug(cwd)
   const wsId = workspaceId(cwd)
 

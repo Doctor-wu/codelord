@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, afterEach } from 'vitest'
+import { describe, expect, it, vi, afterEach } from 'vite-plus/test'
 
 // We can't reliably mock startRepl across ESM boundaries in vitest,
 // so we test the trace command routing directly.

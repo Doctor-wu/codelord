@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import { ToolRouter } from '../src/tool-router.js'
 import type { ToolContract } from '../src/tools/tool-contract.js'
 

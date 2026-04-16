@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vite-plus/test'
 import { ToolSafetyPolicy } from '../src/tool-safety.js'
 import type { RiskLevel } from '../src/tool-safety.js'
 
