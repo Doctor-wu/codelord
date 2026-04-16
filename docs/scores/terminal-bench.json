@@ -1,6 +1,25 @@
 [
   {
     "label": "Terminal-Bench",
+    "timestamp": "2026-04-16T03:32:17.756Z",
+    "date": "2026-04-16",
+    "model": "claude-sonnet-4-6",
+    "mode": "subset",
+    "cases": 4,
+    "primaryMetricKey": "resolution_rate",
+    "metrics": {
+      "resolution_rate": 0,
+      "total": 4,
+      "passed_count": 0,
+      "error_count": 4,
+      "setup_timeout_count": 0,
+      "cancelled_count": 0
+    },
+    "sourceLabel": "CI run",
+    "runUrl": "https://github.com/Doctor-wu/codelord/actions/runs/24490440319"
+  },
+  {
+    "label": "Terminal-Bench",
     "timestamp": "2026-04-14T07:12:21.561Z",
     "date": "2026-04-14",
     "model": "claude-sonnet-4-6",
