@@ -120,7 +120,7 @@ async function main() {
 
     let entries = await loadDataset(dataDir)
     if (opts.offset) entries = entries.slice(opts.offset)
-    if (opts.limit != null) entries = entries.slice(0, opts.limit)
+    if (opts.limit !== undefined) entries = entries.slice(0, opts.limit)
 
     const total = entries.length
     if (total === 0) {

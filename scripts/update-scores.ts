@@ -493,7 +493,7 @@ function formatMetric(metricKey: string, value: number | undefined): string {
 }
 
 const isDirectExecution =
-  process.argv[1] != null && import.meta.url === new URL(`file://${path.resolve(process.argv[1])}`).href
+  process.argv[1] !== undefined && import.meta.url === new URL(`file://${path.resolve(process.argv[1])}`).href
 
 if (isDirectExecution) {
   main().catch((error) => {

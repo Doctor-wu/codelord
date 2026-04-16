@@ -33,7 +33,7 @@ export class PipeableImpl<TDelta, TFinal> implements Pipeable<TDelta, TFinal> {
 
   push(delta: TDelta): void {
     if (this._state.kind !== 'active') return
-    for (const handler of [...this._subscribers]) {
+    for (const handler of Array.from(this._subscribers)) {
       handler(delta)
     }
   }

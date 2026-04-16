@@ -98,8 +98,8 @@ export function mapTerminalBenchCase(result: HarborTrialResult): EvalCaseResult 
       trial_name: result.trial_name ?? '',
       exception_type: exceptionType,
       exception_message: exceptionMessage,
-      has_agent_result: result.agent_result != null,
-      has_verifier_result: result.verifier_result != null,
+      has_agent_result: result.agent_result !== undefined && result.agent_result !== null,
+      has_verifier_result: result.verifier_result !== undefined && result.verifier_result !== null,
       verifier_reward: result.verifier_result?.reward ?? null,
       environment_setup_duration_ms: calculatePhaseDurationMs(result.environment_setup),
       agent_setup_duration_ms: calculatePhaseDurationMs(result.agent_setup),
@@ -235,7 +235,7 @@ function calculateDurationMs(startedAt?: string | null, finishedAt?: string | nu
 }
 
 function formatDuration(durationMs: number | null): string {
-  if (durationMs == null) return '-'
+  if (durationMs === null) return '-'
 
   const totalSeconds = Math.round(durationMs / 1000)
   const minutes = Math.floor(totalSeconds / 60)

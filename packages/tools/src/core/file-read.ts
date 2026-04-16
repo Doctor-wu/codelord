@@ -73,10 +73,10 @@ function createFileReadHandler(cwd: string): ToolHandler {
 
     const lines = content.split('\n')
     const offset = Math.max(1, Number(args.offset) || 1)
-    const limit = args.limit != null ? Math.max(1, Number(args.limit)) : undefined
+    const limit = args.limit !== undefined ? Math.max(1, Number(args.limit)) : undefined
 
     const startIdx = offset - 1
-    const sliced = limit != null ? lines.slice(startIdx, startIdx + limit) : lines.slice(startIdx)
+    const sliced = limit !== undefined ? lines.slice(startIdx, startIdx + limit) : lines.slice(startIdx)
 
     const numbered = sliced.map((line, i) => `${offset + i}\t${line}`).join('\n')
     const totalLines = lines.length
@@ -84,7 +84,7 @@ function createFileReadHandler(cwd: string): ToolHandler {
     const shownTo = offset + sliced.length - 1
 
     let header = `${resolved} (${totalLines} lines total`
-    if (startIdx > 0 || limit != null) {
+    if (startIdx > 0 || limit !== undefined) {
       header += `, showing lines ${shownFrom}-${shownTo}`
     }
     header += ')'

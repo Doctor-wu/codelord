@@ -19,7 +19,7 @@ export function resolveModel(config: CodelordConfig): Model<Api> {
   if (!model) {
     const availableModels = models.map((candidate) => candidate.id).join(', ')
     throw new Error(
-      `Unknown model "${config.model}" for provider "${config.provider}". ` + `Available models: ${availableModels}`,
+      `Unknown model "${config.model}" for provider "${config.provider}". Available models: ${availableModels}`,
     )
   }
 

@@ -648,16 +648,16 @@ function formatLifecycleEvent(e: LifecycleTraceEvent, tag: string, L: string[], 
   if (e.question) parts.push(`"${e.question.slice(0, 60)}${e.question.length > 60 ? '\u2026' : ''}"`)
   if (e.usageSnapshot) parts.push(`${e.usageSnapshot.totalTokens}tok $${e.usageSnapshot.cost.total.toFixed(4)}`)
   if (e.interruptSource) parts.push(`source=${e.interruptSource}`)
-  if (e.requestedAt != null && e.observedAt != null) {
+  if (e.requestedAt !== undefined && e.observedAt !== undefined) {
     parts.push(`requested=${tOff(e.requestedAt, base)}`)
     parts.push(`observed=${tOff(e.observedAt, base)}`)
   }
-  if (e.latencyMs != null) parts.push(`latency=${e.latencyMs}ms`)
+  if (e.latencyMs !== undefined) parts.push(`latency=${e.latencyMs}ms`)
   L.push(parts.join('  '))
 }
 
 function seqLabel(seq: number | undefined | null): string {
-  return seq != null && !Number.isNaN(seq) ? `seq=${seq}` : ''
+  return seq !== null && seq !== undefined && !Number.isNaN(seq) ? `seq=${seq}` : ''
 }
 
 function tOff(ts: number, base: number): string {

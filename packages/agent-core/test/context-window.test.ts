@@ -32,9 +32,9 @@ describe('estimateMessageTokens', () => {
   })
 })
 
-describe('truncateMessages', () => {
-  const makeMsg = (text: string): Message => ({ role: 'user', content: text })
+const makeMsg = (text: string): Message => ({ role: 'user', content: text })
 
+describe('truncateMessages', () => {
   // Helper: small config for easy math
   const smallConfig: ContextWindowConfig = {
     maxTokens: 200,
