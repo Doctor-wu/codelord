@@ -409,13 +409,13 @@ describe('TraceStore v2', () => {
     expect(loaded!.version).toBe(2)
   })
 
-  it('listAllTraces filters by workspace id', () => {
+  it('listAllTraces filters by workspace slug', () => {
     // Set up a fake codelordHome with two workspace dirs
     const home = makeTmpDir()
     dirs.push(home)
 
-    const ws1 = join(home, 'workspaces', 'project-abc12345')
-    const ws2 = join(home, 'workspaces', 'other-def67890')
+    const ws1 = join(home, 'workspaces', 'tmp-project')
+    const ws2 = join(home, 'workspaces', 'tmp-other')
     mkdirSync(ws1, { recursive: true })
     mkdirSync(ws2, { recursive: true })
 
@@ -423,11 +423,11 @@ describe('TraceStore v2', () => {
     const store2 = new TraceStore({ workspaceDir: ws2 })
 
     const t1 = makeTrace()
-    const t2 = makeTrace({ workspaceSlug: 'other', workspaceId: 'def67890' })
+    const t2 = makeTrace({ workspaceSlug: 'other', workspaceId: 'other123' })
     store1.save(t1)
     store2.save(t2)
 
-    const filtered = listAllTraces({ codelordHome: home, workspaceId: 'abc12345' })
+    const filtered = listAllTraces({ codelordHome: home, filterSlug: 'tmp-project' })
     expect(filtered).toHaveLength(1)
     expect(filtered[0].runId).toBe(t1.runId)
   })
@@ -436,8 +436,8 @@ describe('TraceStore v2', () => {
     const home = makeTmpDir()
     dirs.push(home)
 
-    const ws1 = join(home, 'workspaces', 'project-abc12345')
-    const ws2 = join(home, 'workspaces', 'other-def67890')
+    const ws1 = join(home, 'workspaces', 'tmp-project')
+    const ws2 = join(home, 'workspaces', 'tmp-other')
     mkdirSync(ws1, { recursive: true })
     mkdirSync(ws2, { recursive: true })
 
@@ -445,7 +445,7 @@ describe('TraceStore v2', () => {
     const store2 = new TraceStore({ workspaceDir: ws2 })
 
     store1.save(makeTrace())
-    store2.save(makeTrace({ workspaceSlug: 'other', workspaceId: 'def67890' }))
+    store2.save(makeTrace({ workspaceSlug: 'other', workspaceId: 'other123' }))
 
     const all = listAllTraces({ codelordHome: home })
     expect(all).toHaveLength(2)
@@ -481,9 +481,12 @@ describe('TraceStore v2', () => {
 // ---------------------------------------------------------------------------
 
 describe('workspace utilities', () => {
-  it('workspaceSlug returns basename-hash', () => {
-    const slug = workspaceSlug('/home/user/my-project')
-    expect(slug).toMatch(/^my-project-[0-9a-f]{8}$/)
+  it('workspaceSlug flattens absolute path', () => {
+    expect(workspaceSlug('/home/user/my-project')).toBe('home-user-my-project')
+  })
+
+  it('workspaceSlug strips leading slash', () => {
+    expect(workspaceSlug('/a/b/c')).toBe('a-b-c')
   })
 
   it('workspaceId is stable 8-char hash', () => {
@@ -522,7 +525,7 @@ describe('Cross-workspace prefix matching', () => {
 
   function makeHome(): { home: string; wsDir: string } {
     const home = makeTmpDir()
-    const wsDir = join(home, 'workspaces', 'project-abc12345')
+    const wsDir = join(home, 'workspaces', 'tmp-project')
     mkdirSync(wsDir, { recursive: true })
     dirs.push(home)
     return { home, wsDir }

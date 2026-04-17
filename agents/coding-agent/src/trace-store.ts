@@ -94,23 +94,25 @@ export class TraceStore {
 // ---------------------------------------------------------------------------
 
 /** List traces across all workspaces under codelordHome. */
-export function listAllTraces(opts?: { codelordHome?: string; workspaceId?: string; limit?: number }): TraceSummary[] {
+export function listAllTraces(opts?: {
+  codelordHome?: string
+  /** Filter by workspace slug (flattened cwd). Use `workspaceSlug(cwd)` to compute. */
+  filterSlug?: string
+  limit?: number
+}): TraceSummary[] {
   const home = opts?.codelordHome ?? resolveCodelordHome()
   const workspacesRoot = join(home, 'workspaces')
   if (!existsSync(workspacesRoot)) return []
   const limit = opts?.limit ?? 20
-  const filterWsId = opts?.workspaceId
+  const filterSlug = opts?.filterSlug
   const summaries: TraceSummary[] = []
   try {
     const wsDirs = readdirSync(workspacesRoot, { withFileTypes: true })
     for (const ws of wsDirs) {
       if (!ws.isDirectory()) continue
+      if (filterSlug && ws.name !== filterSlug) continue
       const tracesPath = join(workspacesRoot, ws.name, 'traces')
       if (!existsSync(tracesPath)) continue
-      // From dir name, extract wsId (last 8 chars after final dash)
-      const dashIdx = ws.name.lastIndexOf('-')
-      const wsId = dashIdx > 0 ? ws.name.slice(dashIdx + 1) : ''
-      if (filterWsId && wsId !== filterWsId) continue
       const files = readdirSync(tracesPath).filter((f) => f.endsWith('.json'))
       for (const file of files) {
         try {
@@ -118,8 +120,8 @@ export function listAllTraces(opts?: { codelordHome?: string; workspaceId?: stri
           summaries.push({
             runId: trace.runId,
             sessionId: trace.sessionId,
-            workspaceSlug: trace.workspaceSlug ?? (dashIdx > 0 ? ws.name.slice(0, dashIdx) : ws.name),
-            workspaceId: trace.workspaceId ?? wsId,
+            workspaceSlug: trace.workspaceSlug ?? ws.name,
+            workspaceId: trace.workspaceId ?? '',
             cwd: trace.cwd,
             provider: trace.provider,
             model: trace.model,
@@ -151,17 +153,13 @@ export function findTraceByPrefix(prefix: string, codelordHome?: string): Prefix
   const home = codelordHome ?? resolveCodelordHome()
   const workspacesRoot = join(home, 'workspaces')
   if (!existsSync(workspacesRoot)) return { type: 'not_found' }
-  const candidates: { file: string; wsPath: string; runId: string; wsSlug: string; wsId: string }[] = []
+  const candidates: { file: string; wsPath: string; runId: string; wsSlug: string }[] = []
   try {
     const wsDirs = readdirSync(workspacesRoot, { withFileTypes: true })
     for (const ws of wsDirs) {
       if (!ws.isDirectory()) continue
       const tracesPath = join(workspacesRoot, ws.name, 'traces')
       if (!existsSync(tracesPath)) continue
-      const wsSlug = ws.name
-      const dashIdx = wsSlug.lastIndexOf('-')
-      const wsSlugPart = dashIdx > 0 ? wsSlug.slice(0, dashIdx) : wsSlug
-      const wsId = dashIdx > 0 ? wsSlug.slice(dashIdx + 1) : ''
       const files = readdirSync(tracesPath).filter((f) => f.endsWith('.json'))
       for (const f of files) {
         const fRunId = f.slice(0, -5)
@@ -170,7 +168,7 @@ export function findTraceByPrefix(prefix: string, codelordHome?: string): Prefix
           return { type: 'exact', trace }
         }
         if (prefix.length >= 4 && fRunId.startsWith(prefix)) {
-          candidates.push({ file: f, wsPath: tracesPath, runId: fRunId, wsSlug: wsSlugPart, wsId })
+          candidates.push({ file: f, wsPath: tracesPath, runId: fRunId, wsSlug: ws.name })
         }
       }
     }
@@ -190,12 +188,12 @@ export function findTraceByPrefix(prefix: string, codelordHome?: string): Prefix
       return {
         runId: c.runId,
         workspaceSlug: c.wsSlug,
-        workspaceId: c.wsId,
+        workspaceId: trace.workspaceId ?? '',
         startedAt: trace.startedAt,
         outcome: trace.outcome.type,
       }
     } catch {
-      return { runId: c.runId, workspaceSlug: c.wsSlug, workspaceId: c.wsId, startedAt: 0, outcome: 'unknown' }
+      return { runId: c.runId, workspaceSlug: c.wsSlug, workspaceId: '', startedAt: 0, outcome: 'unknown' }
     }
   })
   return { type: 'ambiguous', candidates: ambiguous }

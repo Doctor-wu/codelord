@@ -17,7 +17,7 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { SessionSnapshot, SessionMeta } from '@codelord/core'
 import { toSessionMeta } from '@codelord/core'
-import { resolveCodelordHome, sessionsDir as sessionsDirOf, type WorkspaceMeta } from '@codelord/config'
+import { resolveCodelordHome, sessionsDir as sessionsDirOf, touchWorkspaceMeta } from '@codelord/config'
 import type { TimelineSnapshot } from './renderer/ink/timeline-projection.js'
 
 // ---------------------------------------------------------------------------
@@ -48,7 +48,7 @@ export class SessionStore {
   /** Save a full snapshot + timeline to disk */
   save(snapshot: SessionSnapshot, timeline?: TimelineSnapshot): void {
     mkdirSync(this.baseDir, { recursive: true })
-    this.touchWorkspaceMeta(snapshot.cwd)
+    touchWorkspaceMeta(this.workspaceDir, snapshot.cwd)
 
     const dir = join(this.baseDir, snapshot.sessionId)
     mkdirSync(dir, { recursive: true })
@@ -185,22 +185,6 @@ export class SessionStore {
     if (existsSync(dir)) {
       rmSync(dir, { recursive: true, force: true })
     }
-  }
-
-  // --- Internal ---
-
-  private touchWorkspaceMeta(cwd: string): void {
-    const metaPath = join(this.workspaceDir, 'meta.json')
-    mkdirSync(this.workspaceDir, { recursive: true })
-    let existing: WorkspaceMeta | null = null
-    try {
-      existing = JSON.parse(readFileSync(metaPath, 'utf-8')) as WorkspaceMeta
-    } catch {
-      /* not exist */
-    }
-    const now = Date.now()
-    const next: WorkspaceMeta = existing ? { ...existing, lastUsedAt: now } : { cwd, createdAt: now, lastUsedAt: now }
-    writeFileSync(metaPath, JSON.stringify(next, null, 2), 'utf-8')
   }
 }
 

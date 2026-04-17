@@ -10,5 +10,6 @@ export {
   sessionsDir,
   tracesDir,
   shadowGitDir,
+  touchWorkspaceMeta,
 } from './paths.js'
 export type { WorkspaceMeta } from './paths.js'

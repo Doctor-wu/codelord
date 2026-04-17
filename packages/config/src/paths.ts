@@ -1,6 +1,7 @@
 import { homedir } from 'node:os'
-import { join, basename } from 'node:path'
+import { join } from 'node:path'
 import { createHash } from 'node:crypto'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 
 /**
  * Root directory for all codelord state.
@@ -12,17 +13,15 @@ export function resolveCodelordHome(env: NodeJS.ProcessEnv = process.env): strin
 }
 
 /**
- * Canonical workspace slug -- deterministic, short, readable.
- * Format: `{basename}-{sha256(cwd).slice(0, 8)}`.
- * basename is sanitized to `[a-zA-Z0-9._-]` and truncated to 40 chars.
+ * Canonical workspace slug -- flatten absolute path into a directory name.
+ * `/Users/foo/my-project` → `Users-foo-my-project`
+ *
+ * Deterministic, unique (1-to-1 with the original path modulo edge cases
+ * where path components contain `-`), and human-readable.
+ * The exact cwd is also stored in `meta.json` for reliable reverse lookup.
  */
 export function workspaceSlug(cwd: string): string {
-  const name =
-    basename(cwd)
-      .replace(/[^a-zA-Z0-9._-]/g, '_')
-      .slice(0, 40) || 'root'
-  const hash = createHash('sha256').update(cwd).digest('hex').slice(0, 8)
-  return `${name}-${hash}`
+  return cwd.replace(/^\//, '').replaceAll('/', '-') || 'root'
 }
 
 /** Short hash id for a workspace (8-char sha256 prefix). */
@@ -51,4 +50,24 @@ export interface WorkspaceMeta {
   cwd: string
   createdAt: number
   lastUsedAt: number
+}
+
+/**
+ * Ensure workspace meta.json exists and update `lastUsedAt`.
+ * Should be called by any code path that writes into a workspace directory
+ * (session save, trace save, checkpoint creation) so that the cwd→slug
+ * mapping is always discoverable from disk.
+ */
+export function touchWorkspaceMeta(wsDir: string, cwd: string): void {
+  const metaPath = join(wsDir, 'meta.json')
+  mkdirSync(wsDir, { recursive: true })
+  let existing: WorkspaceMeta | null = null
+  try {
+    existing = JSON.parse(readFileSync(metaPath, 'utf-8')) as WorkspaceMeta
+  } catch {
+    /* not exist */
+  }
+  const now = Date.now()
+  const next: WorkspaceMeta = existing ? { ...existing, lastUsedAt: now } : { cwd, createdAt: now, lastUsedAt: now }
+  writeFileSync(metaPath, JSON.stringify(next, null, 2), 'utf-8')
 }

@@ -1,4 +1,4 @@
-import { loadConfig, workspaceId } from '@codelord/config'
+import { loadConfig, workspaceSlug } from '@codelord/config'
 import type { CodelordConfig } from '@codelord/config'
 import { readFileSync } from 'node:fs'
 import { cac } from 'cac'
@@ -365,8 +365,8 @@ function handleTraceCommand(args: string[]): void {
     const all = flags.has('--all')
     const limitIdx = args.indexOf('--limit')
     const limit = limitIdx >= 0 && args[limitIdx + 1] ? Number(args[limitIdx + 1]) : 20
-    const wsId = all ? undefined : workspaceId(process.cwd())
-    console.log(formatTraceList(listAllTraces({ workspaceId: wsId, limit })))
+    const slug = all ? undefined : workspaceSlug(process.cwd())
+    console.log(formatTraceList(listAllTraces({ filterSlug: slug, limit })))
   } else if (sub === 'show') {
     const runId = positional[1]
     if (!runId) {
