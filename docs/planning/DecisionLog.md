@@ -6,6 +6,46 @@
 
 ---
 
+## 2026-04-17 — Eval 哲学重构：从"度量一切"收紧为"差分才是 agent eval"
+
+### 背景
+
+M3-S2（Eval 规范化 + CI + 成绩看板）关闭后，`docs/scores.md` 第一次给出了跨四套外部 benchmark 的公开分数。几乎同时，Opus 4.7 发布的 model card 覆盖了高度重合的 benchmark，由此暴露了两个结构性问题：
+
+1. **codelord 的分数与 model lab 公布的分数无法对比**：harness 不同、scaffold 不同、dataset subset 不同、甚至 retries / timeouts 都不同。在没有四轴受控的前提下，把 codelord 的数字与 model card 并排呈现，读者会自动脑补 leaderboard 语义，而这不是一次合法的 agent eval 陈述。
+2. **原 `docs/system/EVALS.md` 的 metric 表里绝大多数条目并不属于 agent eval**：`provisional_to_stable_handoff_correctness` 是状态机不变量，`queue_trace_completeness` 是 schema 完备性，`reasoning_visible_rate` 里真正可被 scaffold 影响的部分是渲染链路（test），其余是模型能力（归 model lab），`operator_trust_signal` 是 UX research。把它们伪 metric 化后，eval 指标表变成了 test + model eval + dogfood 的大杂烩，丧失了判别力。
+
+触发信号汇合点：S2 结束时"分数看起来有了，但不知道这些分数能承诺什么"这个不适感，配合 Opus 4.7 发布让叙事冲突显化，成为本次重构的直接输入。
+
+### 决策
+
+1. **确立差分立场**：只有在 **Scaffold / Model / Harness / Dataset 四轴中不超过一项变化** 的前提下得出的 A/B delta + 置信区间，才构成 agent eval 结论。绝对分数 / leaderboard 形状的陈述从产品证据链中退出。
+2. **证据三分法**：把"度量"明确拆成 test（确定性不变量）/ 差分 eval / dogfood（UX research）三类，每类用各自的工具，不再混在同一张 metric 表里。迁移默认方向：能写成 test 就写成 test；写不成 test 且依赖模型行为的，才考虑是否属于差分 eval；既不是 test 又不是差分 eval 的归入 dogfood，不在指标表里占位。
+3. **把四轴 fingerprint 烧进工具本身**：`codelord eval compare A B` 必须在实现中硬门禁——四轴指纹差超过一项则拒绝给结论，trials < 3 标注 `insufficient trials`，dataset underpowered 亦标注。不给"顺手改了 router 又改了 prompt"把 delta 误归因的机会。
+4. **EVALS.md 全文重写**：删除旧 metric 表，替换为"证据三分法 + 四轴 fingerprint + 差分硬门禁 + 证据阶梯（6 级）+ Product/Research eval 分轨 + scoreboard 语义"的立场文件。
+5. **RoadMap M3-S3 到 S6 重排**：
+   - S3 从"LLM Judge"改为"Scaffold Fingerprint + 差分地基"——是差分 eval 能运行的前置条件
+   - S4 从"实验平台"改为"Differential Runner + Experiment Config"，包含 `--trials N` / `eval compare` / scores.md 语义改写
+   - S5 变为"Test Migration + 精简 Golden Set"——把老 EVALS.md 里归类为 test 的条目搬进 `packages/*/test/`，同时建 10–20 个开放任务的小而稳的 golden set
+   - S6 降级为"事件驱动全量运行 + LLM Judge（差分限定）"——全量外部 benchmark 不再作为常驻指标，只在模型切换或重大 scaffold 变更时成对触发；LLM judge 仅以 pairwise 差分形式出现，kappa ≥ 0.6 才能进入生产
+6. **scores.md 语义改写**：在 S4 内把 scoreboard 从"当前绝对水位"改写为"在受控 scaffold profile 下，相对上一锁定 baseline 的差分快照"。每行必须携带四轴指纹。
+
+### 影响
+
+- S2 已发布的 Auto-PR 向 scores.md 写入的格式需要在 S4 内调整为差分表，老条目作为首个 baseline 留存但需补齐四轴指纹。
+- M3 后半部分的推进顺序从"填满 eval 框架"变为"先把差分地基和证据分类做对，再扩大语料库"。S3 成为 S4/S5/S6 的硬前置。
+- 旧 EVALS.md metric 表里归为 test 的项进入 S5 的迁移清单，不再期待它们在 eval 维度上产出数据；归为 dogfood 的项等待 dogfood-playbook 建成后接收。
+- 对外叙事收紧：codelord 不再声称"在 SWE-Bench 上得 X%"这类 leaderboard 形状结论，改为"在 scaffold A→B 下 delta = ±Y% [95% CI]"。这需要在面向外部的 README / scores.md 文案中体现。
+
+### 结果
+
+- `docs/system/EVALS.md` 全文重写完成
+- `docs/planning/RoadMap.md` M3 section 的 S3–S6 改写完成，M3 收口标志与"最重要的取舍"同步更新
+- 本条 DecisionLog 记录路线/框架级变更，等待 Sprint.md 选取下一冲刺时按新顺序从 S3 起
+- `docs/planning/research/eval-position.md` 需补一条 2026-04-17 addendum，说明原 2026-04-08 立场的选择 #1、#2、#3 在 S2 之后的演化
+
+---
+
 ## 2026-04-13 — CORE-R1：事件系统重构冲刺开启
 
 ### 背景

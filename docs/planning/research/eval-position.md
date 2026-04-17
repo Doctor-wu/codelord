@@ -169,3 +169,31 @@ SWE-bench 测 "在复杂 repo 里定位和修复问题" 的能力（更贴近真
 ---
 
 _这份立场说明会随着 M3 实施过程中的数据和发现持续更新。_
+
+---
+
+## Addendum — 2026-04-17：S2 之后的立场演化
+
+M3-S1 和 M3-S2 实施完后，原立场中的几条选择需要修订。触发信号是 S2 发布 `docs/scores.md` 后，公开的数字与 Opus 4.7 model card 的 benchmark 自然并排，读者会脑补 leaderboard 语义——而这不是一次合法的 agent eval 陈述。结合老 `EVALS.md` metric 表里大部分条目其实是 test / 模型评测 / dogfood 的复盘，我们把 eval 立场从"度量一切"收紧为"差分才是 agent eval"。
+
+### 对原选择的修订
+
+**选择 1（测模型裸能力 vs 测产品能力）** — 原立场是"两者都做"。现修订为：两者都做但**都以差分形式呈现**，不作为绝对水位的陈述依据。用 mini-SWE-agent 与 codelord scaffold 做对比时，明确是"scaffold 轴的差分"而不是"codelord 的绝对能力"。
+
+**选择 2（外部 benchmark vs 内部 golden set）** — 原立场是"先用外部 bootstrap，再建内部 golden set"。S1 之后这一步的第一阶段已完成，但 S2 暴露的问题让我们把"内部 golden set"的形态明确为："10–20 个开放任务、deterministic grader、每次改动跑的小而稳的 product eval"。外部 benchmark 则降级为"事件驱动全量运行"，只在模型切换或重大 scaffold 改动时以 A/B 形式触发，不进入周期性指标表。
+
+**选择 3（LLM-as-Judge 边界）** — 原立场是"M3 前期不引入、后期服务 reasoning / code quality"。现进一步收紧：LLM judge 即便在后期进入，也**只以 pairwise 差分形式出现**，绝不作为绝对打分器；且必须先通过 kappa ≥ 0.6 的人类校准门槛才能在生产使用。否则留在 research 轨上。
+
+**选择 4（不自建 eval 平台）** — 维持原立场。但"内置 CLI 命令"的具体形态被补齐：`codelord eval run / compare / experiment / fingerprint diff`，其中 `eval compare` **必须**在实现中硬门禁四轴 fingerprint 差不超过一项，否则拒绝结论。这一条是 S3/S4 的主要交付物，不再只是"按需扩展"的口号。
+
+### 新增立场：四轴 Fingerprint 是差分 eval 的物理基础
+
+原立场没有明确"如何让一组分数变得可比"。新增规则：任何一次 eval run 的结果必须被 **Scaffold / Model / Harness / Dataset** 四个正交轴 pin 住，分离"静态 scaffold 指纹"和"有效 prompt 指纹"（后者含 runtime 输入，仅用于 debug 单次 run）。四轴以命名 profile（YAML）的形式版本化管理，一次 experiment 是 scaffold × model × harness × dataset 的四元组。
+
+### 新增立场：证据三分法
+
+原立场没有明确区分 test / 差分 eval / dogfood。新增规则：面对任何"要度量 X"的主张，先做三分类判定，然后用该类对应的工具而不是硬塞进 eval。迁移默认方向：能写成 test 就写成 test；写不成 test 且依赖模型行为的，才考虑是否属于差分 eval；既不是 test 又不是差分 eval 的，归入 dogfood，不在指标表里占位。
+
+完整立场写入 `docs/system/EVALS.md`，原立场说明（本文件正文部分）保留为历史上下文，不再作为当前权威。
+
+_本 addendum 生效后，正文中与本 addendum 冲突的判断以 addendum + EVALS.md 为准。_
