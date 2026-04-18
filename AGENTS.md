@@ -26,8 +26,9 @@
 6. `docs/system/DesignPrinciples.md`
 7. `docs/system/EVALS.md`
 8. `docs/planning/RoadMap.md`
-9. `docs/planning/DecisionLog.md`
-10. `README.md`
+9. `docs/adr/NNNN-*.md`
+10. `docs/planning/DecisionLog.md`
+11. `README.md`
 
 如果两份文档冲突，以此列表中排位更高的为准。
 当前 sprint 排序优先于 roadmap 排序。
@@ -56,7 +57,8 @@
 | `AGENTS.md`                          | Agent 入口规则、阅读顺序、权威顺序、文档路由       | 长篇哲学论述、sprint 内部细节、模块内部细节 |
 | `docs/planning/RoadMap.md`           | 长期能力地图、里程碑意图、硬性门槛                 | 短半衰期的执行排序                          |
 | `docs/planning/Sprint.md`            | 当前 sprint 合约、进度、未关闭缺口、下一切片       | 完整历史归档                                |
-| `docs/planning/DecisionLog.md`       | 优先级或框架变更的原因记录                         | 规范性执行规则                              |
+| `docs/planning/DecisionLog.md`       | 路线/框架级变更的原因记录（"为什么 roadmap 改了"） | 具体字段边界/迁移方案（写进 ADR）           |
+| `docs/adr/NNNN-*.md`                 | 具体技术决策：字段边界、迁移路径、接口形状         | 路线级变更；sprint 内部进度；跨领域设计原则 |
 | `docs/planning/archive/sprints/*.md` | 已完成 sprint 的历史归档                           | 当前活跃 sprint                             |
 | `docs/system/ARCHITECTURE.md`        | 稳定分层、依赖方向、source-of-truth 规则、系统流程 | 临时 workaround、当前 sprint 排序           |
 | `docs/system/DesignPrinciples.md`    | 跨领域设计规则与权衡                               | 目录级别的编辑指令                          |
@@ -96,6 +98,7 @@
 - 当前 sprint 范围/进度变更 → 更新 `docs/planning/Sprint.md`。
 - 如果不可避免的妥协影响了产品化计划，直接更新 `docs/planning/RoadMap.md` 对应章节和 `docs/planning/Sprint.md`。
 - 长期里程碑意图变更 → 更新 `docs/planning/RoadMap.md`；如果原因重要，同时更新 `docs/planning/DecisionLog.md`。
+- 具体技术决策（字段边界、接口形状、迁移方案）→ 新起一份 `docs/adr/NNNN-*.md`；若同时触发路线变更，在 `docs/planning/DecisionLog.md` 也写一条指向该 ADR 的指针。
 - 包级局部规则变更 → 更新最近的 scoped `AGENTS.md`。
 
 ## 变更卫生

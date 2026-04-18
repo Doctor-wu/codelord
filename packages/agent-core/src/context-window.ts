@@ -1,7 +1,9 @@
 // ---------------------------------------------------------------------------
-// Context Window Management — token estimation & message truncation
+// Context Window Management — token estimation, truncation, and the
+// ContextStrategy carrier (used by AgentRuntime + scaffold fingerprint).
 // ---------------------------------------------------------------------------
 
+import { createHash } from 'node:crypto'
 import type { Message } from '@mariozechner/pi-ai'
 
 // ---------------------------------------------------------------------------
@@ -17,6 +19,9 @@ export const DEFAULT_CONTEXT_WINDOW: ContextWindowConfig = {
   maxTokens: 128_000,
   reservedOutputTokens: 4096,
 }
+
+/** Bump when truncation algorithm semantics change. */
+export const CONTEXT_STRATEGY_VERSION = 'v1'
 
 // ---------------------------------------------------------------------------
 // Token estimation (chars / 4 — intentionally coarse)
@@ -58,11 +63,11 @@ export interface TruncationResult {
 
 const MIN_KEEP = 4
 
-export function truncateMessages(
+function truncateImpl(
   messages: Message[],
   systemPromptTokens: number,
   toolsTokens: number,
-  config: ContextWindowConfig = DEFAULT_CONTEXT_WINDOW,
+  config: ContextWindowConfig,
 ): TruncationResult {
   const available = config.maxTokens - systemPromptTokens - toolsTokens - config.reservedOutputTokens
 
@@ -114,4 +119,47 @@ export function truncateMessages(
   budget.messagesAfterTruncation = kept.length
 
   return { messages: kept, wasTruncated: droppedCount > 0, droppedCount, droppedTokens, budget }
+}
+
+// ---------------------------------------------------------------------------
+// ContextStrategy — instance carrier for truncation + fingerprint
+// ---------------------------------------------------------------------------
+
+export class ContextStrategy {
+  readonly config: ContextWindowConfig
+
+  constructor(config: ContextWindowConfig = DEFAULT_CONTEXT_WINDOW) {
+    this.config = config
+  }
+
+  truncate(messages: Message[], systemPromptTokens: number, toolsTokens: number): TruncationResult {
+    return truncateImpl(messages, systemPromptTokens, toolsTokens, this.config)
+  }
+
+  /**
+   * Static fingerprint — hashes the merged ContextWindowConfig + algorithm
+   * version constant. Stable across runs with the same config.
+   */
+  fingerprint(): string {
+    const input = JSON.stringify({
+      maxTokens: this.config.maxTokens,
+      reservedOutputTokens: this.config.reservedOutputTokens,
+      version: CONTEXT_STRATEGY_VERSION,
+    })
+    return createHash('sha256').update(input).digest('hex').slice(0, 16)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Backward-compat wrapper — delegates to ContextStrategy.truncate
+// ---------------------------------------------------------------------------
+
+/** @deprecated Use ContextStrategy.truncate. Kept temporarily for back-compat. */
+export function truncateMessages(
+  messages: Message[],
+  systemPromptTokens: number,
+  toolsTokens: number,
+  config: ContextWindowConfig = DEFAULT_CONTEXT_WINDOW,
+): TruncationResult {
+  return new ContextStrategy(config).truncate(messages, systemPromptTokens, toolsTokens)
 }

@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import type { Api, Model } from '@mariozechner/pi-ai'
-import { AgentRuntime } from '@codelord/core'
+import { AgentRuntime, ContextStrategy, ToolRegistry } from '@codelord/core'
 import type { LifecycleEvent, RunOutcome, ToolCallStats, RouteHitStats, AgentLifecycleCallbacks } from '@codelord/core'
 import type { TraceRunV2 } from '@codelord/core'
 import { DEFAULT_CONTEXT_WINDOW } from '@codelord/core'
@@ -12,6 +12,7 @@ import { resolveCodelordHome, workspaceDir as workspaceDirOf, workspaceSlug, wor
 import type { CodelordConfig } from '@codelord/config'
 import { createToolKernel } from './tool-kernel.js'
 import { buildSystemPrompt } from './system-prompt.js'
+import { buildScaffoldFingerprint } from './scaffold-fingerprint.js'
 import { TraceRecorder } from '../trace-recorder.js'
 import { TraceStore } from '../trace-store.js'
 import { withProviderAuthEnv } from '../auth/provider-env.js'
@@ -71,6 +72,19 @@ export async function runHeadless(options: HeadlessRunOptions): Promise<Headless
   const contextWindowConfig: ContextWindowConfig = {
     maxTokens: config.contextWindow?.maxTokens ?? DEFAULT_CONTEXT_WINDOW.maxTokens,
     reservedOutputTokens: config.contextWindow?.reservedOutputTokens ?? DEFAULT_CONTEXT_WINDOW.reservedOutputTokens,
+  }
+
+  // Scaffold fingerprint (debug-only printout for now; T3 will wire it into trace)
+  if (process.env.CODELORD_DEBUG_FINGERPRINT) {
+    const toolRegistry = new ToolRegistry({ tools, contracts })
+    const contextStrategy = new ContextStrategy(contextWindowConfig)
+    const scaffoldFingerprint = buildScaffoldFingerprint({
+      toolRegistry,
+      router,
+      safetyPolicy,
+      contextStrategy,
+    })
+    console.error('[scaffold-fingerprint]', JSON.stringify(scaffoldFingerprint, null, 2))
   }
 
   // Trace infrastructure

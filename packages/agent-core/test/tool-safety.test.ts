@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vite-plus/test'
-import { ToolSafetyPolicy } from '../src/tool-safety.js'
+import { ToolSafetyPolicy, normalizeHomePath } from '../src/tool-safety.js'
 
 describe('ToolSafetyPolicy', () => {
   const policy = new ToolSafetyPolicy({ cwd: '/tmp/project' })
@@ -286,5 +286,68 @@ describe('ToolSafetyPolicy', () => {
       expect(d.allowed).toBe(true)
       expect(d.ruleId).toBe('unknown_tool_default')
     })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// HOME normalization — required for cross-machine fingerprint stability
+// ---------------------------------------------------------------------------
+
+describe('normalizeHomePath', () => {
+  it('rewrites HOME root to "~"', () => {
+    expect(normalizeHomePath('/Users/alice', '/Users/alice')).toBe('~')
+  })
+
+  it('rewrites HOME-prefixed paths to "~/..." form', () => {
+    expect(normalizeHomePath('/Users/alice/.ssh', '/Users/alice')).toBe('~/.ssh')
+    expect(normalizeHomePath('/home/bob/.gnupg', '/home/bob')).toBe('~/.gnupg')
+  })
+
+  it('leaves non-HOME absolute paths untouched', () => {
+    expect(normalizeHomePath('/etc', '/Users/alice')).toBe('/etc')
+    expect(normalizeHomePath('/System/Library', '/home/bob')).toBe('/System/Library')
+  })
+
+  it('does not match paths sharing a HOME-like prefix that is not actually HOME', () => {
+    // /Users/aliceland is NOT under /Users/alice
+    expect(normalizeHomePath('/Users/aliceland/.ssh', '/Users/alice')).toBe('/Users/aliceland/.ssh')
+  })
+
+  it('produces identical normalized prefixes across two simulated HOME values', () => {
+    const a = normalizeHomePath('/Users/alice/.ssh', '/Users/alice')
+    const b = normalizeHomePath('/home/bob/.ssh', '/home/bob')
+    expect(a).toBe(b)
+  })
+})
+
+describe('ToolSafetyPolicy.fingerprint', () => {
+  it('returns a stable 16-char hex hash', () => {
+    const policy = new ToolSafetyPolicy({ cwd: '/tmp/project' })
+    const fp = policy.fingerprint()
+    expect(fp).toMatch(/^[0-9a-f]{16}$/)
+    // Stability across calls
+    expect(policy.fingerprint()).toBe(fp)
+  })
+
+  it('is independent of cwd (runtime scope, not scaffold)', () => {
+    const a = new ToolSafetyPolicy({ cwd: '/tmp/a' }).fingerprint()
+    const b = new ToolSafetyPolicy({ cwd: '/var/b' }).fingerprint()
+    expect(a).toBe(b)
+  })
+
+  it('changes when plugin-injected riskMap differs (merged-policy semantics)', () => {
+    const base = new ToolSafetyPolicy({ cwd: '/tmp' }).fingerprint()
+    const withPlugin = new ToolSafetyPolicy({ cwd: '/tmp', riskMap: { weird: 'write' } }).fingerprint()
+    expect(withPlugin).not.toBe(base)
+  })
+
+  it('AskUserQuestion is always clamped to control regardless of input', () => {
+    const clampAttempt = new ToolSafetyPolicy({
+      cwd: '/tmp',
+      riskMap: { AskUserQuestion: 'dangerous' },
+    }).fingerprint()
+    const defaultControl = new ToolSafetyPolicy({ cwd: '/tmp' }).fingerprint()
+    // Both merge to AskUserQuestion:control, so fingerprints match.
+    expect(clampAttempt).toBe(defaultControl)
   })
 })

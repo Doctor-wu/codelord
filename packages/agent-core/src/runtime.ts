@@ -32,7 +32,7 @@ import { InterruptController } from './interrupt-controller.js'
 import { ReasoningManager, sanitizeDisplayReason } from './reasoning-manager.js'
 import type { ReasoningLevel } from './reasoning-manager.js'
 import type { ContextWindowConfig } from './context-window.js'
-import { DEFAULT_CONTEXT_WINDOW, estimateTokens, truncateMessages } from './context-window.js'
+import { ContextStrategy, DEFAULT_CONTEXT_WINDOW, estimateTokens } from './context-window.js'
 import { ToolStatsTracker } from './tool-stats.js'
 import { resolveModelCapabilities } from './model-capabilities.js'
 import type { ModelCapabilities } from './model-capabilities.js'
@@ -154,6 +154,7 @@ export class AgentRuntime<TApi extends Api = Api> {
   private readonly _cacheRetention: CacheRetention | undefined
   private readonly emitProviderStream: ((event: ProviderStreamTraceEvent) => void) | undefined
   private readonly contextWindowConfig: ContextWindowConfig
+  private readonly contextStrategy: ContextStrategy
   private readonly _capabilities: ModelCapabilities
 
   // --- Observability side-channels ---
@@ -188,6 +189,7 @@ export class AgentRuntime<TApi extends Api = Api> {
         options.contextWindow?.reservedOutputTokens ??
         Math.min(this._capabilities.maxOutputTokens, DEFAULT_CONTEXT_WINDOW.reservedOutputTokens),
     }
+    this.contextStrategy = new ContextStrategy(this.contextWindowConfig)
     this.reasoningMgr = new ReasoningManager(options.reasoningLevel ?? this._capabilities.defaultReasoningLevel)
     this._lifecycle = options.lifecycle ?? {}
   }
@@ -500,7 +502,7 @@ export class AgentRuntime<TApi extends Api = Api> {
       const allTools = [...this.tools, askUserQuestionTool]
       const systemPromptTokens = estimateTokens(this.systemPrompt)
       const toolsTokens = estimateTokens(JSON.stringify(allTools))
-      const truncation = truncateMessages(this.messages, systemPromptTokens, toolsTokens, this.contextWindowConfig)
+      const truncation = this.contextStrategy.truncate(this.messages, systemPromptTokens, toolsTokens)
       if (truncation.wasTruncated) {
         this.emitLifecycle({
           type: 'context_truncated',

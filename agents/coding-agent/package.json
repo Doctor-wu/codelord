@@ -18,13 +18,14 @@
     "dev": "tsx --env-file=../../.env src/index.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vp test run",
+    "test:watch": "vp test"
   },
   "dependencies": {
     "@clack/prompts": "^1.1.0",
     "@codelord/config": "workspace:*",
     "@codelord/core": "workspace:*",
+    "@codelord/evals-shared": "workspace:*",
     "@codelord/tools": "workspace:*",
     "@mariozechner/pi-ai": "^0.64.0",
     "cac": "^7.0.0",

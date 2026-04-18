@@ -9,5 +9,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "render-summary": "tsx src/cli-render-summary.ts"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
   }
 }

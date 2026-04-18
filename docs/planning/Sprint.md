@@ -65,7 +65,7 @@ M3-S2（Eval 规范化 + CI + 成绩看板）已关闭。
 
 ### T1：四轴 Fingerprint JSON Schema
 
-**状态**：🔵 未开始
+**状态**：✅ 完成 — 2026-04-18
 
 **目标**：固化四轴 fingerprint 的字段边界，作为后续所有工作的 schema 基石。
 
@@ -96,7 +96,7 @@ M3-S2（Eval 规范化 + CI + 成绩看板）已关闭。
 
 ### T2：Core 模块 `.fingerprint()` + Scaffold 静态指纹聚合
 
-**状态**：🔵 未开始
+**状态**：✅ 完成 — 2026-04-18
 
 **目标**：让每个进入 scaffold 轴的 core 模块都暴露稳定的静态 hash，再聚合为 `ScaffoldFingerprint`。静态指纹**不包含** cwd、用户输入、session 上下文。
 

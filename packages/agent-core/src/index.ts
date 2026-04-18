@@ -31,13 +31,14 @@ export type { ReasoningVisibility } from './reasoning-manager.js'
 export { resolveModelCapabilities } from './model-capabilities.js'
 export type { ModelCapabilities } from './model-capabilities.js'
 
-export { ToolRouter } from './tool-router.js'
+export { ToolRouter, TOOL_ROUTER_RULES_VERSION } from './tool-router.js'
 export type { ToolRouteDecision, ContractRouteHints, ArgMisusePattern } from './tool-router.js'
 
-export { ToolSafetyPolicy } from './tool-safety.js'
+export { ToolSafetyPolicy, normalizeHomePath } from './tool-safety.js'
 export type { RiskLevel, ToolSafetyDecision } from './tool-safety.js'
 
-export { assertUniqueToolNames, assertUniqueContractToolNames } from './tool-registry.js'
+export { assertUniqueToolNames, assertUniqueContractToolNames, ToolRegistry } from './tool-registry.js'
+export type { ToolRegistryInput } from './tool-registry.js'
 
 export type { ToolPlugin, ToolPluginContext } from './tool-plugin.js'
 
@@ -95,7 +96,14 @@ export type {
 } from './trace.js'
 export { normalizeTrace } from './trace.js'
 
-export { estimateTokens, estimateMessageTokens, truncateMessages, DEFAULT_CONTEXT_WINDOW } from './context-window.js'
+export {
+  estimateTokens,
+  estimateMessageTokens,
+  truncateMessages,
+  DEFAULT_CONTEXT_WINDOW,
+  ContextStrategy,
+  CONTEXT_STRATEGY_VERSION,
+} from './context-window.js'
 export type { ContextWindowConfig, TruncationResult } from './context-window.js'
 
 export { ToolStatsTracker } from './tool-stats.js'

@@ -1,5 +1,18 @@
 import { resolve, isAbsolute } from 'node:path'
 import { homedir } from 'node:os'
+import { createHash } from 'node:crypto'
+
+// ---------------------------------------------------------------------------
+// HOME path normalization — used by safety fingerprint to keep cross-machine
+// fingerprints stable. Exported as a pure function so tests can mock homedir().
+// ---------------------------------------------------------------------------
+
+/** Normalize paths containing homedir() to use ~ prefix. */
+export function normalizeHomePath(p: string, home: string = homedir()): string {
+  if (p === home) return '~'
+  if (p.startsWith(home + '/')) return '~' + p.slice(home.length)
+  return p
+}
 
 // ---------------------------------------------------------------------------
 // Risk levels
@@ -331,5 +344,28 @@ export class ToolSafetyPolicy {
       ruleId: 'unknown_tool_default',
       reason: `Unknown tool "${toolName}" defaults to write`,
     }
+  }
+
+  /**
+   * Static fingerprint — hashes the effective safety policy:
+   * the merged riskMap (DEFAULT_RISK + plugin-injected overrides +
+   * AskUserQuestion:control clamp), SENSITIVE_PREFIXES (HOME-normalized),
+   * and SAFE_COMMAND_PREFIXES. Stable across machines because HOME paths
+   * are rewritten to "~" before hashing; stable across runs when plugin
+   * set + per-tool risk levels are unchanged.
+   *
+   * See ADR-0001 2026-04-18 addendum §safetyPolicyHash for the rationale
+   * behind hashing the merged map (rather than just module constants).
+   */
+  fingerprint(): string {
+    const normalizedSensitive = SENSITIVE_PREFIXES.map((p) => normalizeHomePath(p)).toSorted()
+    const sortedRisk = Object.fromEntries(Object.entries(this.riskMap).toSorted(([a], [b]) => a.localeCompare(b)))
+    const sortedSafeCmd = [...SAFE_COMMAND_PREFIXES].toSorted()
+    const input = JSON.stringify({
+      risk: sortedRisk,
+      sensitive: normalizedSensitive,
+      safeCmd: sortedSafeCmd,
+    })
+    return createHash('sha256').update(input).digest('hex').slice(0, 16)
   }
 }

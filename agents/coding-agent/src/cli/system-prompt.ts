@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { ToolContract } from '@codelord/core'
 
 // ---------------------------------------------------------------------------
@@ -52,6 +53,16 @@ function buildToolGuidanceSection(contracts: readonly ToolContract[]): string {
   }
 
   return lines.join('\n')
+}
+
+/**
+ * Static system-prompt fingerprint — hashes the role section + tool guidance
+ * skeleton (with cwd replaced by a literal placeholder and contracts emptied).
+ * Cwd / contracts are tracked by separate axes per ADR-0001.
+ */
+export function buildSystemPromptStaticFingerprint(): string {
+  const skeleton = buildSystemPrompt({ cwd: '<STATIC>', contracts: [] })
+  return createHash('sha256').update(skeleton).digest('hex').slice(0, 16)
 }
 
 function renderContract(c: ToolContract): string {

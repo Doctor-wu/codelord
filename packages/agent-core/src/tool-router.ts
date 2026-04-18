@@ -2,7 +2,15 @@
 // Tool Router v2 — semantic routing + contracts integration
 // ---------------------------------------------------------------------------
 
+import { createHash } from 'node:crypto'
 import type { ToolContract } from './tools/tool-contract.js'
+
+/**
+ * Bump this manually whenever router rule semantics change.
+ * Kept as a constant rather than file-content hash so cosmetic
+ * formatting doesn't trigger spurious fingerprint churn.
+ */
+export const TOOL_ROUTER_RULES_VERSION = '2026-04-18-v1'
 
 // ---------------------------------------------------------------------------
 // Route decision — the output of routing a single tool call
@@ -483,5 +491,16 @@ export class ToolRouter {
 
     // No rule matched — pass through
     return { ...base, resolvedToolName: toolName, resolvedArgs: args, wasRouted: false, ruleId: null, reason: null }
+  }
+
+  /**
+   * Static fingerprint — hashes the sorted rule id list plus the version
+   * constant. Independent of rule registration order; bumps only when the
+   * version constant moves.
+   */
+  fingerprint(): string {
+    const ruleIds = this.rules.map((r) => r.id).toSorted()
+    const input = JSON.stringify({ ruleIds, version: TOOL_ROUTER_RULES_VERSION })
+    return createHash('sha256').update(input).digest('hex').slice(0, 16)
   }
 }
