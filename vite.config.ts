@@ -3,7 +3,7 @@ import { defineConfig } from 'vite-plus'
 export default defineConfig({
   test: {
     globals: true,
-    exclude: ['**/node_modules/**', 'dist/**', 'evals/terminal-bench/bundle/**', 'evals/polyglot/data/benchmarks/**'],
+    exclude: ['**/node_modules/**', 'dist/**', 'evals/terminal-bench/bundle/**', 'evals/polyglot/data/**'],
   },
   lint: {
     categories: {
